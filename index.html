@@ -2072,6 +2072,7 @@ function rendrePressing(){
         <div class="meta">Avance ${t.avance} / ${t.prix} D ${reste>0 ? '· Reste '+reste+' D' : '· Payé en totalité'}</div>
         <select class="statut-select" onchange="changerStatutPressing('${t.id}',this.value)">${opts}</select>
         <div class="item-actions">
+          ${reste>0 ? `<button onclick="marquerSoldePayePressing('${t.id}')" style="color:var(--vert);border-color:rgba(63,174,92,0.4);">💰 Solde payé (${reste} D)</button>` : ''}
           ${t.statut==='En lavage' && t.tel ? `<button onclick="notifierLavageEnCours('${t.id}')" style="color:#d98c2b;border-color:rgba(217,140,43,0.4);">🟡 En lavage</button>` : ''}
           ${t.statut==='En repassage' && t.tel ? `<button onclick="notifierRepassageEnCours('${t.id}')" style="color:#d98c2b;border-color:rgba(217,140,43,0.4);">🟡 En repassage</button>` : ''}
           ${t.statut==='Prêt' && t.tel ? `<button onclick="notifierVetementsPrets('${t.id}')" style="color:var(--vert);border-color:rgba(63,174,92,0.4);">🟢 Vêtements Prêts</button>` : ''}
@@ -2219,6 +2220,15 @@ function afficherEcranSucces(titre, sousTitre){
   document.body.appendChild(overlay);
 }
 function cloturerLaJournee(){
+  /* La clôture est définitive et envoie immédiatement un message au propriétaire —
+     on la limite donc à la vraie fenêtre de fermeture (18h-19h) pour éviter
+     qu'un manager ne clôture la journée par erreur trop tôt, alors qu'elle
+     n'est pas encore terminée. */
+  const heureActuelle = new Date().getHours();
+  if(heureActuelle < 18 || heureActuelle >= 19){
+    toast('⛔ La clôture n\'est possible qu\'entre 18h00 et 19h00 — la journée n\'est pas encore terminée');
+    return;
+  }
   const num = numeroProprietaire();
   if(!num){ toast('Numéro du propriétaire non configuré — clôture annulée'); return; }
   const aujourdhui = dateAujourdhui();
@@ -2239,7 +2249,7 @@ function cloturerLaJournee(){
   );
   const lien = lienWhatsApp(num, msg);
   if(lien){
-    if(confirm('Envoyer le résumé de clôture par WhatsApp au propriétaire ?')){
+    if(confirm('Envoyer le résumé de clôture par WhatsApp au propriétaire ?\nCette action est définitive.')){
       afficherEcranSucces('Journée clôturée avec succès', 'Total reçu: '+totalRecu+' D — Solde net: '+solde+' D');
       setTimeout(()=>{ window.location.href = lien; }, 1200);
     }
