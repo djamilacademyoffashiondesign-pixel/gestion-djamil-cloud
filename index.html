@@ -762,7 +762,11 @@ function ecrireAvecSecours(nomCollection, donnees, libelleErreur){
   liste.push({idLocal, donnees: donneesSecours, enCours:true});
   sauvegarderListeSecours(nomCollection, liste);
 
-  const promesse = db.collection(nomCollection).add(donnees);
+  /* Utilise un identifiant fixe (idLocal) comme ID du document au lieu de add()
+     (ID aléatoire) : si la page se recharge avant la confirmation et que l'app
+     renvoie cette même donnée par sécurité, set() sur le même ID écrase le même
+     document au lieu d'en créer un second — ceci élimine les doublons. */
+  const promesse = db.collection(nomCollection).doc(idLocal).set(donnees);
   promesse.then(()=>{
     retirerDeSecours(nomCollection, idLocal);
   }).catch(err=>{
@@ -807,7 +811,7 @@ function resynchroniserSecours(){
       marquerEnCoursSecours(nomCollection, item.idLocal, true);
       const donnees = Object.assign({}, item.donnees);
       donnees.creeLe = firebase.firestore.FieldValue.serverTimestamp();
-      db.collection(nomCollection).add(donnees).then(()=>{
+      db.collection(nomCollection).doc(item.idLocal).set(donnees).then(()=>{
         retirerDeSecours(nomCollection, item.idLocal);
         toast('✅ Donnée en attente synchronisée');
       }).catch(err=>{
