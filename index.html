@@ -2650,6 +2650,26 @@ function dansLesNJours(dateISO, n){
   limite.setHours(0,0,0,0);
   return cible>=limite;
 }
+/* Semaine commerciale du lundi au samedi (le dimanche n'appartient à aucune
+   semaine, l'atelier étant fermé ce jour-là). Le lundi de la semaine en cours
+   est calculé à partir d'aujourd'hui, puis la fenêtre s'étend jusqu'au samedi
+   inclus (donc jusqu'au dimanche suivant exclu). */
+function lundiDeLaSemaineEnCours(){
+  const d = new Date();
+  const jour = d.getDay(); // 0=dimanche, 1=lundi, ..., 6=samedi
+  const decalage = (jour===0) ? -6 : 1-jour; // recule jusqu'au lundi
+  d.setDate(d.getDate()+decalage);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function dansLaSemaineEnCours(dateISO){
+  if(!dateISO) return false;
+  const cible = new Date(dateISO);
+  const lundi = lundiDeLaSemaineEnCours();
+  const dimancheSuivant = new Date(lundi);
+  dimancheSuivant.setDate(dimancheSuivant.getDate()+6);
+  return cible>=lundi && cible<dimancheSuivant;
+}
 function dansLeMoisEnCours(dateISO){
   if(!dateISO) return false;
   const cible = new Date(dateISO);
@@ -2670,7 +2690,7 @@ function rendreBilanFinances(){
   }
 
   const jour = totaux(d=>d===aujourdhuiISO);
-  const semaine = totaux(d=>dansLesNJours(d,7));
+  const semaine = totaux(d=>dansLaSemaineEnCours(d));
   const mois = totaux(d=>dansLeMoisEnCours(d));
 
   function ligne(titre, bloc){
@@ -2680,7 +2700,7 @@ function rendreBilanFinances(){
       <div class="meta" style="color:${bloc.solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${bloc.solde} D</div>
     </div>`;
   }
-  zone.innerHTML = ligne('Aujourd\'hui', jour) + ligne('7 derniers jours', semaine) + ligne('Mois en cours', mois);
+  zone.innerHTML = ligne('Aujourd\'hui', jour) + ligne('Semaine (lun. → sam.)', semaine) + ligne('Mois en cours', mois);
 }
 
 /* ================= ÉCOUTEURS TEMPS RÉEL ================= */
