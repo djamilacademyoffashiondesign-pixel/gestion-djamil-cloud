@@ -932,14 +932,15 @@ function dateISOAujourdhui(){
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
-function enregistrerTransaction(montant, source, description){
+function enregistrerTransaction(montant, source, description, dateISOPersonnalisee){
   if(!montant || montant<=0) return Promise.resolve();
+  const dateISO = dateISOPersonnalisee || dateISOAujourdhui();
   return ecrireAvecSecours('transactions', {
     montant,
     source,
     description: description||'',
-    dateISO: dateISOAujourdhui(),
-    date: new Date().toLocaleDateString('fr-FR'),
+    dateISO,
+    date: new Date(dateISO+'T12:00:00').toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   }, 'La recette n\'a pas pu être synchronisée en ligne');
 }
@@ -1402,7 +1403,7 @@ async function ajouterCommande(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('commandes_couture', cmd, 'La commande n\'a pas pu être synchronisée en ligne');
-    enregistrerTransaction(acompte, 'Atelier', nom+' — '+code);
+    enregistrerTransaction(acompte, 'Atelier', nom+' — '+code, cmd.depot||null);
     if(typeCommandeActuel!=='Retouche'){
       synchroniserCarnetAdresses(nom, cmd.tel, genreActuel, mesures).catch(err=>console.error('Le carnet d\'adresses n\'a pas pu être synchronisé', err));
     } else {
@@ -1876,7 +1877,7 @@ async function ajouterTicket(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('depots_pressing', t, 'Le ticket n\'a pas pu être synchronisé en ligne');
-    enregistrerTransaction(avance, 'Pressing', nom+' — '+code);
+    enregistrerTransaction(avance, 'Pressing', nom+' — '+code, t.depot||null);
     viderChamps(['p-nom','p-tel','p-avance','p-depot','p-retrait']);
     document.getElementById('p-photo').value='';
     panierPressing={};
