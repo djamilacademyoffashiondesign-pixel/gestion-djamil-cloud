@@ -945,15 +945,19 @@ function enregistrerTransaction(montant, source, description){
 }
 /* Enregistre une correction financière (peut être positive ou négative),
    utilisée quand on corrige une erreur de saisie d'avance après coup,
-   pour que le bilan Finances reste exact sans jamais supprimer de commande. */
-function enregistrerAjustementFinance(montantDelta, source, description){
+   pour que le bilan Finances reste exact sans jamais supprimer de commande.
+   dateISOPersonnalisee (optionnel) : permet de dater la correction au jour
+   où l'argent a réellement été reçu (ex: hier), plutôt que toujours "aujourd'hui" —
+   utile pour ne pas fausser le bilan du jour quand on répare une saisie ancienne. */
+function enregistrerAjustementFinance(montantDelta, source, description, dateISOPersonnalisee){
   if(!montantDelta) return Promise.resolve();
+  const dateISO = dateISOPersonnalisee || dateISOAujourdhui();
   return ecrireAvecSecours('transactions', {
     montant: montantDelta,
     source,
     description: description||'',
-    dateISO: dateISOAujourdhui(),
-    date: new Date().toLocaleDateString('fr-FR'),
+    dateISO,
+    date: new Date(dateISO+'T12:00:00').toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   }, 'La correction financière n\'a pas pu être synchronisée');
 }
@@ -1490,8 +1494,11 @@ async function enregistrerClientHistoriqueAtelier(){
 function changerStatutAtelier(id,statut){
   db.collection('commandes_couture').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
 }
-/* Corrections rapides, sans jamais supprimer la commande : */
+/* Corrections rapides, sans jamais supprimer la commande.
+   Protégées par le code administrateur pour qu'un manager ne puisse pas
+   modifier les coordonnées ou les paiements d'un client sans autorisation. */
 function corrigerTelephoneAtelier(id){
+  if(!demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
   const nouveau = prompt('Corriger le téléphone de '+c.nom+' :', c.tel||'');
@@ -1502,17 +1509,20 @@ function corrigerTelephoneAtelier(id){
   toast('Téléphone corrigé');
 }
 function corrigerAvanceAtelier(id){
+  if(!demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
   const saisie = prompt('Corriger le montant de l\'avance reçue pour '+c.nom+' (actuellement '+c.acompte+' D) :', c.acompte);
   if(saisie===null) return;
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
+  const dateSaisie = prompt('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
+  if(dateSaisie===null) return;
   const difference = nouveauMontant - c.acompte;
   c.acompte = nouveauMontant;
   rendreAtelier();
   db.collection('commandes_couture').doc(id).update({acompte:nouveauMontant}).catch(err=>console.error('Erreur correction avance', err));
-  enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)');
+  enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)', dateSaisie.trim());
   toast('Avance corrigée');
 }
 function marquerSoldePayeAtelier(id){
@@ -1949,8 +1959,11 @@ async function enregistrerClientHistoriquePressing(){
 function changerStatutPressing(id,statut){
   db.collection('depots_pressing').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
 }
-/* Corrections rapides, sans jamais supprimer le ticket : */
+/* Corrections rapides, sans jamais supprimer le ticket.
+   Protégées par le code administrateur pour qu'un manager ne puisse pas
+   modifier les coordonnées ou les paiements d'un client sans autorisation. */
 function corrigerTelephonePressing(id){
+  if(!demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
   const nouveau = prompt('Corriger le téléphone de '+t.nom+' :', t.tel||'');
@@ -1961,17 +1974,20 @@ function corrigerTelephonePressing(id){
   toast('Téléphone corrigé');
 }
 function corrigerAvancePressing(id){
+  if(!demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
   const saisie = prompt('Corriger le montant de l\'avance reçue pour '+t.nom+' (actuellement '+t.avance+' D) :', t.avance);
   if(saisie===null) return;
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
+  const dateSaisie = prompt('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
+  if(dateSaisie===null) return;
   const difference = nouveauMontant - t.avance;
   t.avance = nouveauMontant;
   rendrePressing();
   db.collection('depots_pressing').doc(id).update({avance:nouveauMontant}).catch(err=>console.error('Erreur correction avance', err));
-  enregistrerAjustementFinance(difference, 'Pressing', t.nom+' — '+t.code+' (correction avance)');
+  enregistrerAjustementFinance(difference, 'Pressing', t.nom+' — '+t.code+' (correction avance)', dateSaisie.trim());
   toast('Avance corrigée');
 }
 function marquerSoldePayePressing(id){
