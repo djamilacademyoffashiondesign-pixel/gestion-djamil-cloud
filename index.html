@@ -2693,6 +2693,19 @@ function rendreBilanFinances(){
   const semaine = totaux(d=>dansLaSemaineEnCours(d));
   const mois = totaux(d=>dansLeMoisEnCours(d));
 
+  /* Libellés avec dates exactes (jour/mois/année) — indispensable pour retrouver
+     à quelle période correspond un bilan si on le consulte plus tard en archive. */
+  const formatCourt = (d) => d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'});
+  const lundi = lundiDeLaSemaineEnCours();
+  const samedi = new Date(lundi);
+  samedi.setDate(samedi.getDate()+5);
+  const anneeSemaine = samedi.getFullYear();
+  const libelleJour = 'Aujourd\'hui ('+dateAujourdhui()+')';
+  const libelleSemaine = 'Semaine ('+formatCourt(lundi)+' → '+formatCourt(samedi)+'/'+anneeSemaine+')';
+  const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const maintenant = new Date();
+  const libelleMois = 'Mois en cours ('+moisNoms[maintenant.getMonth()]+' '+maintenant.getFullYear()+')';
+
   function ligne(titre, bloc){
     return `<div class="liste-item">
       <div class="nom">${titre}</div>
@@ -2700,7 +2713,7 @@ function rendreBilanFinances(){
       <div class="meta" style="color:${bloc.solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${bloc.solde} D</div>
     </div>`;
   }
-  zone.innerHTML = ligne('Aujourd\'hui', jour) + ligne('Semaine (lun. → sam.)', semaine) + ligne('Mois en cours', mois);
+  zone.innerHTML = ligne(libelleJour, jour) + ligne(libelleSemaine, semaine) + ligne(libelleMois, mois);
 }
 
 /* ================= ÉCOUTEURS TEMPS RÉEL ================= */
