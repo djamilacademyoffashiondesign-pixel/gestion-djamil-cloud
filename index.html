@@ -2509,10 +2509,9 @@ function ajouterDepenseRapide(activite, prefixId){
     date: new Date().toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   };
-  db.collection('depenses').add(depense).then(()=>{
-    viderChamps([prefixId+'-categorie', prefixId+'-montant', prefixId+'-description']);
-    toast('Dépense '+activite+' enregistrée');
-  }).catch(err=>toast('Erreur: '+err.message));
+  ecrireAvecSecours('depenses', depense, 'La dépense n\'a pas pu être synchronisée en ligne');
+  viderChamps([prefixId+'-categorie', prefixId+'-montant', prefixId+'-description']);
+  toast('Dépense '+activite+' enregistrée');
 }
 
 function ajouterDepense(){
@@ -2529,23 +2528,22 @@ function ajouterDepense(){
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   };
   basculerChargement('btn-depense', true, 'Enregistrer la dépense');
-  db.collection('depenses').add(depense).then(()=>{
-    viderChamps(['dep-categorie','dep-montant','dep-description','dep-date']);
-    toast('Dépense enregistrée');
-  }).catch(err=>toast('Erreur: '+err.message))
-  .finally(()=>basculerChargement('btn-depense', false, 'Enregistrer la dépense'));
+  ecrireAvecSecours('depenses', depense, 'La dépense n\'a pas pu être synchronisée en ligne');
+  viderChamps(['dep-categorie','dep-montant','dep-description','dep-date']);
+  toast('Dépense enregistrée');
+  basculerChargement('btn-depense', false, 'Enregistrer la dépense');
 }
 function supprimerDepense(id){
   if(!demanderCodeAdmin('Supprimer une dépense')) return;
   if(!confirm('Supprimer cette dépense ?')) return;
-  supprimerAvecOptimisme('depenses', id, 'depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); }, 'Dépense supprimée');
+  supprimerAvecOptimisme('depenses', id, 'depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); }, 'Dépense supprimée');
 }
 
 /* ================= RECETTES (Transactions) ================= */
 function supprimerTransaction(id){
   if(!demanderCodeAdmin('Supprimer une recette')) return;
   if(!confirm('Supprimer cette recette ? (utile pour retirer une entrée de test)')) return;
-  supprimerAvecOptimisme('transactions', id, 'transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); }, 'Recette supprimée');
+  supprimerAvecOptimisme('transactions', id, 'transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); }, 'Recette supprimée');
 }
 function rendreRecettes(){
   const data = CACHE.transactions||[];
@@ -2887,7 +2885,7 @@ attacherEcouteur('boutique_inventaire', rendreBoutique);
 attacherEcouteur('boutique_ventes', ()=>{});
 attacherEcouteur('clients_mesures', ()=>{ rendreMesures(); mettreAJourListeClients(); });
 attacherEcouteur('transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); });
-attacherEcouteur('depenses', rendreDepenses);
+attacherEcouteur('depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); });
 attacherEcouteur('employes', ()=>{ rendreEmployes(); rendreSalaires(); });
 attacherEcouteur('salaires_mensuel', rendreSalaires);
 </script>
