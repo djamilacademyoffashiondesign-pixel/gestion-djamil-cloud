@@ -1536,6 +1536,17 @@ function marquerSoldePayeAtelier(id){
   db.collection('commandes_couture').doc(id).update({acompte:c.prix}).catch(err=>console.error('Erreur mise à jour solde', err));
   enregistrerTransaction(reste, 'Atelier', c.nom+' — '+c.code+' (solde final)');
   toast('Solde encaissé — commande payée en totalité');
+  if(c.tel){
+    const msg = texteMsg(
+      `Bonjour ${c.nom}, nous confirmons la réception de votre paiement final de ${reste} D pour votre commande (Code ${c.code}).\n✅ Payé intégralement — merci pour votre confiance !`,
+      `Hello ${c.nom}, we confirm receipt of your final payment of ${reste} D for your order (Code ${c.code}).\n✅ Paid in full — thank you for your trust!`
+    );
+    const lien=lienWhatsApp(c.tel, msg);
+    if(lien){
+      const ouvrir = confirm('Envoyer une confirmation de paiement par WhatsApp à '+c.nom+' ?');
+      if(ouvrir) window.location.href = lien;
+    }
+  }
 }
 /* Fonction centrale unique pour toutes les notifications WhatsApp dynamiques :
    calcule le solde restant, adapte le texte selon l'activité et le statut,
@@ -2002,6 +2013,17 @@ function marquerSoldePayePressing(id){
   db.collection('depots_pressing').doc(id).update({avance:t.prix}).catch(err=>console.error('Erreur mise à jour solde', err));
   enregistrerTransaction(reste, 'Pressing', t.nom+' — '+t.code+' (solde final)');
   toast('Solde encaissé — ticket payé en totalité');
+  if(t.tel){
+    const msg = texteMsg(
+      `Bonjour ${t.nom}, nous confirmons la réception de votre paiement final de ${reste} D pour votre ticket pressing (Code ${t.code}).\n✅ Payé intégralement — merci pour votre confiance !`,
+      `Hello ${t.nom}, we confirm receipt of your final payment of ${reste} D for your pressing ticket (Code ${t.code}).\n✅ Paid in full — thank you for your trust!`
+    );
+    const lien=lienWhatsApp(t.tel, msg);
+    if(lien){
+      const ouvrir = confirm('Envoyer une confirmation de paiement par WhatsApp à '+t.nom+' ?');
+      if(ouvrir) window.location.href = lien;
+    }
+  }
 }
 function notifierLavageEnCours(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
