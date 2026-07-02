@@ -1416,9 +1416,14 @@ async function ajouterCommande(){
     if(cmd.tel){
       const reste = prix-acompte;
       const detailArticles = articles.map(a=>texteMsg(`  • ${a.nom}: ${a.prix} D`, `  • ${a.nom}: ${a.prix} D`)).join('\n');
+      /* Si le client a tout payé, on affiche une confirmation claire plutôt que
+         "Reste à payer: 0 D" qui donne l'impression fausse qu'il doit encore payer. */
+      const ligneSolde = reste>0
+        ? texteMsg(`Reste à payer: ${reste} D`, `Balance due: ${reste} D`)
+        : texteMsg(`✅ Payé intégralement — merci !`, `✅ Paid in full — thank you!`);
       const msg = texteMsg(
-        `Bonjour ${nom}, voici la facture de votre commande chez Chez Djamil.\nCode: ${code}\n\nDétail:\n${detailArticles}\n\nTotal: ${prix} D\nAvance payée: ${acompte} D\nReste à payer: ${reste} D`,
-        `Hello ${nom}, here is the invoice for your order at Chez Djamil.\nCode: ${code}\n\nDetails:\n${detailArticles}\n\nTotal: ${prix} D\nDeposit paid: ${acompte} D\nBalance due: ${reste} D`
+        `Bonjour ${nom}, voici la facture de votre commande chez Chez Djamil.\nCode: ${code}\n\nDétail:\n${detailArticles}\n\nTotal: ${prix} D\nAvance payée: ${acompte} D\n${ligneSolde}`,
+        `Hello ${nom}, here is the invoice for your order at Chez Djamil.\nCode: ${code}\n\nDetails:\n${detailArticles}\n\nTotal: ${prix} D\nDeposit paid: ${acompte} D\n${ligneSolde}`
       )
         + (photosModeleURLs.length ? texteMsg(`\nModèle(s) choisi(s): ${photosModeleURLs.join(' , ')}`, `\nChosen design(s): ${photosModeleURLs.join(' , ')}`) : '');
       const lien=lienWhatsApp(cmd.tel, msg);
@@ -1656,7 +1661,7 @@ function carteCommandeAtelier(c){
     classeAlerte = e.classe; badgeJours = e.badge;
   }
   return `<div class="liste-item ${classeAlerte}">
-    <div class="nom">${c.nom} <span style="color:var(--gris);font-size:0.75rem;">(${c.genre||''})</span> ${c.code ? '<span class="badge attente">Code '+c.code+'</span>' : ''} ${c.type==='Retouche' ? '<span class="badge ok">✂️ Retouche</span>' : ''}</div>
+    <div class="nom">${c.nom} <span style="color:var(--gris);font-size:0.75rem;">(${c.genre||''})</span> ${c.code ? '<span class="badge attente">Code '+c.code+'</span>' : ''} ${c.type==='Retouche' ? '<span class="badge ok">✂️ Retouche</span>' : ''} ${reste<=0 ? '<span class="badge ok">✅ PAYÉ</span>' : ''}</div>
     ${c.tel ? '<div class="meta">📞 <a href="tel:'+c.tel+'" style="color:var(--or-clair);">'+c.tel+'</a></div>' : ''}
     <div class="meta">${c.desc||''}</div>
     ${(c.articles && c.articles.length) ? '<div class="meta">'+c.articles.map(a=>a.nom+': '+a.prix+' D').join(' · ')+'</div>' : ''}
@@ -1859,9 +1864,12 @@ async function ajouterTicket(){
     toast('Ticket créé — Code '+code);
     if(tel){
       const reste = total-avance;
+      const ligneSolde = reste>0
+        ? texteMsg(`Reste à payer: ${reste} D`, `Balance due: ${reste} D`)
+        : texteMsg(`✅ Payé intégralement — merci !`, `✅ Paid in full — thank you!`);
       const msg = texteMsg(
-        `Bonjour ${nom}, voici votre reçu de dépôt chez Chez Djamel Pressing.\nCode: ${code}\nArticles: ${t.resume}\nTotal: ${total} D\nAvance: ${avance} D\nReste à payer: ${reste} D`,
-        `Hello ${nom}, here is your drop-off receipt from Chez Djamel Pressing.\nCode: ${code}\nItems: ${t.resume}\nTotal: ${total} D\nDeposit: ${avance} D\nBalance due: ${reste} D`
+        `Bonjour ${nom}, voici votre reçu de dépôt chez Chez Djamel Pressing.\nCode: ${code}\nArticles: ${t.resume}\nTotal: ${total} D\nAvance: ${avance} D\n${ligneSolde}`,
+        `Hello ${nom}, here is your drop-off receipt from Chez Djamel Pressing.\nCode: ${code}\nItems: ${t.resume}\nTotal: ${total} D\nDeposit: ${avance} D\n${ligneSolde}`
       )
         + (photoURL ? texteMsg(`\nPhoto de vos articles: ${photoURL}`, `\nPhoto of your items: ${photoURL}`) : '');
       const lien=lienWhatsApp(tel, msg);
@@ -2016,7 +2024,7 @@ function rendrePressing(){
         classeAlerte = e.classe; badgeJours = e.badge;
       }
       return `<div class="liste-item ${classeAlerte}">
-        <div class="nom">${t.nom} ${t.code ? '<span class="badge attente">Code '+t.code+'</span>' : ''}</div>
+        <div class="nom">${t.nom} ${t.code ? '<span class="badge attente">Code '+t.code+'</span>' : ''} ${reste<=0 ? '<span class="badge ok">✅ PAYÉ</span>' : ''}</div>
         ${t.tel ? '<div class="meta">📞 <a href="tel:'+t.tel+'" style="color:var(--or-clair);">'+t.tel+'</a></div>' : ''}
         <div class="meta">${t.resume||'—'}</div>
         ${t.depot ? '<div class="meta">Dépôt: '+t.depot+'</div>' : ''}
