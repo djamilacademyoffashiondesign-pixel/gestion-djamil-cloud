@@ -307,6 +307,16 @@
       <div id="apercu-alertes"></div>
     </div>
     <div class="panel">
+      <h2>Code à usage unique (à distance)</h2>
+      <p style="color:var(--gris);font-size:0.8rem;font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">
+        Utile quand vous n'êtes pas sur place : un seul bouton génère un code, affiché à l'écran.
+        Dictez-le au manager par téléphone. Il ne fonctionne qu'une seule fois, puis se désactive automatiquement.
+      </p>
+      <div id="statut-code-temp" style="margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.85rem;"></div>
+      <button class="btn secondary" onclick="genererCodeTemporaire()">🔑 Générer un nouveau code (1 tap)</button>
+      <button class="btn secondary" onclick="revoquerCodeTemporaire()" style="margin-top:8px;">🚫 Désactiver le code actif</button>
+    </div>
+    <div class="panel">
       <h2>Export des données</h2>
       <button class="btn secondary" onclick="exporterCSV('commandes_couture')">Exporter Atelier (CSV)</button>
       <button class="btn secondary" onclick="exporterCSV('depots_pressing')">Exporter Pressing (CSV)</button>
@@ -895,11 +905,78 @@ mettreAJourBadgeSecours();
 
 /* ================= SÉCURITÉ ADMIN ================= */
 const CODE_ADMIN = "1234";
-function demanderCodeAdmin(actionLabel){
+const REF_CODE_TEMP = () => db.collection('parametres').doc('codeTemporaire');
+async function demanderCodeAdmin(actionLabel){
   const saisie = prompt('Code Administrateur requis pour : '+actionLabel);
   if(saisie === null) return false;
-  if(saisie !== CODE_ADMIN){ toast('Code incorrect — action annulée'); return false; }
-  return true;
+  const saisieTrim = saisie.trim();
+  if(saisieTrim === CODE_ADMIN) return true;
+  if(!saisieTrim){ toast('Code incorrect — action annulée'); return false; }
+  // Vérifie s'il existe un code à usage unique (donné à distance par le propriétaire)
+  try{
+    const ref = REF_CODE_TEMP();
+    const doc = await ref.get();
+    if(doc.exists){
+      const d = doc.data();
+      if(d.code === saisieTrim){
+        if(d.utilise){
+          toast('Ce code a déjà été utilisé — demandez-en un nouveau');
+          return false;
+        }
+        await ref.update({utilise:true, utiliseLe: firebase.firestore.FieldValue.serverTimestamp()});
+        toast('Code à usage unique accepté — action autorisée');
+        return true;
+      }
+    }
+  } catch(err){
+    console.error('Erreur vérification code temporaire', err);
+  }
+  toast('Code incorrect — action annulée');
+  return false;
+}
+/* Panneau (Aperçu) permettant au propriétaire de générer, à distance,
+   un code valable UNE seule fois pour un manager, sans jamais communiquer
+   le code permanent. Le code est automatiquement désactivé après usage. */
+async function genererCodeTemporaire(){
+  const code = String(Math.floor(10000+Math.random()*90000)); // 5 chiffres, facile à dicter au téléphone
+  try{
+    await REF_CODE_TEMP().set({
+      code,
+      utilise:false,
+      creeLe: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    afficherStatutCodeTemporaire();
+    alert('✅ Nouveau code à usage unique :\n\n'+code+'\n\nDictez-le au manager par téléphone. Il ne fonctionnera qu\'une seule fois.');
+  } catch(err){
+    toast('Erreur: '+err.message);
+  }
+}
+async function revoquerCodeTemporaire(){
+  if(!confirm('Désactiver le code à usage unique en cours (s\'il n\'a pas encore servi) ?')) return;
+  try{
+    await REF_CODE_TEMP().delete();
+    toast('Code à usage unique désactivé');
+    afficherStatutCodeTemporaire();
+  } catch(err){
+    toast('Erreur: '+err.message);
+  }
+}
+async function afficherStatutCodeTemporaire(){
+  const zone = document.getElementById('statut-code-temp');
+  if(!zone) return;
+  try{
+    const doc = await REF_CODE_TEMP().get();
+    if(!doc.exists){
+      zone.innerHTML = '<span style="color:var(--gris);">Aucun code à usage unique actif.</span>';
+    } else {
+      const d = doc.data();
+      zone.innerHTML = d.utilise
+        ? '<span style="color:var(--gris);">Dernier code ('+d.code+') déjà utilisé — désactivé.</span>'
+        : '<span style="color:var(--vert);">Code actif, en attente d\'utilisation : <b>'+d.code+'</b></span>';
+    }
+  } catch(err){
+    zone.innerHTML = '<span style="color:var(--gris);">Statut indisponible hors-ligne.</span>';
+  }
 }
 
 /* ================= LANGUE DES MESSAGES CLIENTS (WhatsApp) ================= */
@@ -1443,8 +1520,8 @@ async function ajouterCommande(){
     basculerChargement('btn-commande', false, 'Créer la commande');
   }
 }
-function supprimerCommande(id){
-  if(!demanderCodeAdmin('Supprimer une commande')) return;
+async function supprimerCommande(id){
+  if(!await demanderCodeAdmin('Supprimer une commande')) return;
   if(!confirm('Supprimer cette commande ?')) return;
   supprimerAvecOptimisme('commandes_couture', id, 'commandes_couture', rendreAtelier, 'Commande supprimée');
 }
@@ -1498,8 +1575,8 @@ function changerStatutAtelier(id,statut){
 /* Corrections rapides, sans jamais supprimer la commande.
    Protégées par le code administrateur pour qu'un manager ne puisse pas
    modifier les coordonnées ou les paiements d'un client sans autorisation. */
-function corrigerTelephoneAtelier(id){
-  if(!demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
+async function corrigerTelephoneAtelier(id){
+  if(!await demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
   const nouveau = prompt('Corriger le téléphone de '+c.nom+' :', c.tel||'');
@@ -1509,8 +1586,8 @@ function corrigerTelephoneAtelier(id){
   db.collection('commandes_couture').doc(id).update({tel:c.tel}).catch(err=>console.error('Erreur correction téléphone', err));
   toast('Téléphone corrigé');
 }
-function corrigerAvanceAtelier(id){
-  if(!demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
+async function corrigerAvanceAtelier(id){
+  if(!await demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
   const saisie = prompt('Corriger le montant de l\'avance reçue pour '+c.nom+' (actuellement '+c.acompte+' D) :', c.acompte);
@@ -1526,11 +1603,12 @@ function corrigerAvanceAtelier(id){
   enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)', dateSaisie.trim());
   toast('Avance corrigée');
 }
-function marquerSoldePayeAtelier(id){
+async function marquerSoldePayeAtelier(id){
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
   const reste = c.prix-c.acompte;
   if(reste<=0){ toast('Cette commande est déjà payée en totalité'); return; }
+  if(!await demanderCodeAdmin('Encaisser le solde de '+c.nom)) return;
   if(!confirm(c.nom+' a payé le solde restant de '+reste+' D ?\nLe total passera à '+c.prix+' D reçu.')) return;
   c.acompte = c.prix; // mise à jour immédiate à l'écran
   rendreAtelier();
@@ -1929,8 +2007,8 @@ function validerRetrait(id){
     rechercherCodePressing();
   });
 }
-function supprimerTicket(id){
-  if(!demanderCodeAdmin('Supprimer un ticket')) return;
+async function supprimerTicket(id){
+  if(!await demanderCodeAdmin('Supprimer un ticket')) return;
   if(!confirm('Supprimer ce ticket ?')) return;
   supprimerAvecOptimisme('depots_pressing', id, 'depots_pressing', rendrePressing, 'Ticket supprimé');
 }
@@ -1974,8 +2052,8 @@ function changerStatutPressing(id,statut){
 /* Corrections rapides, sans jamais supprimer le ticket.
    Protégées par le code administrateur pour qu'un manager ne puisse pas
    modifier les coordonnées ou les paiements d'un client sans autorisation. */
-function corrigerTelephonePressing(id){
-  if(!demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
+async function corrigerTelephonePressing(id){
+  if(!await demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
   const nouveau = prompt('Corriger le téléphone de '+t.nom+' :', t.tel||'');
@@ -1985,8 +2063,8 @@ function corrigerTelephonePressing(id){
   db.collection('depots_pressing').doc(id).update({tel:t.tel}).catch(err=>console.error('Erreur correction téléphone', err));
   toast('Téléphone corrigé');
 }
-function corrigerAvancePressing(id){
-  if(!demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
+async function corrigerAvancePressing(id){
+  if(!await demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
   const saisie = prompt('Corriger le montant de l\'avance reçue pour '+t.nom+' (actuellement '+t.avance+' D) :', t.avance);
@@ -2002,11 +2080,12 @@ function corrigerAvancePressing(id){
   enregistrerAjustementFinance(difference, 'Pressing', t.nom+' — '+t.code+' (correction avance)', dateSaisie.trim());
   toast('Avance corrigée');
 }
-function marquerSoldePayePressing(id){
+async function marquerSoldePayePressing(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
   const reste = t.prix-t.avance;
   if(reste<=0){ toast('Ce ticket est déjà payé en totalité'); return; }
+  if(!await demanderCodeAdmin('Encaisser le solde de '+t.nom)) return;
   if(!confirm(t.nom+' a payé le solde restant de '+reste+' D ?\nLe total passera à '+t.prix+' D reçu.')) return;
   t.avance = t.prix;
   rendrePressing();
@@ -2118,8 +2197,8 @@ function ajouterProduit(){
   }).catch(err=>toast('Erreur: '+err.message))
   .finally(()=>basculerChargement('btn-produit', false, 'Ajouter au stock'));
 }
-function supprimerProduit(id){
-  if(!demanderCodeAdmin('Supprimer un article')) return;
+async function supprimerProduit(id){
+  if(!await demanderCodeAdmin('Supprimer un article')) return;
   if(!confirm('Supprimer cet article ?')) return;
   supprimerAvecOptimisme('boutique_inventaire', id, 'boutique_inventaire', rendreBoutique, 'Article supprimé');
 }
@@ -2305,6 +2384,7 @@ const ETAPES_NOTIF_PRESSING = {
 };
 function rendreApercu(){
   calculerClotureDuJour();
+  afficherStatutCodeTemporaire();
   const atelier=CACHE.commandes_couture;
   const pressing=CACHE.depots_pressing;
   const boutique=CACHE.boutique_inventaire;
@@ -2446,8 +2526,8 @@ function enregistrerMesure(){
     toast('⚠️ La fiche n\'a pas pu être synchronisée en ligne — sera réessayé');
   });
 }
-function modifierMesure(id){
-  if(!demanderCodeAdmin('Modifier une fiche mesures existante')) return;
+async function modifierMesure(id){
+  if(!await demanderCodeAdmin('Modifier une fiche mesures existante')) return;
   const f = CACHE.clients_mesures.find(x=>x.id===id);
   if(!f) return;
   document.getElementById('ms-nom').value=f.nom||'';
@@ -2471,8 +2551,8 @@ function modifierMesure(id){
   document.querySelector('[data-mod="mesures"]').click();
   window.scrollTo(0,0);
 }
-function supprimerMesure(id){
-  if(!demanderCodeAdmin('Supprimer une fiche mesures')) return;
+async function supprimerMesure(id){
+  if(!await demanderCodeAdmin('Supprimer une fiche mesures')) return;
   if(!confirm('Supprimer cette fiche de mesures ?')) return;
   supprimerAvecOptimisme('clients_mesures', id, 'clients_mesures', ()=>{ rendreMesures(); mettreAJourListeClients(); }, 'Fiche supprimée');
 }
@@ -2534,15 +2614,15 @@ function ajouterDepense(){
   toast('Dépense enregistrée');
   basculerChargement('btn-depense', false, 'Enregistrer la dépense');
 }
-function supprimerDepense(id){
-  if(!demanderCodeAdmin('Supprimer une dépense')) return;
+async function supprimerDepense(id){
+  if(!await demanderCodeAdmin('Supprimer une dépense')) return;
   if(!confirm('Supprimer cette dépense ?')) return;
   supprimerAvecOptimisme('depenses', id, 'depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); }, 'Dépense supprimée');
 }
 
 /* ================= RECETTES (Transactions) ================= */
-function supprimerTransaction(id){
-  if(!demanderCodeAdmin('Supprimer une recette')) return;
+async function supprimerTransaction(id){
+  if(!await demanderCodeAdmin('Supprimer une recette')) return;
   if(!confirm('Supprimer cette recette ? (utile pour retirer une entrée de test)')) return;
   supprimerAvecOptimisme('transactions', id, 'transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); }, 'Recette supprimée');
 }
@@ -2622,8 +2702,8 @@ function ajouterEmploye(){
     toast('⚠️ Employé non synchronisé — sera réessayé');
   });
 }
-function supprimerEmploye(id){
-  if(!demanderCodeAdmin('Supprimer un employé')) return;
+async function supprimerEmploye(id){
+  if(!await demanderCodeAdmin('Supprimer un employé')) return;
   if(!confirm('Supprimer cet employé ? Son historique de salaires restera visible dans les mois passés.')) return;
   supprimerAvecOptimisme('employes', id, 'employes', ()=>{ rendreEmployes(); rendreSalaires(); }, 'Employé supprimé');
 }
