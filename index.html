@@ -327,6 +327,15 @@
       <button class="btn secondary" onclick="ajouterDepenseRapide('Atelier','depR-atelier')">Enregistrer la dépense</button>
     </div>
     <div class="panel">
+      <h2>🗂️ Client historique (dépôt avant l'application)</h2>
+      <div style="color:var(--gris);font-size:0.8rem;margin-bottom:10px;">Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer et payer. Enregistré directement comme "Livré", sans passer par tout le formulaire de commande.</div>
+      <input id="hist-atelier-nom" placeholder="Nom du client">
+      <input id="hist-atelier-tel" placeholder="Téléphone">
+      <input id="hist-atelier-desc" placeholder="Description (ex: Robe boubou déposée il y a 4 mois)">
+      <input id="hist-atelier-montant" type="number" placeholder="Montant reçu aujourd'hui (D)">
+      <button class="btn secondary" onclick="enregistrerClientHistoriqueAtelier()">Enregistrer et marquer livré</button>
+    </div>
+    <div class="panel">
       <h2>Nouvelle commande</h2>
       <div style="background:rgba(201,162,39,0.08);border:1px solid var(--or);border-radius:8px;padding:12px;margin-bottom:14px;">
         <label style="color:var(--or-clair);font-size:0.8rem;margin-top:0;">⚙️ Type de commande (choisir avant de remplir)</label>
@@ -420,6 +429,15 @@
         <input id="depR-pressing-description" placeholder="Description (optionnel)">
       </div>
       <button class="btn secondary" onclick="ajouterDepenseRapide('Pressing','depR-pressing')">Enregistrer la dépense</button>
+    </div>
+    <div class="panel">
+      <h2>🗂️ Client historique (dépôt avant l'application)</h2>
+      <div style="color:var(--gris);font-size:0.8rem;margin-bottom:10px;">Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer et payer. Enregistré directement comme "Récupéré", sans passer par tout le formulaire de ticket.</div>
+      <input id="hist-pressing-nom" placeholder="Nom du client">
+      <input id="hist-pressing-tel" placeholder="Téléphone">
+      <input id="hist-pressing-desc" placeholder="Description (ex: 2 boubous déposés il y a 3 mois)">
+      <input id="hist-pressing-montant" type="number" placeholder="Montant reçu aujourd'hui (D)">
+      <button class="btn secondary" onclick="enregistrerClientHistoriquePressing()">Enregistrer et marquer récupéré</button>
     </div>
     <div class="panel">
       <h2>Rechercher un Code Reçu</h2>
@@ -1420,6 +1438,50 @@ function supprimerCommande(id){
   if(!confirm('Supprimer cette commande ?')) return;
   supprimerAvecOptimisme('commandes_couture', id, 'commandes_couture', rendreAtelier, 'Commande supprimée');
 }
+/* Enregistrement rapide d'un client dont le dépôt date d'avant l'application
+   (ancien client non enregistré) : crée directement une commande au statut
+   "Livré", avec le nom/téléphone/montant, pour que ce soit traçable dans les
+   Finances et retrouvable plus tard — sans passer par le formulaire complet
+   (mesures, photos, date de livraison) qui ne concerne pas ce cas. */
+async function enregistrerClientHistoriqueAtelier(){
+  const nom = document.getElementById('hist-atelier-nom').value.trim();
+  const tel = document.getElementById('hist-atelier-tel').value.trim();
+  const desc = document.getElementById('hist-atelier-desc').value.trim();
+  const montant = Number(document.getElementById('hist-atelier-montant').value)||0;
+  if(!nom){ toast('Entrez le nom du client'); return; }
+  if(montant<=0){ toast('Entrez le montant reçu'); return; }
+  try{
+    const code = await genererCode('commandes_couture');
+    const cmd = {
+      code,
+      type:'Confection',
+      genre:'',
+      nom,
+      tel,
+      desc: desc || 'Client historique (dépôt avant l\'application)',
+      articles:[{nom: desc || 'Article historique', prix: montant}],
+      mesures:'{}',
+      prix: montant,
+      acompte: montant,
+      depot:'',
+      livraison:'',
+      photosTissuURLs:[],
+      photosModeleURLs:[],
+      statut:'Livré',
+      date:new Date().toLocaleDateString('fr-FR'),
+      creeLe: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    ecrireAvecSecours('commandes_couture', cmd, 'Le client historique n\'a pas pu être synchronisé en ligne');
+    enregistrerTransaction(montant, 'Atelier', nom+' — '+code+' (client historique)');
+    if(tel){
+      synchroniserCarnetAdresses(nom, tel, '', {}).catch(err=>console.error('Le carnet d\'adresses n\'a pas pu être synchronisé', err));
+    }
+    viderChamps(['hist-atelier-nom','hist-atelier-tel','hist-atelier-desc','hist-atelier-montant']);
+    toast('Client historique enregistré — Code '+code);
+  } catch(err){
+    toast('Erreur: '+err.message);
+  }
+}
 function changerStatutAtelier(id,statut){
   db.collection('commandes_couture').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
 }
@@ -1595,6 +1657,7 @@ function carteCommandeAtelier(c){
   }
   return `<div class="liste-item ${classeAlerte}">
     <div class="nom">${c.nom} <span style="color:var(--gris);font-size:0.75rem;">(${c.genre||''})</span> ${c.code ? '<span class="badge attente">Code '+c.code+'</span>' : ''} ${c.type==='Retouche' ? '<span class="badge ok">✂️ Retouche</span>' : ''}</div>
+    ${c.tel ? '<div class="meta">📞 <a href="tel:'+c.tel+'" style="color:var(--or-clair);">'+c.tel+'</a></div>' : ''}
     <div class="meta">${c.desc||''}</div>
     ${(c.articles && c.articles.length) ? '<div class="meta">'+c.articles.map(a=>a.nom+': '+a.prix+' D').join(' · ')+'</div>' : ''}
     ${c.depot ? '<div class="meta">Dépôt: '+c.depot+'</div>' : ''}
@@ -1841,6 +1904,40 @@ function supprimerTicket(id){
   if(!confirm('Supprimer ce ticket ?')) return;
   supprimerAvecOptimisme('depots_pressing', id, 'depots_pressing', rendrePressing, 'Ticket supprimé');
 }
+/* Équivalent pressing de enregistrerClientHistoriqueAtelier : pour un client
+   dont le dépôt pressing date d'avant l'application. */
+async function enregistrerClientHistoriquePressing(){
+  const nom = document.getElementById('hist-pressing-nom').value.trim();
+  const tel = document.getElementById('hist-pressing-tel').value.trim();
+  const desc = document.getElementById('hist-pressing-desc').value.trim();
+  const montant = Number(document.getElementById('hist-pressing-montant').value)||0;
+  if(!nom){ toast('Entrez le nom du client'); return; }
+  if(montant<=0){ toast('Entrez le montant reçu'); return; }
+  try{
+    const code = await genererCode('depots_pressing');
+    const t = {
+      code,
+      nom,
+      tel,
+      articles:'[]',
+      resume: desc || 'Client historique (dépôt avant l\'application)',
+      prix: montant,
+      avance: montant,
+      depot:'',
+      retrait:'',
+      photoURL:null,
+      statut:'Récupéré',
+      date:new Date().toLocaleDateString('fr-FR'),
+      creeLe: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    ecrireAvecSecours('depots_pressing', t, 'Le client historique n\'a pas pu être synchronisé en ligne');
+    enregistrerTransaction(montant, 'Pressing', nom+' — '+code+' (client historique)');
+    viderChamps(['hist-pressing-nom','hist-pressing-tel','hist-pressing-desc','hist-pressing-montant']);
+    toast('Client historique enregistré — Code '+code);
+  } catch(err){
+    toast('Erreur: '+err.message);
+  }
+}
 function changerStatutPressing(id,statut){
   db.collection('depots_pressing').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
 }
@@ -1920,6 +2017,7 @@ function rendrePressing(){
       }
       return `<div class="liste-item ${classeAlerte}">
         <div class="nom">${t.nom} ${t.code ? '<span class="badge attente">Code '+t.code+'</span>' : ''}</div>
+        ${t.tel ? '<div class="meta">📞 <a href="tel:'+t.tel+'" style="color:var(--or-clair);">'+t.tel+'</a></div>' : ''}
         <div class="meta">${t.resume||'—'}</div>
         ${t.depot ? '<div class="meta">Dépôt: '+t.depot+'</div>' : ''}
         ${t.retrait ? '<div class="meta">Retrait prévu: '+t.retrait+'</div>' : ''}
