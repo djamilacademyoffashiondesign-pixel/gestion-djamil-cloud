@@ -311,6 +311,7 @@
       <p style="color:var(--gris);font-size:0.8rem;font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">
         Utile quand vous n'êtes pas sur place : un seul bouton génère un code, affiché à l'écran.
         Dictez-le au manager par téléphone. Il ne fonctionne qu'une seule fois, puis se désactive automatiquement.
+        Protégé par votre code permanent — le manager ne peut pas se générer un code lui-même.
       </p>
       <div id="statut-code-temp" style="margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.85rem;"></div>
       <button class="btn secondary" onclick="genererCodeTemporaire()">🔑 Générer un nouveau code (1 tap)</button>
@@ -936,8 +937,13 @@ async function demanderCodeAdmin(actionLabel){
 }
 /* Panneau (Aperçu) permettant au propriétaire de générer, à distance,
    un code valable UNE seule fois pour un manager, sans jamais communiquer
-   le code permanent. Le code est automatiquement désactivé après usage. */
+   le code permanent. Le code est automatiquement désactivé après usage.
+   Protégé par le code permanent (1234) pour que SEUL le propriétaire
+   puisse créer ou annuler un code — le manager ne peut pas se l'auto-délivrer. */
 async function genererCodeTemporaire(){
+  const saisie = prompt('Code Administrateur (permanent) requis pour générer un nouveau code :');
+  if(saisie === null) return;
+  if(saisie.trim() !== CODE_ADMIN){ toast('Code incorrect — seul le propriétaire peut générer un code'); return; }
   const code = String(Math.floor(10000+Math.random()*90000)); // 5 chiffres, facile à dicter au téléphone
   try{
     await REF_CODE_TEMP().set({
@@ -952,6 +958,9 @@ async function genererCodeTemporaire(){
   }
 }
 async function revoquerCodeTemporaire(){
+  const saisie = prompt('Code Administrateur (permanent) requis pour désactiver le code :');
+  if(saisie === null) return;
+  if(saisie.trim() !== CODE_ADMIN){ toast('Code incorrect — action annulée'); return; }
   if(!confirm('Désactiver le code à usage unique en cours (s\'il n\'a pas encore servi) ?')) return;
   try{
     await REF_CODE_TEMP().delete();
