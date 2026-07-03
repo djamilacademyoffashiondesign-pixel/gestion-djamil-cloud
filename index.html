@@ -290,6 +290,11 @@
 
   <!-- ===================== APERÇU ===================== -->
   <section class="module active" id="apercu">
+    <div class="panel">
+      <h2>🔍 Recherche globale</h2>
+      <input id="recherche-globale" placeholder="Nom, téléphone ou code (ex: Fatima, 003, 7XX...)" oninput="rendreRechercheGlobale()">
+      <div id="recherche-globale-resultats"></div>
+    </div>
     <div class="stats-grid" id="apercu-stats"></div>
     <div class="panel">
       <h2>Clôture du jour</h2>
@@ -306,6 +311,13 @@
     <div class="panel">
       <h2>À faire aujourd'hui</h2>
       <div id="apercu-alertes"></div>
+    </div>
+    <div class="panel">
+      <h2>🔒 Code administrateur</h2>
+      <p style="color:var(--gris);font-size:0.8rem;font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">
+        Changez régulièrement ce code (celui qui protège suppressions et corrections) pour plus de sécurité.
+      </p>
+      <button class="btn secondary" onclick="changerCodeAdminPrincipal()">🔑 Changer le code administrateur</button>
     </div>
     <div class="panel">
       <h2>Code à usage unique (à distance)</h2>
@@ -928,7 +940,38 @@ majEtatConnexion(navigator.onLine);
 mettreAJourBadgeSecours();
 
 /* ================= SÉCURITÉ ADMIN ================= */
-const CODE_ADMIN = "1234";
+/* Le code permanent n'est plus figé dans le fichier source (visible par
+   quiconque ouvrirait le code de la page) : il est stocké dans Firestore
+   et peut être changé à tout moment depuis l'app, protégé par l'ancien
+   code. "1234" reste la valeur de secours tant qu'aucun changement n'a
+   été fait, pour ne jamais bloquer l'accès existant. */
+let CODE_ADMIN = "1234";
+const REF_CODE_ADMIN_PRINCIPAL = () => db.collection('parametres').doc('codeAdminPrincipal');
+REF_CODE_ADMIN_PRINCIPAL().get().then(doc=>{
+  if(doc.exists && doc.data().code) CODE_ADMIN = doc.data().code;
+}).catch(err=>console.error('Erreur chargement code admin', err));
+async function changerCodeAdminPrincipal(){
+  const ancien = prompt('Code administrateur ACTUEL (pour confirmer que c\'est bien vous) :');
+  if(ancien === null) return;
+  if(ancien.trim() !== CODE_ADMIN){ toast('Code actuel incorrect — changement annulé'); return; }
+  const nouveau = prompt('Nouveau code administrateur (4 à 6 chiffres, à retenir précieusement) :');
+  if(nouveau === null) return;
+  const nouveauTrim = nouveau.trim();
+  if(nouveauTrim.length<4){ toast('Le nouveau code doit faire au moins 4 caractères'); return; }
+  const confirmation = prompt('Retapez le nouveau code pour confirmer :');
+  if(confirmation === null) return;
+  if(confirmation.trim() !== nouveauTrim){ toast('Les deux codes ne correspondent pas — rien n\'a été changé'); return; }
+  try{
+    await REF_CODE_ADMIN_PRINCIPAL().set({
+      code: nouveauTrim,
+      modifieLe: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    CODE_ADMIN = nouveauTrim;
+    toast('✅ Code administrateur changé avec succès');
+  } catch(err){
+    toast('Erreur: '+err.message);
+  }
+}
 const REF_CODE_TEMP = () => db.collection('parametres').doc('codeTemporaire');
 async function demanderCodeAdmin(actionLabel){
   const saisie = prompt('Code Administrateur requis pour : '+actionLabel);
@@ -2473,6 +2516,49 @@ const ETAPES_NOTIF_PRESSING = {
   'Prêt': { label:'Linge prêt à récupérer' },
   'Récupéré': { label:'Remerciement à envoyer' }
 };
+/* ================= RECHERCHE GLOBALE ================= */
+/* Cherche un client par nom, téléphone ou code, sur TOUTES les activités
+   à la fois (Atelier, Pressing, Boutique, Mesures, Visiteurs), pour éviter
+   de devoir chercher onglet par onglet. */
+function rendreRechercheGlobale(){
+  const zone = document.getElementById('recherche-globale-resultats');
+  const q = (document.getElementById('recherche-globale')?.value||'').trim().toLowerCase();
+  if(!q){ zone.innerHTML=''; return; }
+  const correspond = (nom, tel, code) => (nom||'').toLowerCase().includes(q) || (tel||'').toLowerCase().includes(q) || (code||'').toLowerCase().includes(q);
+  let resultats = [];
+  (CACHE.commandes_couture||[]).forEach(c=>{
+    if(correspond(c.nom, c.tel, c.code)) resultats.push(`<div class="liste-item">
+      <div class="nom">✂️ ${c.nom} <span class="badge attente">Atelier · ${c.code||''}</span></div>
+      <div class="meta">${c.tel||'Sans téléphone'} · Statut: ${c.statut}</div>
+    </div>`);
+  });
+  (CACHE.depots_pressing||[]).forEach(t=>{
+    if(correspond(t.nom, t.tel, t.code)) resultats.push(`<div class="liste-item">
+      <div class="nom">👔 ${t.nom} <span class="badge attente">Pressing · ${t.code||''}</span></div>
+      <div class="meta">${t.tel||'Sans téléphone'} · Statut: ${t.statut}</div>
+    </div>`);
+  });
+  (CACHE.boutique_ventes||[]).forEach(v=>{
+    if(correspond(v.client, v.telephone, '')) resultats.push(`<div class="liste-item">
+      <div class="nom">🛍️ ${v.client} <span class="badge attente">Boutique</span></div>
+      <div class="meta">${v.telephone||'Sans téléphone'} · ${v.nomProduit} x${v.qte} — ${v.total} D</div>
+    </div>`);
+  });
+  (CACHE.clients_mesures||[]).forEach(f=>{
+    if(correspond(f.nom, f.tel, '')) resultats.push(`<div class="liste-item">
+      <div class="nom">📏 ${f.nom} <span class="badge attente">Mesures</span></div>
+      <div class="meta">${f.tel||'Sans téléphone'}</div>
+    </div>`);
+  });
+  (CACHE.visiteurs||[]).forEach(v=>{
+    if(correspond(v.nom, v.tel, '')) resultats.push(`<div class="liste-item">
+      <div class="nom">🚶 ${v.nom} <span class="badge attente">Visiteur</span></div>
+      <div class="meta">${v.tel||'Sans téléphone'} · ${v.date}${v.note ? ' · '+v.note : ''}</div>
+    </div>`);
+  });
+  zone.innerHTML = resultats.length ? resultats.join('') : '<div class="vide">Aucun résultat.</div>';
+}
+
 function rendreApercu(){
   calculerClotureDuJour();
   afficherStatutCodeTemporaire();
