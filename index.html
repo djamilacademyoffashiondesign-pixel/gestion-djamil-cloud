@@ -2869,14 +2869,31 @@ function rendreMesures(){
   const comptageNoms = {};
   CACHE.clients_mesures.forEach(f=>{ comptageNoms[f.nom] = (comptageNoms[f.nom]||0)+1; });
   liste.innerHTML=data.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'', 'fr', {sensitivity:'base'})).map(f=>`<div class="liste-item">
-    <div class="nom">${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${f.genre||''})</span> ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
+    <div class="nom" onclick="basculerDetailMesure('${f.id}')" style="cursor:pointer;">👁️ ${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${f.genre||''})</span> ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
     <div class="meta">${f.tel||'<span style="color:var(--rouge);">Aucun téléphone — risque de confusion</span>'}</div>
     <div class="meta">Cou ${f.cou||'-'} · Poitrine ${f.poitrine||'-'} · Taille ${f.tourTaille||'-'} · Ceinture ${f.ceinture||'-'} · Bassin ${f.bassin||'-'}</div>
+    <div id="detail-mesure-${f.id}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.8rem;line-height:1.7;">
+      Cou: ${f.cou||'-'} · Épaule: ${f.epaule||'-'} · Poitrine: ${f.poitrine||'-'}<br>
+      Long. manche: ${f.longManche||'-'} · Tour manche: ${f.tourManche||'-'} · Poignet: ${f.poignet||'-'}<br>
+      Tour de taille: ${f.tourTaille||'-'} · Longueur de taille: ${f.longTaille||'-'}<br>
+      Ceinture: ${f.ceinture||'-'} · Tour bassin: ${f.bassin||'-'} · Tour de cuisse: ${f.cuisse||'-'}<br>
+      Long. pince: ${f.pince||'-'} · Tour de genou: ${f.tourGenou||'-'} · Bas du pantalon: ${f.basPantalon||'-'}<br>
+      Long. haut: ${f.longHaut||'-'} · Long. pantalon: ${f.longPantalon||'-'}
+      ${f.genre==='Femme' ? '<br>Long. robe: '+(f.longRobe||'-')+' · Long. jupe: '+(f.longJupe||'-') : ''}
+    </div>
     <div class="item-actions">
       <button onclick="modifierMesure('${f.id}')">Modifier</button>
       <button class="del" onclick="supprimerMesure('${f.id}')">Supprimer</button>
     </div>
   </div>`).join('');
+}
+/* Affiche/masque le détail complet des mesures d'un client en un tap sur son
+   nom, pour simplement CONSULTER ses mesures sans passer par "Modifier"
+   (qui demande le code admin et ouvre le formulaire d'édition). */
+function basculerDetailMesure(id){
+  const el = document.getElementById('detail-mesure-'+id);
+  if(!el) return;
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
 }
 
 /* ================= VISITEURS ================= */
