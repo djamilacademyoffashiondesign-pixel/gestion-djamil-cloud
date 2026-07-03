@@ -397,6 +397,10 @@
           <div><label>Tour manche</label><input id="m-tourmanche" type="number"></div>
           <div><label>Poignet</label><input id="m-poignet" type="number"></div>
         </div>
+        <div class="row2">
+          <div><label>Tour de taille</label><input id="m-tourtaille" type="number"></div>
+          <div><label>Longueur de taille</label><input id="m-longtaille" type="number"></div>
+        </div>
         <div class="row3">
           <div><label>Ceinture</label><input id="m-ceinture" type="number"></div>
           <div><label>Tour bassin</label><input id="m-bassin" type="number"></div>
@@ -563,6 +567,10 @@
         <div><label>Long. manche</label><input id="ms-longmanche" type="number"></div>
         <div><label>Tour manche</label><input id="ms-tourmanche" type="number"></div>
         <div><label>Poignet</label><input id="ms-poignet" type="number"></div>
+      </div>
+      <div class="row2">
+        <div><label>Tour de taille</label><input id="ms-tourtaille" type="number"></div>
+        <div><label>Longueur de taille</label><input id="ms-longtaille" type="number"></div>
       </div>
       <div class="row3">
         <div><label>Ceinture</label><input id="ms-ceinture" type="number"></div>
@@ -1258,7 +1266,7 @@ function rendreLignesArticles(){
 }
 initialiserLignesArticles();
 function viderChampsMesuresAtelier(){
-  ['a-tel','m-cou','m-epaule','m-poitrine','m-longmanche','m-tourmanche','m-poignet',
+  ['a-tel','m-cou','m-epaule','m-poitrine','m-longmanche','m-tourmanche','m-poignet','m-tourtaille','m-longtaille',
    'm-ceinture','m-bassin','m-cuisse','m-pince','m-tourgenou','m-baspantalon','m-longhaut','m-longpantalon','m-longrobe','m-longjupe']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
 }
@@ -1303,6 +1311,8 @@ function tenterResolutionParTelephone(prefixe){
     document.getElementById('m-longmanche').value=client.longManche||'';
     document.getElementById('m-tourmanche').value=client.tourManche||'';
     document.getElementById('m-poignet').value=client.poignet||'';
+    document.getElementById('m-tourtaille').value=client.tourTaille||'';
+    document.getElementById('m-longtaille').value=client.longTaille||'';
     document.getElementById('m-ceinture').value=client.ceinture||'';
     document.getElementById('m-bassin').value=client.bassin||'';
     document.getElementById('m-cuisse').value=client.cuisse||'';
@@ -1323,6 +1333,8 @@ function tenterResolutionParTelephone(prefixe){
     document.getElementById('ms-longmanche').value=client.longManche||'';
     document.getElementById('ms-tourmanche').value=client.tourManche||'';
     document.getElementById('ms-poignet').value=client.poignet||'';
+    document.getElementById('ms-tourtaille').value=client.tourTaille||'';
+    document.getElementById('ms-longtaille').value=client.longTaille||'';
     document.getElementById('ms-ceinture').value=client.ceinture||'';
     document.getElementById('ms-bassin').value=client.bassin||'';
     document.getElementById('ms-cuisse').value=client.cuisse||'';
@@ -1354,6 +1366,8 @@ function remplirDepuisClientExistant(){
   document.getElementById('m-longmanche').value=client.longManche||'';
   document.getElementById('m-tourmanche').value=client.tourManche||'';
   document.getElementById('m-poignet').value=client.poignet||'';
+  document.getElementById('m-tourtaille').value=client.tourTaille||'';
+  document.getElementById('m-longtaille').value=client.longTaille||'';
   document.getElementById('m-ceinture').value=client.ceinture||'';
   document.getElementById('m-bassin').value=client.bassin||'';
   document.getElementById('m-cuisse').value=client.cuisse||'';
@@ -1371,7 +1385,7 @@ function remplirDepuisClientExistant(){
    automatiquement (utile pour mettre à jour une fiche sans la rechercher dans la liste). */
 function viderChampsMesures(){
   document.getElementById('ms-edit-id').value='';
-  ['ms-tel','ms-cou','ms-epaule','ms-poitrine','ms-longmanche','ms-tourmanche','ms-poignet',
+  ['ms-tel','ms-cou','ms-epaule','ms-poitrine','ms-longmanche','ms-tourmanche','ms-poignet','ms-tourtaille','ms-longtaille',
    'ms-ceinture','ms-bassin','ms-cuisse','ms-pince','ms-tourgenou','ms-baspantalon','ms-longhaut','ms-longpantalon','ms-longrobe','ms-longjupe']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
 }
@@ -1395,6 +1409,8 @@ function remplirDepuisClientExistantMesures(){
   document.getElementById('ms-longmanche').value=client.longManche||'';
   document.getElementById('ms-tourmanche').value=client.tourManche||'';
   document.getElementById('ms-poignet').value=client.poignet||'';
+    document.getElementById('ms-tourtaille').value=client.tourTaille||'';
+    document.getElementById('ms-longtaille').value=client.longTaille||'';
   document.getElementById('ms-ceinture').value=client.ceinture||'';
   document.getElementById('ms-bassin').value=client.bassin||'';
   document.getElementById('ms-cuisse').value=client.cuisse||'';
@@ -1500,6 +1516,8 @@ async function ajouterCommande(){
     longManche:document.getElementById('m-longmanche').value,
     tourManche:document.getElementById('m-tourmanche').value,
     poignet:document.getElementById('m-poignet').value,
+    tourTaille:document.getElementById('m-tourtaille').value,
+    longTaille:document.getElementById('m-longtaille').value,
     ceinture:document.getElementById('m-ceinture').value,
     bassin:document.getElementById('m-bassin').value,
     cuisse:document.getElementById('m-cuisse').value,
@@ -1710,6 +1728,65 @@ async function corrigerLivraisonAtelier(id){
   db.collection('commandes_couture').doc(id).update({livraison:c.livraison}).catch(err=>console.error('Erreur correction date de livraison', err));
   toast('Date de livraison mise à jour');
 }
+/* Corrige une faute de frappe dans le nom du client, sans rien effacer
+   d'autre dans la commande (articles, photos, paiements restent intacts). */
+async function corrigerNomAtelier(id){
+  const c = CACHE.commandes_couture.find(x=>x.id===id);
+  if(!c) return;
+  const nouveau = prompt('Corriger le nom de la commande '+(c.code||'')+' :', c.nom||'');
+  if(nouveau===null || !nouveau.trim()) return;
+  c.nom = nouveau.trim();
+  rendreAtelier();
+  db.collection('commandes_couture').doc(id).update({nom:c.nom}).catch(err=>console.error('Erreur correction nom', err));
+  toast('Nom corrigé');
+}
+/* Corrige le PRIX TOTAL de la commande — sert à la fois pour une erreur de
+   saisie et pour accorder une réduction/remise à un client fidèle.
+   Ne touche jamais à l'acompte déjà versé : seul le total change, donc le
+   "Reste à payer" se recalcule automatiquement. Protégé par le code admin
+   car ça change ce que le client doit payer au final. */
+async function corrigerPrixAtelier(id){
+  if(!await demanderCodeAdmin('Corriger le prix / accorder une réduction')) return;
+  const c = CACHE.commandes_couture.find(x=>x.id===id);
+  if(!c) return;
+  const saisie = prompt('Nouveau prix total pour '+c.nom+' (actuellement '+c.prix+' D) :', c.prix);
+  if(saisie===null) return;
+  const nouveauPrix = Number(saisie);
+  if(isNaN(nouveauPrix) || nouveauPrix<0){ toast('Montant invalide'); return; }
+  if(nouveauPrix < c.acompte){ toast('⚠️ Ce prix est inférieur à l\'acompte déjà reçu ('+c.acompte+' D) — corrigez d\'abord l\'acompte si besoin'); return; }
+  c.prix = nouveauPrix;
+  rendreAtelier();
+  db.collection('commandes_couture').doc(id).update({prix:nouveauPrix}).catch(err=>console.error('Erreur correction prix', err));
+  toast('Prix mis à jour — '+c.nom+' doit maintenant '+nouveauPrix+' D au total');
+}
+/* Remplace la photo du tissu ou du modèle si la mauvaise photo a été prise
+   au départ. Envoie une nouvelle photo qui remplace l'ancienne (l'ancienne
+   reste dans le Storage mais n'est plus affichée). */
+async function remplacerPhotoAtelier(id, type){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const fichier = input.files[0];
+    if(!fichier) return;
+    toast('Envoi de la nouvelle photo...');
+    try{
+      const c = CACHE.commandes_couture.find(x=>x.id===id);
+      if(!c) return;
+      const suffixe = type==='tissu' ? '_tissu_corrige.jpg' : '_modele_corrige.jpg';
+      const url = await televerserPhoto(fichier, 'atelier/'+(c.code||id)+suffixe);
+      if(!url){ toast('Échec de l\'envoi de la photo'); return; }
+      const champ = type==='tissu' ? 'photosTissuURLs' : 'photosModeleURLs';
+      c[champ] = [url];
+      rendreAtelier();
+      db.collection('commandes_couture').doc(id).update({[champ]:[url]}).catch(err=>console.error('Erreur remplacement photo', err));
+      toast('Photo remplacée');
+    } catch(err){
+      toast('Erreur: '+err.message);
+    }
+  };
+  input.click();
+}
 async function marquerSoldePayeAtelier(id){
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
@@ -1904,6 +1981,10 @@ function carteCommandeAtelier(c){
       <button onclick="corrigerTelephoneAtelier('${c.id}')">✏️ Tél.</button>
       <button onclick="corrigerAvanceAtelier('${c.id}')">✏️ Avance</button>
       <button onclick="corrigerLivraisonAtelier('${c.id}')">📅 Date livraison</button>
+      <button onclick="corrigerNomAtelier('${c.id}')">✏️ Nom</button>
+      <button onclick="corrigerPrixAtelier('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Prix / Réduction</button>
+      <button onclick="remplacerPhotoAtelier('${c.id}','tissu')">📷 Photo tissu</button>
+      <button onclick="remplacerPhotoAtelier('${c.id}','modele')">📷 Photo modèle</button>
       <button class="del" onclick="supprimerCommande('${c.id}')">Supprimer</button>
     </div>
   </div>`;
@@ -2206,6 +2287,32 @@ async function corrigerRetraitPressing(id){
   db.collection('depots_pressing').doc(id).update({retrait:t.retrait}).catch(err=>console.error('Erreur correction date de retrait', err));
   toast('Date de retrait mise à jour');
 }
+async function corrigerNomPressing(id){
+  const t = CACHE.depots_pressing.find(x=>x.id===id);
+  if(!t) return;
+  const nouveau = prompt('Corriger le nom du ticket '+(t.code||'')+' :', t.nom||'');
+  if(nouveau===null || !nouveau.trim()) return;
+  t.nom = nouveau.trim();
+  rendrePressing();
+  db.collection('depots_pressing').doc(id).update({nom:t.nom}).catch(err=>console.error('Erreur correction nom', err));
+  toast('Nom corrigé');
+}
+/* Corrige le prix total — pour une erreur de saisie ou pour accorder une
+   réduction à un client fidèle. Ne touche jamais à l'avance déjà versée. */
+async function corrigerPrixPressing(id){
+  if(!await demanderCodeAdmin('Corriger le prix / accorder une réduction')) return;
+  const t = CACHE.depots_pressing.find(x=>x.id===id);
+  if(!t) return;
+  const saisie = prompt('Nouveau prix total pour '+t.nom+' (actuellement '+t.prix+' D) :', t.prix);
+  if(saisie===null) return;
+  const nouveauPrix = Number(saisie);
+  if(isNaN(nouveauPrix) || nouveauPrix<0){ toast('Montant invalide'); return; }
+  if(nouveauPrix < t.avance){ toast('⚠️ Ce prix est inférieur à l\'avance déjà reçue ('+t.avance+' D) — corrigez d\'abord l\'avance si besoin'); return; }
+  t.prix = nouveauPrix;
+  rendrePressing();
+  db.collection('depots_pressing').doc(id).update({prix:nouveauPrix}).catch(err=>console.error('Erreur correction prix', err));
+  toast('Prix mis à jour — '+t.nom+' doit maintenant '+nouveauPrix+' D au total');
+}
 async function marquerSoldePayePressing(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
@@ -2286,6 +2393,8 @@ function rendrePressing(){
           <button onclick="corrigerTelephonePressing('${t.id}')">✏️ Tél.</button>
           <button onclick="corrigerAvancePressing('${t.id}')">✏️ Avance</button>
           <button onclick="corrigerRetraitPressing('${t.id}')">📅 Date retrait</button>
+          <button onclick="corrigerNomPressing('${t.id}')">✏️ Nom</button>
+          <button onclick="corrigerPrixPressing('${t.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Prix / Réduction</button>
           <button class="del" onclick="supprimerTicket('${t.id}')">Supprimer</button>
         </div>
       </div>`;
@@ -2337,6 +2446,13 @@ function vendreProduit(id){
   const qte=Number(prompt('Quantité vendue ?','1'));
   if(!qte || qte<=0) return;
   if(qte>p.qte){ toast('Quantité supérieure au stock'); return; }
+  const totalNormal = qte*p.prix;
+  const saisieRemise = prompt('Réduction accordée (D), laissez 0 si aucune — prix normal: '+totalNormal+' D :', '0');
+  if(saisieRemise===null) return;
+  let remise = Number(saisieRemise)||0;
+  if(remise<0) remise=0;
+  let totalFinal = totalNormal - remise;
+  if(totalFinal<0){ toast('La réduction dépasse le prix — vente annulée'); return; }
   const nomClient = prompt('Nom du client (laisser vide si non applicable) ?','') || '';
   const telClient = nomClient ? (prompt('Numéro WhatsApp du client (laisser vide pour ne pas notifier) ?','') || '') : '';
   const batch=db.batch();
@@ -2344,7 +2460,7 @@ function vendreProduit(id){
   batch.update(refProduit, {
     qte: p.qte-qte,
     vendus: (p.vendus||0)+qte,
-    recette: (p.recette||0)+qte*p.prix
+    recette: (p.recette||0)+totalFinal
   });
   const refVente=db.collection('boutique_ventes').doc();
   batch.set(refVente, {
@@ -2352,17 +2468,18 @@ function vendreProduit(id){
     nomProduit:p.nom,
     qte,
     prixUnitaire:p.prix,
-    total:qte*p.prix,
+    remise,
+    total:totalFinal,
     client: nomClient,
     telephone: telClient,
     date:new Date().toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   });
   batch.commit().then(()=>{
-    enregistrerTransaction(qte*p.prix, 'Boutique', p.nom);
-    toast('Vente enregistrée');
+    enregistrerTransaction(totalFinal, 'Boutique', p.nom+(remise>0 ? ' (réduction '+remise+' D)' : ''));
+    toast('Vente enregistrée'+(remise>0 ? ' — réduction de '+remise+' D appliquée' : ''));
     if(nomClient && telClient){
-      envoyerNotificationWhatsAppDynamique(nomClient, telClient, 'Boutique', 'Vendu', p.nom+' x'+qte, qte*p.prix, qte*p.prix, '');
+      envoyerNotificationWhatsAppDynamique(nomClient, telClient, 'Boutique', 'Vendu', p.nom+' x'+qte, totalFinal, totalFinal, '');
     }
   })
     .catch(err=>toast('Erreur: '+err.message));
@@ -2664,6 +2781,8 @@ function enregistrerMesure(){
     longManche:document.getElementById('ms-longmanche').value,
     tourManche:document.getElementById('ms-tourmanche').value,
     poignet:document.getElementById('ms-poignet').value,
+    tourTaille:document.getElementById('ms-tourtaille').value,
+    longTaille:document.getElementById('ms-longtaille').value,
     ceinture:document.getElementById('ms-ceinture').value,
     bassin:document.getElementById('ms-bassin').value,
     cuisse:document.getElementById('ms-cuisse').value,
@@ -2689,7 +2808,8 @@ function enregistrerMesure(){
 
   toast(idEdition ? 'Fiche mise à jour' : 'Fiche enregistrée');
   viderChamps(['ms-nom','ms-tel','ms-cou','ms-epaule','ms-poitrine','ms-longmanche','ms-tourmanche',
-    'ms-poignet','ms-ceinture','ms-bassin','ms-cuisse','ms-longhaut','ms-longpantalon','ms-longrobe','ms-longjupe']);
+    'ms-poignet','ms-tourtaille','ms-longtaille','ms-ceinture','ms-bassin','ms-cuisse','ms-pince','ms-tourgenou','ms-baspantalon',
+    'ms-longhaut','ms-longpantalon','ms-longrobe','ms-longjupe']);
   document.getElementById('ms-edit-id').value='';
   choisirGenreMesures('Homme');
 
@@ -2715,9 +2835,14 @@ async function modifierMesure(id){
   document.getElementById('ms-longmanche').value=f.longManche||'';
   document.getElementById('ms-tourmanche').value=f.tourManche||'';
   document.getElementById('ms-poignet').value=f.poignet||'';
+  document.getElementById('ms-tourtaille').value=f.tourTaille||'';
+  document.getElementById('ms-longtaille').value=f.longTaille||'';
   document.getElementById('ms-ceinture').value=f.ceinture||'';
   document.getElementById('ms-bassin').value=f.bassin||'';
   document.getElementById('ms-cuisse').value=f.cuisse||'';
+  document.getElementById('ms-pince').value=f.pince||'';
+  document.getElementById('ms-tourgenou').value=f.tourGenou||'';
+  document.getElementById('ms-baspantalon').value=f.basPantalon||'';
   document.getElementById('ms-longhaut').value=f.longHaut||'';
   document.getElementById('ms-longpantalon').value=f.longPantalon||'';
   choisirGenreMesures(f.genre||'Homme');
@@ -2743,10 +2868,10 @@ function rendreMesures(){
   }
   const comptageNoms = {};
   CACHE.clients_mesures.forEach(f=>{ comptageNoms[f.nom] = (comptageNoms[f.nom]||0)+1; });
-  liste.innerHTML=data.slice().reverse().map(f=>`<div class="liste-item">
+  liste.innerHTML=data.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'', 'fr', {sensitivity:'base'})).map(f=>`<div class="liste-item">
     <div class="nom">${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${f.genre||''})</span> ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
     <div class="meta">${f.tel||'<span style="color:var(--rouge);">Aucun téléphone — risque de confusion</span>'}</div>
-    <div class="meta">Cou ${f.cou||'-'} · Poitrine ${f.poitrine||'-'} · Ceinture ${f.ceinture||'-'} · Bassin ${f.bassin||'-'}</div>
+    <div class="meta">Cou ${f.cou||'-'} · Poitrine ${f.poitrine||'-'} · Taille ${f.tourTaille||'-'} · Ceinture ${f.ceinture||'-'} · Bassin ${f.bassin||'-'}</div>
     <div class="item-actions">
       <button onclick="modifierMesure('${f.id}')">Modifier</button>
       <button class="del" onclick="supprimerMesure('${f.id}')">Supprimer</button>
