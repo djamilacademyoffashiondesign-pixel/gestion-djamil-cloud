@@ -198,7 +198,7 @@
     opacity:0;transition:all .3s;pointer-events:none;z-index:100;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-  .toggle-genre{display:flex;gap:8px;margin-bottom:6px;}
+  .toggle-genre{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
   .toggle-genre button{
     flex:1;padding:10px;border-radius:6px;border:1px solid #34343a;
     background:#1f1f23;color:var(--gris);font-family:'Helvetica Neue',Arial,sans-serif;
@@ -352,11 +352,16 @@
     </div>
     <div class="panel">
       <h2>🗂️ Client historique (dépôt avant l'application)</h2>
-      <div style="color:var(--gris);font-size:0.8rem;margin-bottom:10px;">Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer et payer. Enregistré directement comme "Livré", sans passer par tout le formulaire de commande.</div>
+      <div style="color:var(--gris);font-size:0.8rem;margin-bottom:10px;">Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer. Enregistré directement comme "Livré", sans passer par tout le formulaire de commande.</div>
       <input id="hist-atelier-nom" placeholder="Nom du client">
       <input id="hist-atelier-tel" placeholder="Téléphone">
       <input id="hist-atelier-desc" placeholder="Description (ex: Robe boubou déposée il y a 4 mois)">
-      <input id="hist-atelier-montant" type="number" placeholder="Montant reçu aujourd'hui (D)">
+      <label>Montant total payé (D)</label>
+      <input id="hist-atelier-montant" type="number" placeholder="Ex: 5000">
+      <label>Ce client doit-il encore de l'argent ?</label>
+      <input id="hist-atelier-reste" type="number" placeholder="Reste à payer — laisser 0 si tout est déjà payé" value="0">
+      <label>Quand cet argent a-t-il été reçu ? (laisser aujourd'hui si le paiement se fait maintenant)</label>
+      <input id="hist-atelier-date" type="date">
       <button class="btn secondary" onclick="enregistrerClientHistoriqueAtelier()">Enregistrer et marquer livré</button>
     </div>
     <div class="panel">
@@ -465,7 +470,12 @@
       <input id="hist-pressing-nom" placeholder="Nom du client">
       <input id="hist-pressing-tel" placeholder="Téléphone">
       <input id="hist-pressing-desc" placeholder="Description (ex: 2 boubous déposés il y a 3 mois)">
-      <input id="hist-pressing-montant" type="number" placeholder="Montant reçu aujourd'hui (D)">
+      <label>Montant total payé (D)</label>
+      <input id="hist-pressing-montant" type="number" placeholder="Ex: 500">
+      <label>Ce client doit-il encore de l'argent ?</label>
+      <input id="hist-pressing-reste" type="number" placeholder="Reste à payer — laisser 0 si tout est déjà payé" value="0">
+      <label>Quand cet argent a-t-il été reçu ? (laisser aujourd'hui si le paiement se fait maintenant)</label>
+      <input id="hist-pressing-date" type="date">
       <button class="btn secondary" onclick="enregistrerClientHistoriquePressing()">Enregistrer et marquer récupéré</button>
     </div>
     <div class="panel">
@@ -1630,10 +1640,13 @@ async function enregistrerClientHistoriqueAtelier(){
   const tel = document.getElementById('hist-atelier-tel').value.trim();
   const desc = document.getElementById('hist-atelier-desc').value.trim();
   const montant = Number(document.getElementById('hist-atelier-montant').value)||0;
+  const reste = Number(document.getElementById('hist-atelier-reste').value)||0;
+  const dateRecue = document.getElementById('hist-atelier-date').value || dateISOAujourdhui();
   if(!nom){ toast('Entrez le nom du client'); return; }
-  if(montant<=0){ toast('Entrez le montant reçu'); return; }
+  if(montant<=0 && reste<=0){ toast('Entrez au moins le montant déjà payé ou le reste dû'); return; }
   try{
     const code = await genererCode('commandes_couture');
+    const prixTotal = montant + reste;
     const cmd = {
       code,
       type:'Confection',
@@ -1641,9 +1654,9 @@ async function enregistrerClientHistoriqueAtelier(){
       nom,
       tel,
       desc: desc || 'Client historique (dépôt avant l\'application)',
-      articles:[{nom: desc || 'Article historique', prix: montant}],
+      articles:[{nom: desc || 'Article historique', prix: prixTotal}],
       mesures:'{}',
-      prix: montant,
+      prix: prixTotal,
       acompte: montant,
       depot:'',
       livraison:'',
@@ -1654,12 +1667,15 @@ async function enregistrerClientHistoriqueAtelier(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('commandes_couture', cmd, 'Le client historique n\'a pas pu être synchronisé en ligne');
-    enregistrerTransaction(montant, 'Atelier', nom+' — '+code+' (client historique)');
+    /* Le montant est daté du jour où il a RÉELLEMENT été reçu (souvent dans
+       le passé, avant l'application), pour ne jamais fausser les totaux
+       du jour dans les Finances. */
+    enregistrerTransaction(montant, 'Atelier', nom+' — '+code+' (client historique)', dateRecue);
     if(tel){
       synchroniserCarnetAdresses(nom, tel, '', {}).catch(err=>console.error('Le carnet d\'adresses n\'a pas pu être synchronisé', err));
     }
-    viderChamps(['hist-atelier-nom','hist-atelier-tel','hist-atelier-desc','hist-atelier-montant']);
-    toast('Client historique enregistré — Code '+code);
+    viderChamps(['hist-atelier-nom','hist-atelier-tel','hist-atelier-desc','hist-atelier-montant','hist-atelier-reste']);
+    toast('Client historique enregistré — Code '+code+(reste>0 ? ' — Reste '+reste+' D à suivre' : ''));
   } catch(err){
     toast('Erreur: '+err.message);
   }
@@ -2216,8 +2232,10 @@ async function enregistrerClientHistoriquePressing(){
   const tel = document.getElementById('hist-pressing-tel').value.trim();
   const desc = document.getElementById('hist-pressing-desc').value.trim();
   const montant = Number(document.getElementById('hist-pressing-montant').value)||0;
+  const reste = Number(document.getElementById('hist-pressing-reste').value)||0;
+  const dateRecue = document.getElementById('hist-pressing-date').value || dateISOAujourdhui();
   if(!nom){ toast('Entrez le nom du client'); return; }
-  if(montant<=0){ toast('Entrez le montant reçu'); return; }
+  if(montant<=0 && reste<=0){ toast('Entrez au moins le montant déjà payé ou le reste dû'); return; }
   try{
     const code = await genererCode('depots_pressing');
     const t = {
@@ -2226,7 +2244,7 @@ async function enregistrerClientHistoriquePressing(){
       tel,
       articles:'[]',
       resume: desc || 'Client historique (dépôt avant l\'application)',
-      prix: montant,
+      prix: montant+reste,
       avance: montant,
       depot:'',
       retrait:'',
@@ -2236,9 +2254,9 @@ async function enregistrerClientHistoriquePressing(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('depots_pressing', t, 'Le client historique n\'a pas pu être synchronisé en ligne');
-    enregistrerTransaction(montant, 'Pressing', nom+' — '+code+' (client historique)');
-    viderChamps(['hist-pressing-nom','hist-pressing-tel','hist-pressing-desc','hist-pressing-montant']);
-    toast('Client historique enregistré — Code '+code);
+    enregistrerTransaction(montant, 'Pressing', nom+' — '+code+' (client historique)', dateRecue);
+    viderChamps(['hist-pressing-nom','hist-pressing-tel','hist-pressing-desc','hist-pressing-montant','hist-pressing-reste']);
+    toast('Client historique enregistré — Code '+code+(reste>0 ? ' — Reste '+reste+' D à suivre' : ''));
   } catch(err){
     toast('Erreur: '+err.message);
   }
