@@ -366,6 +366,7 @@
         <div class="toggle-genre" style="margin-bottom:0;">
           <button type="button" id="type-confection" class="actif" onclick="choisirTypeCommande('Confection')">🧵 Confection</button>
           <button type="button" id="type-retouche" onclick="choisirTypeCommande('Retouche')">✂️ Retouche</button>
+          <button type="button" id="type-pap" onclick="choisirTypeCommande('Prêt-à-porter')">🛍️ Prêt-à-porter</button>
         </div>
       </div>
       <label>Genre du client</label>
@@ -1212,9 +1213,10 @@ function choisirTypeCommande(type){
   typeCommandeActuel=type;
   document.getElementById('type-confection').classList.toggle('actif', type==='Confection');
   document.getElementById('type-retouche').classList.toggle('actif', type==='Retouche');
+  document.getElementById('type-pap').classList.toggle('actif', type==='Prêt-à-porter');
   document.getElementById('bloc-mesures-commande').style.display = type==='Retouche' ? 'none' : 'block';
-  document.getElementById('a-desc-label').textContent = type==='Retouche' ? 'Description de la retouche' : 'Notes / précisions (tissu, style, instructions...)';
-  document.getElementById('a-desc').placeholder = type==='Retouche' ? 'Ex: Reprise ourlet, ajustement taille, raccourcir manches...' : 'Ex: Robe de soirée, tissu bazin';
+  document.getElementById('a-desc-label').textContent = type==='Retouche' ? 'Description de la retouche' : (type==='Prêt-à-porter' ? 'Article demandé (ex: chemise taille L, pantalon noir 42)' : 'Notes / précisions (tissu, style, instructions...)');
+  document.getElementById('a-desc').placeholder = type==='Retouche' ? 'Ex: Reprise ourlet, ajustement taille, raccourcir manches...' : (type==='Prêt-à-porter' ? 'Ex: Chemise blanche taille L, pantalon costume noir 42' : 'Ex: Robe de soirée, tissu bazin');
 }
 const STATUTS_ATELIER=['Pris','En coupe','Essayage','Prêt','Livré','Annulé (tissu récupéré)'];
 
@@ -1951,7 +1953,7 @@ function carteCommandeAtelier(c){
     classeAlerte = e.classe; badgeJours = e.badge;
   }
   return `<div class="liste-item ${classeAlerte}">
-    <div class="nom">${c.nom} <span style="color:var(--gris);font-size:0.75rem;">(${c.genre||''})</span> ${c.code ? '<span class="badge attente">Code '+c.code+'</span>' : ''} ${c.type==='Retouche' ? '<span class="badge ok">✂️ Retouche</span>' : ''} ${reste<=0 ? '<span class="badge ok">✅ PAYÉ</span>' : ''}</div>
+    <div class="nom">${c.nom} <span style="color:var(--gris);font-size:0.75rem;">(${c.genre||''})</span> ${c.code ? '<span class="badge attente">Code '+c.code+'</span>' : ''} ${c.type==='Retouche' ? '<span class="badge ok">✂️ Retouche</span>' : ''} ${c.type==='Prêt-à-porter' ? '<span class="badge ok">🛍️ Prêt-à-porter</span>' : ''} ${reste<=0 ? '<span class="badge ok">✅ PAYÉ</span>' : ''}</div>
     ${c.tel ? '<div class="meta">📞 <a href="tel:'+c.tel+'" style="color:var(--or-clair);">'+c.tel+'</a></div>' : ''}
     <div class="meta">${c.desc||''}</div>
     ${(c.articles && c.articles.length) ? '<div class="meta">'+c.articles.map(a=>a.nom+': '+a.prix+' D').join(' · ')+'</div>' : ''}
