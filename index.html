@@ -283,6 +283,7 @@
   <button class="tab-btn" data-mod="mesures">Mesures</button>
   <button class="tab-btn" data-mod="finances">Finances</button>
   <button class="tab-btn" data-mod="salaires">Salaires</button>
+  <button class="tab-btn" data-mod="visiteurs">Visiteurs</button>
 </nav>
 
 <main>
@@ -642,6 +643,28 @@
     <div class="panel">
       <h2>Employés</h2>
       <div id="employes-liste"></div>
+    </div>
+  </section>
+
+  <!-- ===================== VISITEURS ===================== -->
+  <section class="module" id="visiteurs">
+    <div class="panel">
+      <h2>Enregistrer un passage</h2>
+      <label>Nom</label>
+      <input id="vis-nom" placeholder="Ex: Amadou">
+      <label>Téléphone</label>
+      <input id="vis-tel" placeholder="Ex: 7XX XXXX">
+      <label>Note</label>
+      <input id="vis-note" placeholder="Ex: veut voir Djamil, demande un devis boubou...">
+      <button class="btn" id="btn-visiteur" onclick="ajouterVisiteur()">Enregistrer le passage</button>
+    </div>
+    <div class="panel">
+      <h2>Recherche</h2>
+      <input id="vis-recherche" placeholder="Rechercher un visiteur..." oninput="rendreVisiteurs()">
+    </div>
+    <div class="panel">
+      <h2>Passages enregistrés</h2>
+      <div id="visiteurs-liste"></div>
     </div>
   </section>
 
@@ -1098,7 +1121,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 });
 
 /* ================= STOCKAGE LOCAL EN MÉMOIRE (mis à jour par les écouteurs temps réel) ================= */
-let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[] };
+let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[], visiteurs:[] };
 
 /* ================= EXPORT CSV ================= */
 function exporterCSV(collection){
@@ -1142,7 +1165,7 @@ function choisirTypeCommande(type){
   document.getElementById('a-desc-label').textContent = type==='Retouche' ? 'Description de la retouche' : 'Notes / précisions (tissu, style, instructions...)';
   document.getElementById('a-desc').placeholder = type==='Retouche' ? 'Ex: Reprise ourlet, ajustement taille, raccourcir manches...' : 'Ex: Robe de soirée, tissu bazin';
 }
-const STATUTS_ATELIER=['Pris','En coupe','Essayage','Prêt','Livré'];
+const STATUTS_ATELIER=['Pris','En coupe','Essayage','Prêt','Livré','Annulé (tissu récupéré)'];
 
 /* ================= ARTICLES DE LA COMMANDE (facture détaillée) ================= */
 let lignesArticles = [];
@@ -1579,6 +1602,25 @@ async function enregistrerClientHistoriqueAtelier(){
   }
 }
 function changerStatutAtelier(id,statut){
+  if(statut === 'Annulé (tissu récupéré)'){
+    const c = CACHE.commandes_couture.find(x=>x.id===id);
+    if(c && c.acompte>0){
+      const rembourse = confirm(c.nom+' avait versé un acompte de '+c.acompte+' D.\nLui avez-vous rendu cet argent en reprenant son tissu ?\n\nOK = Oui, j\'ai remboursé (sera noté en dépense pour que les Finances restent exactes)\nAnnuler = Non, l\'acompte reste acquis à l\'atelier');
+      if(rembourse){
+        const depense = {
+          activite:'Atelier',
+          categorie:'Remboursement',
+          montant: c.acompte,
+          description: 'Remboursement acompte — '+c.nom+' — '+(c.code||'')+' (tissu repris sans couture)',
+          dateISO: dateISOAujourdhui(),
+          date: new Date().toLocaleDateString('fr-FR'),
+          creeLe: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        ecrireAvecSecours('depenses', depense, 'Le remboursement n\'a pas pu être synchronisé en ligne');
+        toast('Remboursement enregistré en dépense');
+      }
+    }
+  }
   db.collection('commandes_couture').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
 }
 /* Corrections rapides, sans jamais supprimer la commande.
@@ -1611,6 +1653,19 @@ async function corrigerAvanceAtelier(id){
   db.collection('commandes_couture').doc(id).update({acompte:nouveauMontant}).catch(err=>console.error('Erreur correction avance', err));
   enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)', dateSaisie.trim());
   toast('Avance corrigée');
+}
+/* Permet de changer la date de livraison prévue quand un client rappelle
+   pour avancer ou reculer son rendez-vous (ex: "je veux ma robe dans 3 jours
+   au lieu d'une semaine"). Ne touche ni au statut ni aux finances. */
+async function corrigerLivraisonAtelier(id){
+  const c = CACHE.commandes_couture.find(x=>x.id===id);
+  if(!c) return;
+  const nouvelleDate = prompt('Nouvelle date de livraison pour '+c.nom+' (AAAA-MM-JJ) :', c.livraison||dateISOAujourdhui());
+  if(nouvelleDate===null) return;
+  c.livraison = nouvelleDate.trim();
+  rendreAtelier();
+  db.collection('commandes_couture').doc(id).update({livraison:c.livraison}).catch(err=>console.error('Erreur correction date de livraison', err));
+  toast('Date de livraison mise à jour');
 }
 async function marquerSoldePayeAtelier(id){
   const c = CACHE.commandes_couture.find(x=>x.id===id);
@@ -1651,8 +1706,8 @@ function construireMessageNotification(typeActivite, statut, nomClient, detailCo
   if(typeActivite === "Atelier"){
     if(statut === "En coupe"){
       return texteMsg(
-        `Bonjour ${nomClient}, votre commande${refCode} est maintenant en cours de réalisation à l'atelier Djamil Academy. Nous vous tiendrons informé(e) de l'avancement !`,
-        `Hello ${nomClient}, your order${refCode} is now being worked on at the Djamil Academy atelier. We'll keep you updated on its progress!`
+        `Bonjour ${nomClient}, votre commande${refCode} est maintenant en cours de réalisation à l'atelier Chez Djamil. Nous vous tiendrons informé(e) de l'avancement !`,
+        `Hello ${nomClient}, your order${refCode} is now being worked on at the Chez Djamil atelier. We'll keep you updated on its progress!`
       );
     }
     if(statut === "Essayage"){
@@ -1670,15 +1725,15 @@ function construireMessageNotification(typeActivite, statut, nomClient, detailCo
     }
     if(statut === "Livré"){
       return texteMsg(
-        `Bonjour ${nomClient}, merci d'avoir choisi Chez Djamil / Djamil Academy pour votre commande${refCode} ! Nous espérons que vous êtes pleinement satisfait(e) du résultat. À très bientôt pour une prochaine création !`,
-        `Hello ${nomClient}, thank you for choosing Chez Djamil / Djamil Academy for your order${refCode}! We hope you're fully satisfied with the result. See you again soon for your next creation!`
+        `Bonjour ${nomClient}, merci d'avoir choisi Chez Djamil pour votre commande${refCode} ! Nous espérons que vous êtes pleinement satisfait(e) du résultat. À très bientôt pour une prochaine création !`,
+        `Hello ${nomClient}, thank you for choosing Chez Djamil for your order${refCode}! We hope you're fully satisfied with the result. See you again soon for your next creation!`
       );
     }
   } else if(typeActivite === "Pressing"){
     if(statut === "En lavage"){
       return texteMsg(
-        `Bonjour ${nomClient}, vos vêtements${refCode} sont actuellement en cours de lavage chez Chez Djamel Pressing.`,
-        `Hello ${nomClient}, your clothes${refCode} are currently being washed at Chez Djamel Pressing.`
+        `Bonjour ${nomClient}, vos vêtements${refCode} sont actuellement en cours de lavage chez Chez Djamil Pressing.`,
+        `Hello ${nomClient}, your clothes${refCode} are currently being washed at Chez Djamil Pressing.`
       );
     }
     if(statut === "En repassage"){
@@ -1690,20 +1745,26 @@ function construireMessageNotification(typeActivite, statut, nomClient, detailCo
     if(statut === "Prêt"){
       const texteSolde = soldeRestant>0 ? texteMsg(` Le montant à régler est de ${soldeRestant} D.`, ` The amount due is ${soldeRestant} D.`) : "";
       return texteMsg(
-        `Bonjour ${nomClient}, vos habits déposés au pressing Chez Djamel sont propres, repassés et prêts à être récupérés.${texteSolde} À très bientôt !`,
-        `Hello ${nomClient}, your clothes left at Chez Djamel pressing are clean, ironed and ready for pickup.${texteSolde} See you soon!`
+        `Bonjour ${nomClient}, vos habits déposés au pressing Chez Djamil sont propres, repassés et prêts à être récupérés.${texteSolde} À très bientôt !`,
+        `Hello ${nomClient}, your clothes left at Chez Djamil pressing are clean, ironed and ready for pickup.${texteSolde} See you soon!`
       );
     }
     if(statut === "Récupéré"){
       return texteMsg(
-        `Bonjour ${nomClient}, merci d'avoir fait confiance à Chez Djamel Pressing pour l'entretien de votre linge${refCode} ! Nous espérons vous revoir très bientôt.`,
-        `Hello ${nomClient}, thank you for trusting Chez Djamel Pressing with your laundry${refCode}! We hope to see you again very soon.`
+        `Bonjour ${nomClient}, merci d'avoir fait confiance à Chez Djamil Pressing pour l'entretien de votre linge${refCode} ! Nous espérons vous revoir très bientôt.`,
+        `Hello ${nomClient}, thank you for trusting Chez Djamil Pressing with your laundry${refCode}! We hope to see you again very soon.`
+      );
+    }
+  } else if(typeActivite === "Boutique"){
+    if(statut === "Vendu"){
+      return texteMsg(
+        `Bonjour ${nomClient}, merci pour votre achat${refCode} chez Chez Djamil Boutique ! Nous espérons que l'article vous plaira. À très bientôt !`,
+        `Hello ${nomClient}, thank you for your purchase${refCode} at Chez Djamil Boutique! We hope you enjoy your item. See you again soon!`
       );
     }
   }
   return "";
 }
-/* Construit le message ET ouvre directement la conversation WhatsApp. */
 function envoyerNotificationWhatsAppDynamique(nomClient, telephone, typeActivite, statut, detailCommande, total, acompte, code){
   const message = construireMessageNotification(typeActivite, statut, nomClient, detailCommande, total, acompte, code);
   if(message !== ""){
@@ -1765,7 +1826,7 @@ function carteCommandeAtelier(c){
   const opts=STATUTS_ATELIER.map(s=>`<option value="${s}" ${s===c.statut?'selected':''}>${s}</option>`).join('');
   const jours=joursRestants(c.livraison);
   let classeAlerte=''; let badgeJours='';
-  if(jours!==null && c.statut!=='Livré'){
+  if(jours!==null && c.statut!=='Livré' && c.statut!=='Annulé (tissu récupéré)'){
     const e = badgeEcheance(jours, 'Livraison');
     classeAlerte = e.classe; badgeJours = e.badge;
   }
@@ -1799,6 +1860,7 @@ function carteCommandeAtelier(c){
       ${c.statut==='Livré' && c.tel ? `<button onclick="notifierRemerciementAtelier('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">🙏 Remerciement</button>` : ''}
       <button onclick="corrigerTelephoneAtelier('${c.id}')">✏️ Tél.</button>
       <button onclick="corrigerAvanceAtelier('${c.id}')">✏️ Avance</button>
+      <button onclick="corrigerLivraisonAtelier('${c.id}')">📅 Date livraison</button>
       <button class="del" onclick="supprimerCommande('${c.id}')">Supprimer</button>
     </div>
   </div>`;
@@ -1977,8 +2039,8 @@ async function ajouterTicket(){
         ? texteMsg(`Reste à payer: ${reste} D`, `Balance due: ${reste} D`)
         : texteMsg(`✅ Payé intégralement — merci !`, `✅ Paid in full — thank you!`);
       const msg = texteMsg(
-        `Bonjour ${nom}, voici votre reçu de dépôt chez Chez Djamel Pressing.\nCode: ${code}\nArticles: ${t.resume}\nTotal: ${total} D\nAvance: ${avance} D\n${ligneSolde}`,
-        `Hello ${nom}, here is your drop-off receipt from Chez Djamel Pressing.\nCode: ${code}\nItems: ${t.resume}\nTotal: ${total} D\nDeposit: ${avance} D\n${ligneSolde}`
+        `Bonjour ${nom}, voici votre reçu de dépôt chez Chez Djamil Pressing.\nCode: ${code}\nArticles: ${t.resume}\nTotal: ${total} D\nAvance: ${avance} D\n${ligneSolde}`,
+        `Hello ${nom}, here is your drop-off receipt from Chez Djamil Pressing.\nCode: ${code}\nItems: ${t.resume}\nTotal: ${total} D\nDeposit: ${avance} D\n${ligneSolde}`
       )
         + (photoURL ? texteMsg(`\nPhoto de vos articles: ${photoURL}`, `\nPhoto of your items: ${photoURL}`) : '');
       const lien=lienWhatsApp(tel, msg);
@@ -2089,6 +2151,18 @@ async function corrigerAvancePressing(id){
   enregistrerAjustementFinance(difference, 'Pressing', t.nom+' — '+t.code+' (correction avance)', dateSaisie.trim());
   toast('Avance corrigée');
 }
+/* Permet de changer la date de retrait prévue quand un client rappelle
+   pour avancer ou reculer la date (ex: "j'ai besoin de mon linge demain"). */
+async function corrigerRetraitPressing(id){
+  const t = CACHE.depots_pressing.find(x=>x.id===id);
+  if(!t) return;
+  const nouvelleDate = prompt('Nouvelle date de retrait pour '+t.nom+' (AAAA-MM-JJ) :', t.retrait||dateISOAujourdhui());
+  if(nouvelleDate===null) return;
+  t.retrait = nouvelleDate.trim();
+  rendrePressing();
+  db.collection('depots_pressing').doc(id).update({retrait:t.retrait}).catch(err=>console.error('Erreur correction date de retrait', err));
+  toast('Date de retrait mise à jour');
+}
 async function marquerSoldePayePressing(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
@@ -2168,6 +2242,7 @@ function rendrePressing(){
           ${t.statut==='Récupéré' && t.tel ? `<button onclick="notifierRemerciementPressing('${t.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">🙏 Remerciement</button>` : ''}
           <button onclick="corrigerTelephonePressing('${t.id}')">✏️ Tél.</button>
           <button onclick="corrigerAvancePressing('${t.id}')">✏️ Avance</button>
+          <button onclick="corrigerRetraitPressing('${t.id}')">📅 Date retrait</button>
           <button class="del" onclick="supprimerTicket('${t.id}')">Supprimer</button>
         </div>
       </div>`;
@@ -2219,6 +2294,8 @@ function vendreProduit(id){
   const qte=Number(prompt('Quantité vendue ?','1'));
   if(!qte || qte<=0) return;
   if(qte>p.qte){ toast('Quantité supérieure au stock'); return; }
+  const nomClient = prompt('Nom du client (laisser vide si non applicable) ?','') || '';
+  const telClient = nomClient ? (prompt('Numéro WhatsApp du client (laisser vide pour ne pas notifier) ?','') || '') : '';
   const batch=db.batch();
   const refProduit=db.collection('boutique_inventaire').doc(id);
   batch.update(refProduit, {
@@ -2233,12 +2310,17 @@ function vendreProduit(id){
     qte,
     prixUnitaire:p.prix,
     total:qte*p.prix,
+    client: nomClient,
+    telephone: telClient,
     date:new Date().toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   });
   batch.commit().then(()=>{
     enregistrerTransaction(qte*p.prix, 'Boutique', p.nom);
     toast('Vente enregistrée');
+    if(nomClient && telClient){
+      envoyerNotificationWhatsAppDynamique(nomClient, telClient, 'Boutique', 'Vendu', p.nom+' x'+qte, qte*p.prix, qte*p.prix, '');
+    }
   })
     .catch(err=>toast('Erreur: '+err.message));
 }
@@ -2425,7 +2507,7 @@ function rendreApercu(){
   atelier.forEach(c=>{
     const etape = ETAPES_NOTIF_ATELIER[c.statut];
     const jours = joursRestants(c.livraison);
-    const aUneEcheanceProche = jours!==null && c.statut!=='Livré' && jours<=7;
+    const aUneEcheanceProche = jours!==null && c.statut!=='Livré' && c.statut!=='Annulé (tissu récupéré)' && jours<=7;
     if(!etape && !aUneEcheanceProche) return;
     const msg = etape ? construireMessageNotification('Atelier', c.statut, c.nom, resumeArticles(c), c.prix, c.acompte, c.code) : null;
     let detail = etape ? etape.label : '';
@@ -2586,7 +2668,55 @@ function rendreMesures(){
   </div>`).join('');
 }
 
-/* ================= DÉPENSES ================= */
+/* ================= VISITEURS ================= */
+/* Registre simple des personnes qui passent à l'atelier sans commande
+   (curieux, demande de devis, laissent leur numéro pour être recontactés).
+   Séparé des commandes/finances : aucune somme n'est jamais rattachée ici. */
+function ajouterVisiteur(){
+  const nom = document.getElementById('vis-nom').value.trim();
+  const tel = document.getElementById('vis-tel').value.trim();
+  const note = document.getElementById('vis-note').value.trim();
+  if(!nom){ toast('Entrez le nom du visiteur'); return; }
+  const visiteur = {
+    nom,
+    tel,
+    note,
+    dateISO: dateISOAujourdhui(),
+    date: new Date().toLocaleDateString('fr-FR'),
+    heure: new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}),
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  ecrireAvecSecours('visiteurs', visiteur, 'Le passage n\'a pas pu être synchronisé en ligne');
+  viderChamps(['vis-nom','vis-tel','vis-note']);
+  toast('Passage enregistré');
+}
+function rendreVisiteurs(){
+  const recherche = (document.getElementById('vis-recherche')?.value||'').toLowerCase();
+  const data = (CACHE.visiteurs||[]).filter(v=>!recherche || (v.nom||'').toLowerCase().includes(recherche) || (v.tel||'').includes(recherche));
+  const liste = document.getElementById('visiteurs-liste');
+  if(!liste) return;
+  if(data.length===0){
+    liste.innerHTML = '<div class="vide">Aucun passage enregistré.</div>';
+    return;
+  }
+  const aujourdhui = dateISOAujourdhui();
+  liste.innerHTML = data.slice().sort((a,b)=>(b.dateISO||'').localeCompare(a.dateISO||'')||(b.heure||'').localeCompare(a.heure||'')).map(v=>`
+    <div class="liste-item">
+      <div class="nom">${v.nom} ${v.dateISO===aujourdhui ? '<span class="badge ok">Aujourd’hui</span>' : ''}</div>
+      <div class="meta">${v.tel || 'Aucun numéro laissé'}</div>
+      ${v.note ? `<div class="meta">📝 ${v.note}</div>` : ''}
+      <div class="meta">${v.date}${v.heure ? ' à '+v.heure : ''}</div>
+      <div class="item-actions">
+        <button class="del" onclick="supprimerVisiteur('${v.id}')">Supprimer</button>
+      </div>
+    </div>`).join('');
+}
+async function supprimerVisiteur(id){
+  if(!confirm('Supprimer ce passage enregistré ?')) return;
+  supprimerAvecOptimisme('visiteurs', id, 'visiteurs', rendreVisiteurs, 'Passage supprimé');
+}
+
+
 function ajouterDepenseRapide(activite, prefixId){
   const montant = Number(document.getElementById(prefixId+'-montant').value)||0;
   if(montant<=0){ toast('Entrez un montant valide'); return; }
@@ -2972,6 +3102,7 @@ function attacherEcouteur(collection, callback){
 attacherEcouteur('commandes_couture', rendreAtelier);
 attacherEcouteur('depots_pressing', rendrePressing);
 attacherEcouteur('boutique_inventaire', rendreBoutique);
+attacherEcouteur('visiteurs', rendreVisiteurs);
 attacherEcouteur('boutique_ventes', ()=>{});
 attacherEcouteur('clients_mesures', ()=>{ rendreMesures(); mettreAJourListeClients(); });
 attacherEcouteur('transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); });
