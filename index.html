@@ -1700,6 +1700,9 @@ function changerStatutAtelier(id,statut){
       }
     }
   }
+  const c2 = CACHE.commandes_couture.find(x=>x.id===id);
+  if(c2) c2.statut = statut;
+  rendreAtelier();
   db.collection('commandes_couture').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
 }
 /* Corrections rapides, sans jamais supprimer la commande.
@@ -2262,6 +2265,9 @@ async function enregistrerClientHistoriquePressing(){
   }
 }
 function changerStatutPressing(id,statut){
+  const t = CACHE.depots_pressing.find(x=>x.id===id);
+  if(t) t.statut = statut;
+  rendrePressing();
   db.collection('depots_pressing').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
 }
 /* Corrections rapides, sans jamais supprimer le ticket.
