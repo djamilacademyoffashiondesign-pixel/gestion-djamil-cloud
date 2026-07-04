@@ -1703,7 +1703,17 @@ function changerStatutAtelier(id,statut){
   const c2 = CACHE.commandes_couture.find(x=>x.id===id);
   if(c2) c2.statut = statut;
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
+  db.collection('commandes_couture').doc(id).update({statut}).then(()=>{
+    toast('Statut mis à jour');
+    if(c2 && c2.tel){
+      const etape = ETAPES_NOTIF_ATELIER[statut];
+      if(etape){
+        const msg = construireMessageNotification('Atelier', statut, c2.nom, resumeArticles(c2), c2.prix, c2.acompte, c2.code);
+        const lien = lienWhatsApp(c2.tel, msg);
+        if(lien) setTimeout(()=>window.open(lien,'_blank'), 500);
+      }
+    }
+  });
 }
 /* Corrections rapides, sans jamais supprimer la commande.
    Protégées par le code administrateur pour qu'un manager ne puisse pas
@@ -2268,7 +2278,17 @@ function changerStatutPressing(id,statut){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(t) t.statut = statut;
   rendrePressing();
-  db.collection('depots_pressing').doc(id).update({statut}).then(()=>toast('Statut mis à jour'));
+  db.collection('depots_pressing').doc(id).update({statut}).then(()=>{
+    toast('Statut mis à jour');
+    if(t && t.tel){
+      const etape = ETAPES_NOTIF_PRESSING[statut];
+      if(etape){
+        const msg = construireMessageNotification('Pressing', statut, t.nom, t.resume, t.prix, t.avance, t.code);
+        const lien = lienWhatsApp(t.tel, msg);
+        if(lien) setTimeout(()=>window.open(lien,'_blank'), 500);
+      }
+    }
+  });
 }
 /* Corrections rapides, sans jamais supprimer le ticket.
    Protégées par le code administrateur pour qu'un manager ne puisse pas
