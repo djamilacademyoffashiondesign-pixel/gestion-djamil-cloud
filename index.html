@@ -1616,7 +1616,7 @@ async function ajouterCommande(){
       const lien=lienWhatsApp(cmd.tel, msg);
       if(lien){
         const ouvrir = confirm('Commande créée (Code '+code+'). Envoyer la facture complète par WhatsApp au client ?');
-        if(ouvrir) window.location.href = lien;
+        if(ouvrir) window.open(lien, "_blank");
       }
     }
   } catch(err){
@@ -1825,7 +1825,7 @@ async function marquerSoldePayeAtelier(id){
     const lien=lienWhatsApp(c.tel, msg);
     if(lien){
       const ouvrir = confirm('Envoyer une confirmation de paiement par WhatsApp à '+c.nom+' ?');
-      if(ouvrir) window.location.href = lien;
+      if(ouvrir) window.open(lien, "_blank");
     }
   }
 }
@@ -1907,7 +1907,7 @@ function envoyerNotificationWhatsAppDynamique(nomClient, telephone, typeActivite
   const message = construireMessageNotification(typeActivite, statut, nomClient, detailCommande, total, acompte, code);
   if(message !== ""){
     const urlFinal = lienWhatsApp(telephone, message);
-    if(urlFinal) window.location.href = urlFinal;
+    if(urlFinal) window.open(urlFinal, "_blank");
   } else {
     toast(texteMsg('⚠️ Aucun modèle de message pour ce statut', '⚠️ No message template for this status'));
   }
@@ -2186,7 +2186,7 @@ async function ajouterTicket(){
       )
         + (photoURL ? texteMsg(`\nPhoto de vos articles: ${photoURL}`, `\nPhoto of your items: ${photoURL}`) : '');
       const lien=lienWhatsApp(tel, msg);
-      if(lien) window.location.href = lien;
+      if(lien) window.open(lien, "_blank");
     }
   } catch(err){
     toast('Erreur: '+err.message);
@@ -2354,7 +2354,7 @@ async function marquerSoldePayePressing(id){
     const lien=lienWhatsApp(t.tel, msg);
     if(lien){
       const ouvrir = confirm('Envoyer une confirmation de paiement par WhatsApp à '+t.nom+' ?');
-      if(ouvrir) window.location.href = lien;
+      if(ouvrir) window.open(lien, "_blank");
     }
   }
 }
@@ -2602,7 +2602,7 @@ function cloturerLaJournee(){
   if(lien){
     if(confirm('Envoyer le résumé de clôture par WhatsApp au propriétaire ?\nCette action est définitive.')){
       afficherEcranSucces('Journée clôturée avec succès', 'Total reçu: '+totalRecu+' D — Solde net: '+solde+' D');
-      setTimeout(()=>{ window.location.href = lien; }, 1200);
+      setTimeout(()=>{ window.open(lien, "_blank"); }, 1200);
     }
   } else {
     toast('Numéro invalide — vérifiez-le via "Changer le numéro du propriétaire"');
