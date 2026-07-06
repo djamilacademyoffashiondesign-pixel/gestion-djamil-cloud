@@ -226,6 +226,17 @@
     background:transparent;color:var(--or-clair);font-size:1rem;font-weight:700;cursor:pointer;
   }
   .qte-controle span{min-width:18px;text-align:center;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:700;}
+  /* ===== BANNIÈRE RENDEZ-VOUS PROCHES ===== */
+  .banniere-rdv{
+    background:linear-gradient(135deg,#7a2b1e,#a03d2a);
+    border:1px solid var(--rouge);border-radius:12px;
+    padding:14px 16px;margin-bottom:14px;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+    animation:pulseRdv 2s ease-in-out infinite;
+  }
+  .banniere-rdv .titre-rdv{font-weight:800;font-size:1rem;color:#fff;margin-bottom:6px;}
+  .banniere-rdv .detail-rdv{font-size:0.85rem;color:#ffd9d0;line-height:1.5;}
+  @keyframes pulseRdv{0%,100%{box-shadow:0 0 0 rgba(200,60,40,0);}50%{box-shadow:0 0 14px rgba(200,60,40,0.55);}}
   /* ===== MODE MANAGER : masque finances, salaires et panneaux sensibles ===== */
   body.mode-manager .dir-only{display:none !important;}
   body.mode-manager .tab-btn[data-mod="finances"],
@@ -323,7 +334,9 @@
     </div>
     <div class="panel">
       <h2>À faire aujourd'hui</h2>
+      <div id="banniere-rdv-proches"></div>
       <div id="apercu-alertes"></div>
+      <button class="btn secondary" id="btn-activer-rappels" onclick="activerRappels()" style="margin-top:10px;display:none">🔔 Activer les rappels sur ce téléphone</button>
     </div>
     <div class="panel dir-only">
       <h2>🔒 Code administrateur</h2>
@@ -2866,6 +2879,92 @@ function rendreApercu(){
   document.getElementById('apercu-alertes').innerHTML = alertes.length
     ? alertes.map(a=>a.html).join('')
     : '<div class="vide">Rien à signaler aujourd\'hui.</div>';
+
+  /* ===== RAPPELS RENDEZ-VOUS (3 prochains jours + retards) ===== */
+  const rdv = [];
+  atelier.forEach(c=>{
+    if(c.statut==='Livré' || c.statut==='Annulé (tissu récupéré)') return;
+    const j = joursRestants(c.livraison);
+    if(j!==null && j<=3) rdv.push({jours:j, texte:c.nom+' — Atelier ('+libelleJours(j,'livraison')+')'});
+  });
+  pressing.forEach(t=>{
+    if(t.statut==='Récupéré') return;
+    const j = joursRestants(t.retrait);
+    if(j!==null && j<=3) rdv.push({jours:j, texte:t.nom+' — Pressing ('+libelleJours(j,'retrait')+')'});
+  });
+  rdv.sort((a,b)=>a.jours-b.jours);
+  afficherBanniereRdv(rdv);
+  notifierRdvProches(rdv);
+}
+
+function libelleJours(j, type){
+  if(j<0) return type+' EN RETARD de '+Math.abs(j)+' jour(s)';
+  if(j===0) return type+" AUJOURD'HUI";
+  if(j===1) return type+' DEMAIN';
+  return type+' dans '+j+' jours';
+}
+
+function afficherBanniereRdv(rdv){
+  const zone = document.getElementById('banniere-rdv-proches');
+  if(!zone) return;
+  if(!rdv.length){ zone.innerHTML=''; return; }
+  zone.innerHTML = '<div class="banniere-rdv">'
+    + '<div class="titre-rdv">⏰ '+rdv.length+' rendez-vous proche(s) !</div>'
+    + '<div class="detail-rdv">'+rdv.map(r=>'• '+r.texte).join('<br>')+'</div>'
+    + '</div>';
+  /* Vibration une fois par jour et par appareil pour attirer l'attention */
+  const cle = 'cd_vibre_'+dateISOAujourdhui();
+  if(!localStorage.getItem(cle) && navigator.vibrate){
+    navigator.vibrate([300,150,300,150,300]);
+    localStorage.setItem(cle,'1');
+  }
+}
+
+/* ===== NOTIFICATIONS TÉLÉPHONE (à l'ouverture de l'app) =====
+   L'app ne peut pas sonner toute seule si personne ne l'ouvre (cela
+   exigerait un serveur de notifications). Mais dès que le téléphone
+   ouvre l'app et que des rendez-vous tombent dans les 3 jours, une
+   vraie notification Android s'affiche — une fois par jour par
+   appareil. Le bouton 🔔 sert à donner la permission la première fois. */
+function majBoutonRappels(){
+  const btn = document.getElementById('btn-activer-rappels');
+  if(!btn) return;
+  const supporte = ('Notification' in window);
+  btn.style.display = (supporte && Notification.permission==='default') ? 'block' : 'none';
+}
+async function activerRappels(){
+  if(!('Notification' in window)){ toast('Notifications non prises en charge sur ce navigateur'); return; }
+  const perm = await Notification.requestPermission();
+  if(perm==='granted'){ toast('✅ Rappels activés sur ce téléphone'); }
+  else { toast('Rappels refusés — vous pouvez les activer dans les réglages du navigateur'); }
+  majBoutonRappels();
+}
+function notifierRdvProches(rdv){
+  majBoutonRappels();
+  if(!rdv.length) return;
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  const cle = 'cd_notif_'+dateISOAujourdhui();
+  if(localStorage.getItem(cle)) return; // déjà notifié aujourd'hui sur cet appareil
+  const titre = '⏰ Chez Djamil — '+rdv.length+' rendez-vous proche(s)';
+  const corps = rdv.slice(0,5).map(r=>r.texte).join('\n');
+  const options = {body:corps, tag:'cd-rdv', vibrate:[300,150,300], icon:undefined};
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.controller){
+      navigator.serviceWorker.ready.then(reg=>reg.showNotification(titre, options));
+    } else {
+      new Notification(titre, options);
+    }
+    localStorage.setItem(cle,'1');
+  }catch(e){
+    /* Sur certains Android, la notification directe échoue : on tente le service worker s'il existe */
+    if(navigator.serviceWorker){
+      navigator.serviceWorker.ready.then(reg=>{ reg.showNotification(titre, options); localStorage.setItem(cle,'1'); }).catch(()=>{});
+    }
+  }
+}
+/* Service worker minimal pour permettre les notifications Android */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{ /* fichier absent : les autres rappels fonctionnent quand même */ });
 }
 
 /* ================= MESURES (indépendant) ================= */
