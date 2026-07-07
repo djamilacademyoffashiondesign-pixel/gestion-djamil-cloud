@@ -652,6 +652,20 @@
       <div id="finances-bilan"></div>
     </div>
     <div class="panel">
+      <h2>Détail jour par jour (mois en cours)</h2>
+      <p style="color:var(--gris);font-size:0.8rem;font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">
+        Chaque journée du mois, activité par activité — l'historique complet jusqu'à la fin du mois.
+      </p>
+      <div id="finances-detail-jours"></div>
+    </div>
+    <div class="panel">
+      <h2>Bilan annuel — mois par mois</h2>
+      <p style="color:var(--gris);font-size:0.8rem;font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">
+        Chaque mois de l'année, activité par activité. Au 31 décembre, cette liste est votre bilan de l'année complète. Le 1er janvier, une nouvelle année démarre — les années passées restent conservées dans la base.
+      </p>
+      <div id="finances-recap-annee"></div>
+    </div>
+    <div class="panel">
       <h2>Ajouter une dépense</h2>
       <label>Activité concernée</label>
       <select id="dep-activite">
@@ -3487,6 +3501,13 @@ function dansLeMoisEnCours(dateISO){
   const maintenant = new Date();
   return cible.getFullYear()===maintenant.getFullYear() && cible.getMonth()===maintenant.getMonth();
 }
+function dansLAnneeEnCours(dateISO){
+  if(!dateISO) return false;
+  /* L'année civile : du 1er janvier au 31 décembre. Le 1er janvier suivant,
+     ce compteur repart naturellement à zéro — sans rien effacer : toutes les
+     années restent conservées dans la base et consultables via l'historique. */
+  return new Date(dateISO).getFullYear()===new Date().getFullYear();
+}
 function rendreBilanFinances(){
   const zone = document.getElementById('finances-bilan');
   if(!zone) return;
@@ -3494,15 +3515,34 @@ function rendreBilanFinances(){
   const depenses = CACHE.depenses||[];
   const aujourdhuiISO = dateISOAujourdhui();
 
-  function totaux(filtreFn){
-    const recettes = transactions.filter(t=>filtreFn(t.dateISO)).reduce((s,t)=>s+(t.montant||0),0);
-    const sorties = depenses.filter(d=>filtreFn(d.dateISO)).reduce((s,d)=>s+(d.montant||0),0);
-    return {recettes, sorties, solde: recettes-sorties};
+  /* Comptes SÉPARÉS par activité — demande de Djamil : l'Atelier, le Pressing
+     et la Boutique ne doivent jamais être mélangés ; chaque période montre
+     chaque activité à part, puis un regroupement (TOTAL) à la fin. */
+  const ACTIVITES = [
+    {cle:'Atelier',  icone:'🧵'},
+    {cle:'Pressing', icone:'👔'},
+    {cle:'Boutique', icone:'🛍️'},
+    {cle:'Général',  icone:'📋'}
+  ];
+
+  function totauxParActivite(filtreFn){
+    const lignes = ACTIVITES.map(a=>{
+      const recettes = transactions.filter(t=>filtreFn(t.dateISO) && (t.source||'Général')===a.cle).reduce((s,t)=>s+(t.montant||0),0);
+      const sorties  = depenses.filter(d=>filtreFn(d.dateISO) && (d.activite||'Général')===a.cle).reduce((s,d)=>s+(d.montant||0),0);
+      return {...a, recettes, sorties, solde: recettes-sorties};
+    });
+    const total = {
+      recettes: lignes.reduce((s,l)=>s+l.recettes,0),
+      sorties:  lignes.reduce((s,l)=>s+l.sorties,0)
+    };
+    total.solde = total.recettes-total.sorties;
+    return {lignes, total};
   }
 
-  const jour = totaux(d=>d===aujourdhuiISO);
-  const semaine = totaux(d=>dansLaSemaineEnCours(d));
-  const mois = totaux(d=>dansLeMoisEnCours(d));
+  const jour = totauxParActivite(d=>d===aujourdhuiISO);
+  const semaine = totauxParActivite(d=>dansLaSemaineEnCours(d));
+  const mois = totauxParActivite(d=>dansLeMoisEnCours(d));
+  const annee = totauxParActivite(d=>dansLAnneeEnCours(d));
 
   /* Libellés avec dates exactes (jour/mois/année) — indispensable pour retrouver
      à quelle période correspond un bilan si on le consulte plus tard en archive. */
@@ -3517,14 +3557,107 @@ function rendreBilanFinances(){
   const maintenant = new Date();
   const libelleMois = 'Mois en cours ('+moisNoms[maintenant.getMonth()]+' '+maintenant.getFullYear()+')';
 
-  function ligne(titre, bloc){
+  function blocPeriode(titre, res){
+    /* Les 3 activités principales sont toujours affichées (même à zéro) ;
+       "Général" n'apparaît que s'il y a réellement des mouvements. */
+    const detail = res.lignes
+      .filter(l => l.cle!=='Général' || l.recettes || l.sorties)
+      .map(l=>`<div class="meta">${l.icone} ${l.cle} — Recettes: ${l.recettes} D · Dépenses: ${l.sorties} D · <span style="color:${l.solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${l.solde} D</span></div>`)
+      .join('');
     return `<div class="liste-item">
       <div class="nom">${titre}</div>
-      <div class="meta">Recettes: ${bloc.recettes} D · Dépenses: ${bloc.sorties} D</div>
-      <div class="meta" style="color:${bloc.solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${bloc.solde} D</div>
+      ${detail}
+      <div class="meta" style="border-top:1px solid rgba(255,255,255,0.18);margin-top:6px;padding-top:6px;font-weight:800;color:${res.total.solde>=0?'var(--vert)':'var(--rouge)'};">TOTAL — Recettes: ${res.total.recettes} D · Dépenses: ${res.total.sorties} D · Solde: ${res.total.solde} D</div>
     </div>`;
   }
-  zone.innerHTML = ligne(libelleJour, jour) + ligne(libelleSemaine, semaine) + ligne(libelleMois, mois);
+  const libelleAnnee = 'Année en cours ('+maintenant.getFullYear()+') — bilan annuel';
+  zone.innerHTML = blocPeriode(libelleJour, jour) + blocPeriode(libelleSemaine, semaine) + blocPeriode(libelleMois, mois) + blocPeriode(libelleAnnee, annee);
+  rendreDetailJoursMois();
+  rendreRecapMoisAnnee();
+}
+
+/* ===== DÉTAIL JOUR PAR JOUR DU MOIS EN COURS =====
+   Chaque journée écoulée du mois avec ses comptes séparés par activité —
+   ainsi, à la fin du mois, on voit exactement ce que l'Atelier, le Pressing
+   et la Boutique ont donné, jour après jour. */
+function rendreDetailJoursMois(){
+  const zone = document.getElementById('finances-detail-jours');
+  if(!zone) return;
+  const transactions = CACHE.transactions||[];
+  const depenses = CACHE.depenses||[];
+  const maintenant = new Date();
+  const prefixe = maintenant.getFullYear()+'-'+String(maintenant.getMonth()+1).padStart(2,'0');
+  const parJour = {};
+  function jourVide(){ return {Atelier:0, Pressing:0, Boutique:0, 'Général':0, dep:0}; }
+  transactions.forEach(t=>{
+    if(!t.dateISO || !t.dateISO.startsWith(prefixe)) return;
+    parJour[t.dateISO] = parJour[t.dateISO]||jourVide();
+    const src = t.source||'Général';
+    parJour[t.dateISO][src] = (parJour[t.dateISO][src]||0)+(t.montant||0);
+  });
+  depenses.forEach(d=>{
+    if(!d.dateISO || !d.dateISO.startsWith(prefixe)) return;
+    parJour[d.dateISO] = parJour[d.dateISO]||jourVide();
+    parJour[d.dateISO].dep += (d.montant||0);
+  });
+  const jours = Object.keys(parJour).sort().reverse();
+  if(!jours.length){ zone.innerHTML='<div class="vide">Aucun mouvement ce mois-ci.</div>'; return; }
+  zone.innerHTML = jours.map(j=>{
+    const b = parJour[j];
+    const totalRec = (b.Atelier||0)+(b.Pressing||0)+(b.Boutique||0)+(b['Général']||0);
+    const solde = totalRec - b.dep;
+    const dateFR = j.split('-').reverse().join('/');
+    return `<div class="liste-item">
+      <div class="nom">${dateFR}</div>
+      <div class="meta">🧵 Atelier: ${b.Atelier||0} D · 👔 Pressing: ${b.Pressing||0} D · 🛍️ Boutique: ${b.Boutique||0} D${b['Général']?(' · 📋 Autre: '+b['Général']+' D'):''}</div>
+      <div class="meta">Total reçu: ${totalRec} D · Dépenses: ${b.dep} D · <span style="color:${solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${solde} D</span></div>
+    </div>`;
+  }).join('');
+}
+
+/* ===== RÉCAPITULATIF MOIS PAR MOIS (ANNÉE EN COURS) =====
+   Chaque mois de l'année avec ses comptes séparés par activité — au
+   31 décembre, cette liste EST le bilan annuel complet. Le 1er janvier,
+   une nouvelle liste démarre pour la nouvelle année ; les anciennes années
+   restent dans la base, rien n'est effacé. */
+function rendreRecapMoisAnnee(){
+  const zone = document.getElementById('finances-recap-annee');
+  if(!zone) return;
+  const transactions = CACHE.transactions||[];
+  const depenses = CACHE.depenses||[];
+  const anneeActuelle = new Date().getFullYear();
+  const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const parMois = {};
+  function moisVide(){ return {Atelier:0, Pressing:0, Boutique:0, 'Général':0, dep:0}; }
+  transactions.forEach(t=>{
+    if(!t.dateISO) return;
+    const d = new Date(t.dateISO);
+    if(d.getFullYear()!==anneeActuelle) return;
+    const m = d.getMonth();
+    parMois[m] = parMois[m]||moisVide();
+    const src = t.source||'Général';
+    parMois[m][src] = (parMois[m][src]||0)+(t.montant||0);
+  });
+  depenses.forEach(dep=>{
+    if(!dep.dateISO) return;
+    const d = new Date(dep.dateISO);
+    if(d.getFullYear()!==anneeActuelle) return;
+    const m = d.getMonth();
+    parMois[m] = parMois[m]||moisVide();
+    parMois[m].dep += (dep.montant||0);
+  });
+  const cles = Object.keys(parMois).map(Number).sort((a,b)=>b-a);
+  if(!cles.length){ zone.innerHTML='<div class="vide">Aucun mouvement cette année.</div>'; return; }
+  zone.innerHTML = cles.map(m=>{
+    const b = parMois[m];
+    const totalRec = (b.Atelier||0)+(b.Pressing||0)+(b.Boutique||0)+(b['Général']||0);
+    const solde = totalRec - b.dep;
+    return `<div class="liste-item">
+      <div class="nom">${moisNoms[m]} ${anneeActuelle}</div>
+      <div class="meta">🧵 Atelier: ${b.Atelier||0} D · 👔 Pressing: ${b.Pressing||0} D · 🛍️ Boutique: ${b.Boutique||0} D${b['Général']?(' · 📋 Autre: '+b['Général']+' D'):''}</div>
+      <div class="meta">Total reçu: ${totalRec} D · Dépenses: ${b.dep} D · <span style="color:${solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${solde} D</span></div>
+    </div>`;
+  }).join('');
 }
 
 /* ================= ÉCOUTEURS TEMPS RÉEL ================= */
