@@ -703,8 +703,18 @@
       <h2>Ajouter un employé</h2>
       <label>Nom</label>
       <input id="emp-nom" placeholder="Ex: Awa Ndiaye">
-      <label>Poste</label>
-      <input id="emp-poste" placeholder="Ex: Couturière, Presseur, Vendeuse">
+      <label>Poste — touchez pour choisir</label>
+      <div id="emp-poste-boutons" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">
+        <button type="button" onclick="choisirPosteEmploye('Couturier',this)">✂️ Couturier</button>
+        <button type="button" onclick="choisirPosteEmploye('Couturière',this)">✂️ Couturière</button>
+        <button type="button" onclick="choisirPosteEmploye('Laundry / Blanchisseur',this)">🧺 Laundry</button>
+        <button type="button" onclick="choisirPosteEmploye('Presseur',this)">👔 Presseur</button>
+        <button type="button" onclick="choisirPosteEmploye('Ménagère',this)">🧹 Ménagère</button>
+        <button type="button" onclick="choisirPosteEmploye('Manager',this)">📋 Manager</button>
+        <button type="button" onclick="choisirPosteEmploye('Vendeuse',this)">🛍️ Vendeuse</button>
+        <button type="button" onclick="choisirPosteEmploye('Apprenti(e)',this)">🎓 Apprenti(e)</button>
+      </div>
+      <input id="emp-poste" placeholder="Ou écrivez un autre poste ici">
       <label>Téléphone</label>
       <input id="emp-tel" placeholder="Ex: 7XX XXXX">
       <label>Salaire mensuel (D)</label>
@@ -3113,8 +3123,21 @@ function notifierRdvProches(rdv){
   }
 }
 /* Service worker minimal pour permettre les notifications Android */
+/* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
+   arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
+const APP_VERSION = 'v2026-07-18-salaires-historique';
+(function(){
+  try{
+    if(localStorage.getItem('cd_app_version') !== APP_VERSION){
+      localStorage.setItem('cd_app_version', APP_VERSION);
+      if(window.caches && caches.keys){
+        caches.keys().then(cles=>Promise.all(cles.map(c=>caches.delete(c)))).catch(()=>{});
+      }
+    }
+  }catch(e){}
+})();
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').catch(()=>{ /* fichier absent : les autres rappels fonctionnent quand même */ });
+  navigator.serviceWorker.register('sw.js').then(reg=>{ try{ reg.update(); }catch(e){} }).catch(()=>{ /* fichier absent : les autres rappels fonctionnent quand même */ });
 }
 
 /* ================= MESURES (indépendant) ================= */
@@ -3405,6 +3428,15 @@ function moisAffichage(mois){
   const noms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   return noms[parseInt(m,10)-1]+' '+annee;
 }
+/* Sélection rapide du poste par bouton : remplit le champ et met le bouton
+   choisi en évidence (or), pour éviter de taper au clavier. */
+function choisirPosteEmploye(poste, btn){
+  document.getElementById('emp-poste').value = poste;
+  document.querySelectorAll('#emp-poste-boutons button').forEach(b=>{
+    b.style.color=''; b.style.borderColor='';
+  });
+  if(btn){ btn.style.color='var(--or-clair)'; btn.style.borderColor='rgba(201,162,39,0.6)'; }
+}
 function ajouterEmploye(){
   const nom = document.getElementById('emp-nom').value.trim();
   const salaire = parseFloat(document.getElementById('emp-salaire').value)||0;
@@ -3494,16 +3526,10 @@ function ajouterAvanceSalaire(employeId, nomEmploye){
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
     }).catch(err=>console.error('Erreur ajout salaire mensuel', err));
   }
-  /* Enregistré aussi comme dépense, pour que le bilan Finances reste exact. */
-  ecrireAvecSecours('depenses', {
-    activite:'Général',
-    categorie:'Salaire',
-    montant,
-    description:'Avance/versement salaire — '+nomEmploye+' ('+moisAffichage(mois)+')',
-    dateISO: dateISOAujourdhui(),
-    date: new Date().toLocaleDateString('fr-FR'),
-    creeLe: firebase.firestore.FieldValue.serverTimestamp()
-  }, 'La dépense de salaire n\'a pas pu être synchronisée');
+  /* IMPORTANT : l'avance est seulement NOTÉE ici — elle ne touche PAS la
+     recette ni les dépenses du jour. Le salaire complet (avances + solde)
+     sera enregistré dans les dépenses en une seule fois, en fin de mois,
+     au moment du bouton "Payer le solde du mois". */
 
   /* Notification WhatsApp à l'employé, comme pour les clients. */
   if(employe && employe.tel){
@@ -3582,7 +3608,7 @@ async function payerSoldeMois(employeId, nomEmploye){
   const avances = enreg ? (enreg.montantVerse||0) : 0;
   const solde = salaireMensuel - avances;
   if(solde<=0){ toast('Le salaire de '+nomEmploye+' est déjà payé en totalité pour '+moisAffichage(mois)); return; }
-  if(!confirm('Payer le solde de '+nomEmploye+' pour '+moisAffichage(mois)+' ?\n\nSalaire mensuel: '+salaireMensuel+' D\nAvances déduites: '+avances+' D\nSolde à verser maintenant: '+solde+' D')) return;
+  if(!confirm('Payer le solde de '+nomEmploye+' pour '+moisAffichage(mois)+' ?\n\nSalaire mensuel: '+salaireMensuel+' D\nAvances déduites: '+avances+' D\nSolde à verser maintenant: '+solde+' D\n\nLe salaire complet ('+salaireMensuel+' D) sera enregistré dans les dépenses du mois.')) return;
 
   if(enreg){
     enreg.montantVerse = salaireMensuel;
@@ -3610,12 +3636,14 @@ async function payerSoldeMois(employeId, nomEmploye){
     }).catch(err=>console.error('Erreur ajout paiement solde', err));
   }
   rendreSalaires();
-  /* Le solde versé est enregistré en dépense pour garder le bilan Finances exact. */
+  /* C'est ICI, en fin de mois, que le salaire touche les finances : le salaire
+     COMPLET (avances notées + solde versé) est enregistré en une seule dépense,
+     puisque les avances n'ont pas été comptées au moment où elles ont été notées. */
   ecrireAvecSecours('depenses', {
     activite:'Général',
     categorie:'Salaire',
-    montant: solde,
-    description:'Solde de salaire fin de mois — '+nomEmploye+' ('+moisAffichage(mois)+')',
+    montant: salaireMensuel,
+    description:'Salaire du mois — '+nomEmploye+' ('+moisAffichage(mois)+') : '+avances+' D d\'avances + '+solde+' D de solde',
     dateISO: dateISOAujourdhui(),
     date: new Date().toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
