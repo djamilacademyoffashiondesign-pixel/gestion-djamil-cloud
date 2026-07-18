@@ -242,7 +242,8 @@
   body.mode-manager .tab-btn[data-mod="finances"],
   body.mode-manager .tab-btn[data-mod="salaires"]{display:none !important;}
   body.mode-manager #finances,
-  body.mode-manager #salaires{display:none !important;}
+  body.mode-manager #salaires,
+  body.mode-manager #historique-client{display:none !important;}
   .categorie-titre{
     font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.72rem;color:var(--or-clair);
     text-transform:uppercase;letter-spacing:0.05em;margin:14px 0 6px;
@@ -318,6 +319,7 @@
       <h2>🔍 Recherche globale</h2>
       <input id="recherche-globale" placeholder="Nom, téléphone ou code (ex: Fatima, 003, 7XX...)" oninput="rendreRechercheGlobale()">
       <div id="recherche-globale-resultats"></div>
+      <div id="historique-client"></div>
     </div>
     <div class="stats-grid" id="apercu-stats"></div>
     <div class="panel">
@@ -718,6 +720,7 @@
     </div>
     <div class="panel">
       <h2>Employés</h2>
+      <div class="meta" style="color:var(--gris);font-size:0.78rem;margin-bottom:8px;">Fiche permanente — les noms, téléphones et salaires restent affichés en permanence, mois après mois.</div>
       <div id="employes-liste"></div>
     </div>
   </section>
@@ -2781,38 +2784,171 @@ function rendreRechercheGlobale(){
   const q = (document.getElementById('recherche-globale')?.value||'').trim().toLowerCase();
   if(!q){ zone.innerHTML=''; return; }
   const correspond = (nom, tel, code) => (nom||'').toLowerCase().includes(q) || (tel||'').toLowerCase().includes(q) || (code||'').toLowerCase().includes(q);
+  const btnHistorique = (nom, tel) => MODE_DIRECTEUR ? `<div class="item-actions"><button onclick="afficherHistoriqueClient('${encodeURIComponent(nom||'')}','${encodeURIComponent(tel||'')}')">📖 Historique complet</button></div>` : '';
   let resultats = [];
   (CACHE.commandes_couture||[]).forEach(c=>{
     if(correspond(c.nom, c.tel, c.code)) resultats.push(`<div class="liste-item">
       <div class="nom">✂️ ${c.nom} <span class="badge attente">Atelier · ${c.code||''}</span></div>
       <div class="meta">${c.tel||'Sans téléphone'} · Statut: ${c.statut}</div>
+      ${btnHistorique(c.nom, c.tel)}
     </div>`);
   });
   (CACHE.depots_pressing||[]).forEach(t=>{
     if(correspond(t.nom, t.tel, t.code)) resultats.push(`<div class="liste-item">
       <div class="nom">👔 ${t.nom} <span class="badge attente">Pressing · ${t.code||''}</span></div>
       <div class="meta">${t.tel||'Sans téléphone'} · Statut: ${t.statut}</div>
+      ${btnHistorique(t.nom, t.tel)}
     </div>`);
   });
   (CACHE.boutique_ventes||[]).forEach(v=>{
     if(correspond(v.client, v.telephone, '')) resultats.push(`<div class="liste-item">
       <div class="nom">🛍️ ${v.client} <span class="badge attente">Boutique</span></div>
       <div class="meta">${v.telephone||'Sans téléphone'} · ${v.nomProduit} x${v.qte} — ${v.total} D</div>
+      ${btnHistorique(v.client, v.telephone)}
     </div>`);
   });
   (CACHE.clients_mesures||[]).forEach(f=>{
     if(correspond(f.nom, f.tel, '')) resultats.push(`<div class="liste-item">
       <div class="nom">📏 ${f.nom} <span class="badge attente">Mesures</span></div>
       <div class="meta">${f.tel||'Sans téléphone'}</div>
+      ${btnHistorique(f.nom, f.tel)}
     </div>`);
   });
   (CACHE.visiteurs||[]).forEach(v=>{
     if(correspond(v.nom, v.tel, '')) resultats.push(`<div class="liste-item">
       <div class="nom">🚶 ${v.nom} <span class="badge attente">Visiteur</span></div>
       <div class="meta">${v.tel||'Sans téléphone'} · ${v.date}${v.note ? ' · '+v.note : ''}</div>
+      ${btnHistorique(v.nom, v.tel)}
     </div>`);
   });
   zone.innerHTML = resultats.length ? resultats.join('') : '<div class="vide">Aucun résultat.</div>';
+}
+
+/* ================= HISTORIQUE CLIENT ================= */
+/* Convertit les différents formats de date des enregistrements en objet Date
+   pour le tri chronologique : dateISO (AAAA-MM-JJ), date française (JJ/MM/AAAA)
+   ou horodatage Firestore. Renvoie null si aucune date exploitable. */
+function dateDeTriHistorique(x){
+  if(!x) return null;
+  if(x.dateISO){ const d = new Date(x.dateISO+'T12:00:00'); if(!isNaN(d)) return d; }
+  if(x.date && /^\d{2}\/\d{2}\/\d{4}$/.test(x.date)){
+    const p = x.date.split('/');
+    const d = new Date(p[2]+'-'+p[1]+'-'+p[0]+'T12:00:00');
+    if(!isNaN(d)) return d;
+  }
+  if(x.creeLe && typeof x.creeLe.toDate==='function'){ try{ return x.creeLe.toDate(); } catch(e){} }
+  return null;
+}
+/* Deux enregistrements appartiennent au même client si les téléphones (chiffres
+   seuls) correspondent ; sans téléphone des deux côtés, on compare les noms. */
+function estMemeClientHistorique(nomRef, telRef, nom, tel){
+  const telRefN = (telRef||'').replace(/[^0-9]/g,'');
+  const telN = (tel||'').replace(/[^0-9]/g,'');
+  if(telRefN && telN) return telRefN===telN;
+  return (nomRef||'').trim().toLowerCase()!=='' && (nomRef||'').trim().toLowerCase()===(nom||'').trim().toLowerCase();
+}
+function fermerHistoriqueClient(){
+  const zone = document.getElementById('historique-client');
+  if(zone) zone.innerHTML = '';
+}
+/* Affiche la fiche complète d'un client : depuis quand il vient, toutes ses
+   commandes atelier, ses dépôts pressing, ses achats boutique et ses visites,
+   avec les totaux (dépensé, versé, reste dû). */
+function afficherHistoriqueClient(nomEnc, telEnc){
+  /* Réservé au directeur : l'historique révèle les totaux financiers et les
+     restes dus, informations sensibles masquées en mode manager. */
+  if(!MODE_DIRECTEUR){ toast('🔒 Historique client réservé au directeur'); return; }
+  const zone = document.getElementById('historique-client');
+  if(!zone) return;
+  const nomRef = decodeURIComponent(nomEnc||'');
+  const telRef = decodeURIComponent(telEnc||'');
+
+  let evenements = [];
+  let totalCommande = 0, totalVerse = 0, totalResteDu = 0;
+  let nbAtelier = 0, nbPressing = 0, nbBoutique = 0, nbVisites = 0;
+
+  (CACHE.commandes_couture||[]).forEach(c=>{
+    if(!estMemeClientHistorique(nomRef, telRef, c.nom, c.tel)) return;
+    nbAtelier++;
+    const prix = Number(c.prix)||0, acompte = Number(c.acompte)||0;
+    totalCommande += prix; totalVerse += acompte;
+    const reste = Math.max(prix-acompte, 0);
+    totalResteDu += reste;
+    const articles = (c.articles||[]).map(a=>a.nom).join(', ');
+    evenements.push({ d: dateDeTriHistorique(c), html: `<div class="liste-item">
+      <div class="nom">✂️ Atelier <span class="badge attente">${c.code||''}</span> <span class="badge attente">${c.statut||''}</span></div>
+      <div class="meta">${c.date||''} ${articles ? '· '+articles : ''}${c.desc ? ' · '+c.desc : ''}</div>
+      <div class="meta">Total: ${prix} D · Dépôt/acompte: ${acompte} D ${reste>0 ? '· <strong>Reste dû: '+reste+' D</strong>' : '· Payé en totalité ✓'}</div>
+    </div>` });
+  });
+  (CACHE.depots_pressing||[]).forEach(t=>{
+    if(!estMemeClientHistorique(nomRef, telRef, t.nom, t.tel)) return;
+    nbPressing++;
+    const prix = Number(t.prix)||0, avance = Number(t.avance)||0;
+    totalCommande += prix; totalVerse += avance;
+    const reste = Math.max(prix-avance, 0);
+    totalResteDu += reste;
+    evenements.push({ d: dateDeTriHistorique(t), html: `<div class="liste-item">
+      <div class="nom">👔 Pressing <span class="badge attente">${t.code||''}</span> <span class="badge attente">${t.statut||''}</span></div>
+      <div class="meta">${t.date||''} ${t.resume ? '· '+t.resume : ''}</div>
+      <div class="meta">Total: ${prix} D · Avance: ${avance} D ${reste>0 ? '· <strong>Reste dû: '+reste+' D</strong>' : '· Payé en totalité ✓'}</div>
+    </div>` });
+  });
+  (CACHE.boutique_ventes||[]).forEach(v=>{
+    if(!estMemeClientHistorique(nomRef, telRef, v.client, v.telephone)) return;
+    nbBoutique++;
+    const total = Number(v.total)||0;
+    totalCommande += total; totalVerse += total;
+    evenements.push({ d: dateDeTriHistorique(v), html: `<div class="liste-item">
+      <div class="nom">🛍️ Boutique</div>
+      <div class="meta">${v.date||''} · ${v.nomProduit||''} x${v.qte||1} — ${total} D</div>
+    </div>` });
+  });
+  (CACHE.visiteurs||[]).forEach(v=>{
+    if(!estMemeClientHistorique(nomRef, telRef, v.nom, v.tel)) return;
+    nbVisites++;
+    evenements.push({ d: dateDeTriHistorique(v), html: `<div class="liste-item">
+      <div class="nom">🚶 Visite</div>
+      <div class="meta">${v.date||''}${v.note ? ' · '+v.note : ''}</div>
+    </div>` });
+  });
+
+  const ficheMesures = (CACHE.clients_mesures||[]).find(f=>estMemeClientHistorique(nomRef, telRef, f.nom, f.tel));
+
+  if(evenements.length===0 && !ficheMesures){
+    zone.innerHTML = `<div class="panel" style="margin-top:12px;">
+      <h2>📖 Historique — ${nomRef}</h2>
+      <div class="vide">Aucun historique trouvé pour ce client.</div>
+      <div class="item-actions"><button onclick="fermerHistoriqueClient()">✖️ Fermer</button></div>
+    </div>`;
+    return;
+  }
+
+  /* Tri chronologique (du plus ancien au plus récent) et date de première visite. */
+  const datesValides = evenements.map(e=>e.d).filter(d=>d);
+  const premiereVisite = datesValides.length ? new Date(Math.min.apply(null, datesValides)) : null;
+  evenements.sort((a,b)=>{
+    if(a.d && b.d) return a.d - b.d;
+    if(a.d) return -1;
+    if(b.d) return 1;
+    return 0;
+  });
+
+  const totalPassages = nbAtelier + nbPressing + nbBoutique + nbVisites;
+  zone.innerHTML = `<div class="panel" style="margin-top:12px;border:1px solid rgba(201,162,39,0.35);">
+    <h2>📖 Historique — ${nomRef}</h2>
+    <div class="meta">${telRef ? '📞 '+telRef+' · ' : ''}${premiereVisite ? 'Client(e) depuis le <strong>'+premiereVisite.toLocaleDateString('fr-FR')+'</strong>' : ''}</div>
+    <div class="stats-grid" style="margin-top:10px;">
+      <div class="stat"><div class="val">${totalPassages}</div><div class="lab">PASSAGES</div></div>
+      <div class="stat"><div class="val">${totalCommande}</div><div class="lab">TOTAL COMMANDÉ (D)</div></div>
+      <div class="stat"><div class="val">${totalVerse}</div><div class="lab">TOTAL VERSÉ (D)</div></div>
+      <div class="stat"><div class="val">${totalResteDu}</div><div class="lab">RESTE DÛ (D)</div></div>
+    </div>
+    <div class="meta" style="margin-top:6px;">✂️ Atelier: ${nbAtelier} · 👔 Pressing: ${nbPressing} · 🛍️ Boutique: ${nbBoutique} · 🚶 Visites: ${nbVisites}${ficheMesures ? ' · 📏 Fiche de mesures enregistrée' : ''}</div>
+    <div style="margin-top:10px;">${evenements.map(e=>e.html).join('')}</div>
+    <div class="item-actions" style="margin-top:10px;"><button onclick="fermerHistoriqueClient()">✖️ Fermer l'historique</button></div>
+  </div>`;
+  zone.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function rendreApercu(){
@@ -3382,8 +3518,8 @@ function ajouterAvanceSalaire(employeId, nomEmploye){
       if(lien) window.open(lien, '_blank');
     } else {
       const msg = texteMsg(
-        `Bonjour ${nomEmploye}, vous avez reçu une avance de ${montant} D sur votre salaire de ${moisAffichage(mois)}. Solde restant: ${soldeRestant} D.`,
-        `Hello ${nomEmploye}, you have received an advance of ${montant} D on your ${moisAffichage(mois)} salary. Remaining balance: ${soldeRestant} D.`
+        `Bonjour ${nomEmploye}, une avance de ${montant} D a été notée sur votre salaire de ${moisAffichage(mois)}. Total des avances notées: ${montantVerseTotal} D. La déduction se fera en fin de mois — solde prévu: ${soldeRestant} D.`,
+        `Hello ${nomEmploye}, an advance of ${montant} D has been noted on your ${moisAffichage(mois)} salary. Total advances noted: ${montantVerseTotal} D. The deduction will be applied at the end of the month — expected balance: ${soldeRestant} D.`
       );
       const lien = lienWhatsApp(employe.tel, msg);
       if(lien) window.open(lien, '_blank');
@@ -3421,6 +3557,80 @@ function mettreAJourJoursPresents(employeId, nomEmploye, jours){
   }
   rendreSalaires();
 }
+/* La déduction des avances s'applique automatiquement à partir du 30 du mois
+   (ou du dernier jour pour les mois plus courts, comme février). Avant cette
+   date, les avances sont simplement NOTÉES : le salaire du mois reste affiché
+   en entier et le solde définitif n'est calculé qu'en fin de mois. Pour un
+   mois déjà passé, la déduction est toujours appliquée. */
+function deductionMoisActive(mois){
+  const moisCourant = moisAujourdhui();
+  if(mois < moisCourant) return true;
+  if(mois > moisCourant) return false;
+  const auj = new Date();
+  const dernierJour = new Date(auj.getFullYear(), auj.getMonth()+1, 0).getDate();
+  return auj.getDate() >= Math.min(30, dernierJour);
+}
+/* Paie le solde du mois (salaire - avances notées) en fin de mois. Le paiement
+   marque le mois comme réglé : les montants du mois repartent à zéro le mois
+   suivant, mais l'employé reste affiché en permanence dans le tableau. */
+async function payerSoldeMois(employeId, nomEmploye){
+  const mois = document.getElementById('salaires-mois').value || moisAujourdhui();
+  if(!deductionMoisActive(mois)){ toast('Le solde se règle en fin de mois (à partir du 30)'); return; }
+  const employe = CACHE.employes.find(e=>e.id===employeId);
+  let enreg = trouverSalaireMensuel(employeId, mois);
+  const salaireMensuel = (enreg && enreg.salaireMensuel) || (employe ? employe.salaireMensuel : 0) || 0;
+  const avances = enreg ? (enreg.montantVerse||0) : 0;
+  const solde = salaireMensuel - avances;
+  if(solde<=0){ toast('Le salaire de '+nomEmploye+' est déjà payé en totalité pour '+moisAffichage(mois)); return; }
+  if(!confirm('Payer le solde de '+nomEmploye+' pour '+moisAffichage(mois)+' ?\n\nSalaire mensuel: '+salaireMensuel+' D\nAvances déduites: '+avances+' D\nSolde à verser maintenant: '+solde+' D')) return;
+
+  if(enreg){
+    enreg.montantVerse = salaireMensuel;
+    enreg.paye = true;
+    if(!String(enreg.id).startsWith('local_')){
+      db.collection('salaires_mensuel').doc(enreg.id).update({
+        montantVerse: salaireMensuel,
+        paye: true,
+        misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(err=>console.error('Erreur paiement solde salaire', err));
+    }
+  } else {
+    const nouveau = {
+      id:'local_'+Date.now(),
+      employeId, employeNom: nomEmploye,
+      mois, salaireMensuel,
+      montantVerse: salaireMensuel, joursPresents: 0, paye: true
+    };
+    CACHE.salaires_mensuel.push(nouveau);
+    db.collection('salaires_mensuel').add({
+      employeId, employeNom: nomEmploye, mois,
+      salaireMensuel,
+      montantVerse: salaireMensuel, joursPresents: 0, paye: true,
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(err=>console.error('Erreur ajout paiement solde', err));
+  }
+  rendreSalaires();
+  /* Le solde versé est enregistré en dépense pour garder le bilan Finances exact. */
+  ecrireAvecSecours('depenses', {
+    activite:'Général',
+    categorie:'Salaire',
+    montant: solde,
+    description:'Solde de salaire fin de mois — '+nomEmploye+' ('+moisAffichage(mois)+')',
+    dateISO: dateISOAujourdhui(),
+    date: new Date().toLocaleDateString('fr-FR'),
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  }, 'La dépense de salaire n\'a pas pu être synchronisée');
+
+  if(employe && employe.tel){
+    const msg = texteMsg(
+      `Bonjour ${nomEmploye}, votre salaire de ${moisAffichage(mois)} a été réglé en totalité: ${salaireMensuel} D (dont ${avances} D d'avances déjà reçues, solde versé: ${solde} D). Merci pour votre travail ce mois-ci ! 🙏`,
+      `Hello ${nomEmploye}, your ${moisAffichage(mois)} salary has been paid in full: ${salaireMensuel} D (including ${avances} D of advances already received, balance paid: ${solde} D). Thank you for your work this month! 🙏`
+    );
+    const lien = lienWhatsApp(employe.tel, msg);
+    if(lien) window.open(lien, '_blank');
+  }
+  toast('Solde du mois payé — '+nomEmploye);
+}
 function rendreSalaires(){
   const champMois = document.getElementById('salaires-mois');
   if(champMois && !champMois.value) champMois.value = moisAujourdhui();
@@ -3436,33 +3646,46 @@ function rendreSalaires(){
     return;
   }
 
-  let totalSalaires=0, totalVerse=0, totalRestant=0;
+  const deductionActive = deductionMoisActive(mois);
+  let totalSalaires=0, totalAvances=0, totalRestant=0;
 
   liste.innerHTML = employesActifs.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(e=>{
     const enreg = trouverSalaireMensuel(e.id, mois);
     const salaireMensuel = e.salaireMensuel||0;
-    const montantVerse = enreg ? (enreg.montantVerse||0) : 0;
+    const avances = enreg ? (enreg.montantVerse||0) : 0;
     const joursPresents = enreg ? (enreg.joursPresents||0) : 0;
-    const solde = salaireMensuel - montantVerse;
+    const paye = enreg ? (enreg.paye===true || avances>=salaireMensuel) : false;
+    const solde = Math.max(salaireMensuel - avances, 0);
     totalSalaires += salaireMensuel;
-    totalVerse += montantVerse;
-    totalRestant += Math.max(solde,0);
+    totalAvances += Math.min(avances, salaireMensuel);
+    if(!paye) totalRestant += solde;
+
+    let ligneSolde;
+    if(paye){
+      ligneSolde = '✅ Payé en totalité pour '+moisAffichage(mois);
+    } else if(deductionActive){
+      ligneSolde = 'Avances déduites: '+avances+' D · <strong>Solde à payer: '+solde+' D</strong>';
+    } else {
+      ligneSolde = 'Avances notées: '+avances+' D · Déduction en fin de mois (à partir du 30) — solde prévu: '+solde+' D';
+    }
+
     return `<div class="liste-item">
       <div class="nom">${e.nom} ${e.poste ? '<span class="badge attente">'+e.poste+'</span>' : ''}</div>
-      <div class="meta">Salaire mensuel: ${salaireMensuel} D — ${moisAffichage(mois)}</div>
-      <div class="meta">Versé ce mois: ${montantVerse} D ${solde>0 ? '· Reste: '+solde+' D' : '· Payé en totalité'}</div>
+      <div class="meta">Salaire mensuel: ${salaireMensuel} D — ${moisAffichage(mois)} ${e.tel ? '· 📞 '+e.tel : ''}</div>
+      <div class="meta">${ligneSolde}</div>
       <label style="margin-top:8px;">Jours présents ce mois</label>
       <input type="number" min="0" max="31" value="${joursPresents}" onchange="mettreAJourJoursPresents('${e.id}','${e.nom.replace(/'/g,"\\'")}',this.value)">
       <div class="item-actions">
-        <button onclick="ajouterAvanceSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Avance / Versement</button>
+        <button onclick="ajouterAvanceSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Noter une avance</button>
+        ${(!paye && deductionActive) ? `<button onclick="payerSoldeMois('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--vert);border-color:rgba(63,250,92,0.35);">✅ Payer le solde du mois</button>` : ''}
       </div>
     </div>`;
   }).join('');
 
   document.getElementById('salaires-stats').innerHTML = `
     <div class="stat"><div class="val">${totalSalaires}</div><div class="lab">SALAIRES (D)</div></div>
-    <div class="stat"><div class="val">${totalVerse}</div><div class="lab">VERSÉ (D)</div></div>
-    <div class="stat"><div class="val">${totalRestant}</div><div class="lab">RESTE (D)</div></div>
+    <div class="stat"><div class="val">${totalAvances}</div><div class="lab">AVANCES NOTÉES (D)</div></div>
+    <div class="stat"><div class="val">${totalRestant}</div><div class="lab">À PAYER FIN DE MOIS (D)</div></div>
   `;
 }
 
