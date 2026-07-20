@@ -33,7 +33,7 @@
     ["Total reçu aujourd'hui :","Total received today:"]
   ];
   var CHUNKS = [["Fermeture","Closing"],["encaissement(s)","payment(s)"]];
-  var PH = [["Nom, téléphone ou code (ex : Fatima, 003, 7...)","Name, phone or code (e.g. Fatima, 003, 7...)"]];
+ CHUNKS.push(["TOTAL REÇU AUJOURD'HUI","TOTAL RECEIVED TODAY"],["Total reçu aujourd'hui","Total received today"],["Total reçu","Total received"],["Clôturer la journée & Notifier le propriétaire","Close the day & Notify the owner"],["Changer le numéro du propriétaire","Change owner's number"],["À faire aujourd'hui","To do today"],["rendez-vous proche(s)","upcoming appointment(s)"],["livraison EN RETARD de","delivery LATE by"],["jour(s)","day(s)"],["Atelier","Workshop"],["Pressing","Dry cleaning"]); var PH = [["Nom, téléphone ou code (ex : Fatima, 003, 7...)","Name, phone or code (e.g. Fatima, 003, 7...)"]];
   var LANG = localStorage.getItem('appLang') || 'fr';
   var busy = false, timer = null;
   function traduireNoeud(node){
