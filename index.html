@@ -1,3 +1,82 @@
+<!-- TRADUCTION AUTOMATIQUE FR / EN — Chez Djamil (100% additif) -->
+<script>
+(function(){
+  "use strict";
+  var PAIRS = [
+    ["Gestion Atelier · Pressing · Boutique","Workshop · Dry Cleaning · Boutique Management"],
+    ["En ligne — synchronisé","Online — synced"],
+    ["Messages clients :","Client messages:"],
+    ["Messages clients","Client messages"],
+    ["Déconnexion","Log out"],
+    ["Aperçu","Overview"],
+    ["Atelier","Workshop"],
+    ["Pressing","Dry cleaning"],
+    ["Boutique","Boutique"],
+    ["Mesures","Measurements"],
+    ["Finances","Finances"],
+    ["Recherche globale","Global search"],
+    ["Commandes","Orders"],
+    ["Tickets","Tickets"],
+    ["Clôture du jour","Daily closing"],
+    ["Recettes du jour (toutes activités)","Today's revenue (all activities)"],
+    ["Clôturer la journée & Notifier le propriétaire","Close the day & Notify the owner"],
+    ["Changer le numéro du propriétaire","Change owner's number"],
+    ["Total reçu aujourd'hui :","Total received today:"]
+  ];
+  var CHUNKS = [["Fermeture","Closing"],["encaissement(s)","payment(s)"]];
+  var PH = [["Nom, téléphone ou code (ex : Fatima, 003, 7...)","Name, phone or code (e.g. Fatima, 003, 7...)"]];
+  var LANG = localStorage.getItem('appLang') || 'fr';
+  var busy = false, timer = null;
+  function traduireNoeud(node){
+    var val = node.nodeValue, trimmed = val.trim();
+    if(!trimmed) return;
+    for(var i=0;i<PAIRS.length;i++){
+      if(trimmed === PAIRS[i][0]){ node.nodeValue = val.replace(PAIRS[i][0], PAIRS[i][1]); return; }
+    }
+    var out = val, changed = false;
+    for(var j=0;j<CHUNKS.length;j++){
+      if(out.indexOf(CHUNKS[j][0]) >= 0){ out = out.split(CHUNKS[j][0]).join(CHUNKS[j][1]); changed = true; }
+    }
+    if(changed) node.nodeValue = out;
+  }
+  function traduireTout(){
+    if(LANG !== 'en') return;
+    busy = true;
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n, arr = [];
+    while(n = w.nextNode()) arr.push(n);
+    arr.forEach(traduireNoeud);
+    document.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(function(el){
+      var c = el.getAttribute('placeholder');
+      for(var i=0;i<PH.length;i++){ if(c === PH[i][0]){ el.setAttribute('placeholder', PH[i][1]); break; } }
+    });
+    document.documentElement.lang = 'en';
+    busy = false;
+  }
+  function programmer(){ if(LANG==='en'){ clearTimeout(timer); timer = setTimeout(traduireTout, 80); } }
+  function choisirLangue(lang){
+    if(lang === LANG) return;
+    localStorage.setItem('appLang', lang);
+    location.reload();
+  }
+  function brancherBoutons(){
+    document.querySelectorAll('button,a,div,span,li').forEach(function(el){
+      var txt = (el.childNodes.length===1 ? el.textContent : '').trim().toUpperCase();
+      if(txt === 'FR'){ el.addEventListener('click', function(){ choisirLangue('fr'); }); }
+      else if(txt === 'EN'){ el.addEventListener('click', function(){ choisirLangue('en'); }); }
+    });
+  }
+  function demarrer(){
+    brancherBoutons();
+    traduireTout();
+    new MutationObserver(function(){ if(!busy) programmer(); })
+      .observe(document.body, {childList:true, subtree:true, characterData:true});
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);
+  else demarrer();
+})();
+</script>
+
+
 <!DOCTYPE html>
 <html lang="fr" translate="no">
 <head>
