@@ -38,7 +38,7 @@ CHUNKS.push(["GESTION ATELIER · PRESSING · BOUTIQUE","WORKSHOP · DRY CLEANING
 CHUNKS.push(["Tour de cou","Neck"],["Tour poitrine","Chest"],["Tour manche","Sleeve width"],["Poignet","Wrist"],["Longueur de taille","Waist length"],["Longueur de","Length of"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"],["ITEMS DE LA COMMANDE (FACTURE DÉTAILLÉE)","ORDER ITEMS (DETAILED INVOICE)"],["DE LA COMMANDE (FACTURE DÉTAILLÉE)","— ORDER (DETAILED INVOICE)"]); var PHX=[["Ex: Robe de soirée, tissu bazin","e.g. Evening dress, bazin fabric"],["Ex: Pantalon, Boubou","e.g. Trousers, Boubou"],["Ex: Mme Diallo","e.g. Mrs Diallo"],["Ex: M. Sanneh","e.g. Mr Sanneh"],["Ex: 7XX XXXX","e.g. 7XX XXXX"],["Ex: 5000","e.g. 5000"],["Ex: 500","e.g. 500"],["Catégorie (ex: Fil, boutons)","Category (e.g. Thread, buttons)"],["Montant (D)","Amount (D)"],["Description (optionnel)","Description (optional)"],["Nom, téléphone ou code","Name, phone or code"]]; setInterval(function(){ if((localStorage.getItem('appLang')||'fr')!=='en') return; document.querySelectorAll('input,textarea').forEach(function(el){ var p=el.getAttribute('placeholder')||''; PHX.forEach(function(s){ if(p.indexOf(s[0])>=0){ p=p.split(s[0]).join(s[1]); } }); if(p!==el.getAttribute('placeholder')) el.setAttribute('placeholder',p); }); }, 700);  var busy = false, timer = null;
 CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"],["Détail jour par jour (mois en cours)","Day-by-day detail (current month)"],["Chaque journée du mois, activité par activité — l'historique complet jusqu'à la fin du mois.","Each day of the month, activity by activity — the complete history until the end of the month."]);CHUNKS.push(["Aujourd\u2019hui","Today"],["Aujourd'hui","Today"],["Hier","Yesterday"]);CHUNKS.push(["Bilan annuel — mois par mois","Annual summary — month by month"],["Chaque mois de l'année, activité par activité. Au 31","Each month of the year, activity by activity. On 31"],["cette liste est votre bilan de l'année","this list is your full-year summary"],["complète. Le 1er","complete. On 1"],["une nouvelle année","a new year"],["démarre — les années passées restent conservées","starts — past years remain stored"],["dans la base.","in the database."],["Ajouter une dépense","Add an expense"],["Activité concernée","Activity concerned"],["Catégorie","Category"],["Date de la dépense","Expense date"],["Dépenses récentes","Recent expenses"],["Enregistrer la fiche","Save sheet"],["Ajoutez un employé pour commencer le suivi des salaires.","Add an employee to start tracking salaries."],["Employés","Employees"],["Fiche permanente — les noms, téléphones et salaires restent affichés en permanence, mois après mois.","Permanent record — names, phones and salaries stay displayed permanently, month after month."],["Aucun employé enregistré.","No employee recorded."],["Aujourd'hui","Today"],["Hier","Yesterday"],["Janvier","January"],["Février","February"],["Mars","March"],["Avril","April"],["Mai","May"],["Juin","June"],["Juillet","July"],["Août","August"],["Septembre","September"],["Octobre","October"],["Novembre","November"],["Décembre","December"],["janvier","January"],["février","February"],["mars","March"],["avril","April"],["mai","May"],["juin","June"],["juillet","July"],["août","August"],["septembre","September"],["octobre","October"],["novembre","November"],["décembre","December"]); PHX.push(["Ex: Électricité, Fournitures, Transport","e.g. Electricity, Supplies, Transport"],["Détail de la dépense","Expense details"],["Rechercher un client","Search a client"]);CHUNKS.push(["Neckturière","Seamstress"],["Neckturier","Tailor"],["Couturière","Seamstress"],["Couturier","Tailor"],["Fiche mesures client","Client measurement sheet"],["ARTICLES","ITEMS"],["EN STOCK","IN STOCK"],["RECETTE D","REVENUE D"],["Nouvel article","New item"],["Name de l'article","Item name"],["Nom de l'article","Item name"],["Quantité en stock","Stock quantity"],["Prix de vente unitaire (D)","Unit sale price (D)"],["Ajouter au stock","Add to stock"],["Tissu","Fabric"],["Type","Type"],["Bilan — Recettes, Dépenses, Solde","Summary — Revenue, Expenses, Balance"],["Aujourd'hui","Today"],["Semaine","Week"],["Mois en cours","Current month"],["Recettes:","Revenue:"],["Dépenses:","Expenses:"],["Solde:","Balance:"],["TOTAL —","TOTAL —"],["janvier","January"],["février","February"],["mars","March"],["avril","April"],["mai","May"],["juin","June"],["juillet","July"],["août","August"],["septembre","September"],["octobre","October"],["novembre","November"],["décembre","December"],["Salaires","Payroll"],["Visiteurs","Visitors"],["Ajouter un employé","Add an employee"],["Ajouter l'employé","Add employee"],["Poste — touchez pour choisir","Position — tap to choose"],["Presseur","Presser"],["Ménagère","Cleaner"],["Vendeuse","Saleswoman"],["Apprenti(e)","Apprentice"],["Salaire mensuel (D)","Monthly salary (D)"],["Récapitulatif mensuel","Monthly summary"],["Mois","Month"],["Enregistrer un passage","Record a visit"],["Enregistrer le passage","Save visit"],["Recherche","Search"],["Passages enregistrés","Recorded visits"],["Supprimer","Delete"],["Note","Note"]); PHX.push(["Catégorie (ex: Réapprovisionnement)","Category (e.g. Restocking)"],["Ex: Bazin riche 6 yards / Robe taille M","e.g. Rich bazin 6 yards / Dress size M"],["Ex: Awa Ndiaye","e.g. Awa Ndiaye"],["Ex: Amadou","e.g. Amadou"],["Ou écrivez un autre poste ici","Or type another position here"],["Rechercher un visiteur","Search a visitor"],["Ex: veut voir Djamil, demande un devis","e.g. wants to see Djamil, asks for a quote"]);CHUNKS.push(["PRÊTS","READY"],["RÉCUPÉRÉS","COLLECTED"],["Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer et payer. Enregistré directement comme \"Collected\", sans passer par tout le formulaire de ticket.","For a client who dropped off a garment long ago (before the app) and is collecting and paying today. Saved directly as \"Collected\", without the full ticket form."]); PHX.push(["Catégorie (ex: Détergent, électricité)","Category (e.g. Detergent, electricity)"],["Nom du client","Client name"],["Téléphone","Phone"],["Description (ex: 2 boubous déposés il y a 3 mois)","Description (e.g. 2 boubous dropped off 3 months ago)"],["Description (ex: Robe boubou déposée il y a","Description (e.g. Boubou dress dropped off"],["Description (ex:","Description (e.g."]);  CHUNKS.push(["Length of pince","Shoulder to bust / underbust"],["Longueur de pince","Shoulder to bust / underbust"],["Long. de pince","Shoulder to bust / underbust"],["Long. pince","Shoulder to bust / underbust"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"]);
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
-CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"]);
+CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 PHX.push(["Nom de la catégorie","Category name"],["Nom de l'article","Item name"],["Prix","Price"]);
 function traduireNoeud(node){
     var val = node.nodeValue, trimmed = val.trim();
@@ -364,7 +364,8 @@ function traduireNoeud(node){
   display:flex;align-items:center;justify-content:center;padding:24px;
 ">
   <div style="max-width:340px;width:100%;">
-    <h1 style="text-align:center;color:#e8c75e;font-family:Georgia,serif;font-size:1.3rem;margin-bottom:4px;">CHEZ DJAMIL</h1>
+    <h1 id="marque-login" style="text-align:center;color:#e8c75e;font-family:Georgia,serif;font-size:1.3rem;margin-bottom:4px;text-transform:uppercase;">CHEZ DJAMIL</h1>
+    <p style="text-align:center;color:#c9a227;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.7rem;letter-spacing:0.03em;margin:0 0 16px;">SanaaPro — La gestion d'atelier complète</p>
     <p style="text-align:center;color:#8a8a8f;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.78rem;margin-bottom:28px;">Connexion requise</p>
     <label style="display:block;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.72rem;color:#8a8a8f;margin-bottom:4px;">Email</label>
     <input id="login-email" type="email" placeholder="votre@email.com" style="width:100%;padding:12px;background:#1f1f23;border:1px solid #34343a;border-radius:6px;color:#f5f3ec;font-size:0.9rem;margin-bottom:14px;">
@@ -378,7 +379,7 @@ function traduireNoeud(node){
 <div id="app-content" style="display:block;">
 
 <header>
-  <h1>CHEZ DJAMIL</h1>
+  <h1 id="marque-header" style="text-transform:uppercase;">CHEZ DJAMIL</h1>
   <p>GESTION ATELIER · PRESSING · BOUTIQUE</p>
   <span id="etat-connexion" class="hors-ligne">Connexion...</span>
   <div><span id="etat-secours" onclick="afficherDetailSecours()" style="display:none;margin-top:4px;font-size:0.65rem;color:var(--or-clair);font-family:'Helvetica Neue',Arial,sans-serif;font-weight:700;"></span></div>
@@ -1354,12 +1355,19 @@ function viderChamps(ids){ ids.forEach(id=>{ const el=document.getElementById(id
    Le nom s'applique automatiquement à TOUS les messages WhatsApp (via lienWhatsApp),
    au titre de l'app et aux notifications. Modification réservée à l'administrateur. */
 const NOM_COMMERCE_DEFAUT = 'Chez Djamil';
+const NOM_PRODUIT = 'SanaaPro'; /* Nom du PRODUIT (l'app vendue) — distinct du nom de la boutique de chaque utilisateur */
 let NOM_COMMERCE = NOM_COMMERCE_DEFAUT;
 const REF_INFOS_COMMERCE = () => db.collection('parametres').doc('infosCommerce');
 
 function appliquerNomCommerce(nom){
   NOM_COMMERCE = (nom && String(nom).trim()) ? String(nom).trim() : NOM_COMMERCE_DEFAUT;
-  try{ document.title = 'Chez Djamil — Atelier, Pressing, Boutique'.split('Chez Djamil').join(NOM_COMMERCE); }catch(e){}
+  try{ document.title = NOM_COMMERCE + ' · ' + NOM_PRODUIT; }catch(e){}
+  try{
+    var _mL = document.getElementById('marque-login');
+    var _mH = document.getElementById('marque-header');
+    if(_mL) _mL.textContent = NOM_COMMERCE;
+    if(_mH) _mH.textContent = NOM_COMMERCE;
+  }catch(e){}
 }
 
 /* Écoute temps réel : le nom se met à jour sur tous les appareils. */
@@ -1687,14 +1695,20 @@ async function synchroniserCarnetAdresses(nom, tel, genre, mesures){
      on crée une fiche distincte, pour ne jamais mélanger les mesures de deux
      clients différents portant le même nom. */
   const existant = (trouve && trouve!=='AMBIGU') ? trouve : null;
+  /* Fusion : on ne remplace JAMAIS une mesure déjà enregistrée par une valeur vide.
+     Si la commande laisse une mesure vide, on conserve celle qui existait dans la fiche.
+     (Empêche qu'une nouvelle commande efface des mesures non re-saisies — ex. poitrine.) */
+  const anc = existant || {};
+  const fusion = (cle)=>{ const n=(mesures[cle]==null?'':String(mesures[cle])).trim(); return n!=='' ? n : (anc[cle]!=null ? anc[cle] : ''); };
   const fiche = {
     nom, tel, genre,
-    cou:mesures.cou||'', epaule:mesures.epaule||'', poitrine:mesures.poitrine||'',
-    longManche:mesures.longManche||'', tourManche:mesures.tourManche||'', poignet:mesures.poignet||'',
-    ceinture:mesures.ceinture||'', bassin:mesures.bassin||'', cuisse:mesures.cuisse||'',
-    pince:mesures.pince||'', tourGenou:mesures.tourGenou||'', basPantalon:mesures.basPantalon||'',
-    longHaut:mesures.longHaut||'', longPantalon:mesures.longPantalon||'',
-    longRobe:mesures.longRobe||'', longJupe:mesures.longJupe||''
+    cou:fusion('cou'), epaule:fusion('epaule'), poitrine:fusion('poitrine'),
+    longManche:fusion('longManche'), tourManche:fusion('tourManche'), poignet:fusion('poignet'),
+    tourTaille:fusion('tourTaille'), longTaille:fusion('longTaille'),
+    ceinture:fusion('ceinture'), bassin:fusion('bassin'), cuisse:fusion('cuisse'),
+    pince:fusion('pince'), tourGenou:fusion('tourGenou'), basPantalon:fusion('basPantalon'),
+    longHaut:fusion('longHaut'), longPantalon:fusion('longPantalon'),
+    longRobe:fusion('longRobe'), longJupe:fusion('longJupe')
   };
   if(trouve==='AMBIGU'){
     toast('⚠️ Plusieurs clients nommés "'+nom+'" — une fiche séparée a été créée pour éviter de mélanger les mesures');
@@ -1749,6 +1763,7 @@ async function enregistrerContactSansEcraserMesures(nom, tel, genre){
   const fiche = {
     nom, tel, genre,
     cou:'', epaule:'', poitrine:'', longManche:'', tourManche:'', poignet:'',
+    tourTaille:'', longTaille:'',
     ceinture:'', bassin:'', cuisse:'', pince:'', tourGenou:'', basPantalon:'', longHaut:'', longPantalon:'', longRobe:'', longJupe:''
   };
   CACHE.clients_mesures.push(Object.assign({id:'local_'+Date.now()}, fiche));
@@ -1835,7 +1850,7 @@ async function ajouterCommande(){
     const typeCree = typeCommandeActuel;
     viderChamps(['a-nom','a-tel','a-desc','a-acompte','a-depot','a-livraison',
       'm-cou','m-epaule','m-poitrine','m-longmanche','m-tourmanche','m-poignet',
-      'm-ceinture','m-bassin','m-cuisse','m-longhaut','m-longpantalon','m-longrobe','m-longjupe']);
+      'm-tourtaille','m-longtaille','m-ceinture','m-bassin','m-cuisse','m-pince','m-tourgenou','m-baspantalon','m-longhaut','m-longpantalon','m-longrobe','m-longjupe']);
     document.getElementById('a-photo-tissu').value='';
     document.getElementById('a-photo-modele').value='';
     choisirTypeCommande('Confection');
