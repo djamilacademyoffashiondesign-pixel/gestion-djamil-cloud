@@ -1851,7 +1851,12 @@ async function ajouterCommande(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('commandes_couture', cmd, 'La commande n\'a pas pu être synchronisée en ligne');
-    enregistrerTransaction(acompte, 'Atelier', nom+' — '+code, cmd.depot||null);
+    /* CORRECTIF : la recette est datée du JOUR OÙ L'ARGENT EST ENCAISSÉ, pas de
+       la "Date de dépôt" du vêtement. Avant, passer cmd.depot ici datait l'avance
+       au jour du dépôt : si ce n'était pas aujourd'hui, l'argent disparaissait de
+       l'Aperçu, de la Clôture du jour et du Bilan du jour. Pour saisir une avance
+       reçue un autre jour, utiliser « Corriger l'avance » qui demande la vraie date. */
+    enregistrerTransaction(acompte, 'Atelier', nom+' — '+code);
     if(typeCommandeActuel!=='Retouche'){
       synchroniserCarnetAdresses(nom, cmd.tel, genreActuel, mesures).catch(err=>console.error('Le carnet d\'adresses n\'a pas pu être synchronisé', err));
     } else {
@@ -2574,7 +2579,9 @@ async function ajouterTicket(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('depots_pressing', t, 'Le ticket n\'a pas pu être synchronisé en ligne');
-    enregistrerTransaction(avance, 'Pressing', nom+' — '+code, t.depot||null);
+    /* CORRECTIF : même raison que côté Atelier — la recette suit la date
+       d'encaissement, pas la date de dépôt du linge. */
+    enregistrerTransaction(avance, 'Pressing', nom+' — '+code);
     viderChamps(['p-nom','p-tel','p-avance','p-depot','p-retrait']);
     document.getElementById('p-photo').value='';
     panierPressing={};
@@ -3414,7 +3421,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-18-salaires-historique';
+const APP_VERSION = 'v2026-07-27-avance-date-encaissement';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
