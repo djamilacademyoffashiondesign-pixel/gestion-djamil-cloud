@@ -1551,12 +1551,25 @@ function viderChampsMesuresAtelier(){
      automatiquement, pour ne jamais mélanger les mesures de deux personnes). */
 function trouverClientExistant(nom, tel){
   if(!nom) return null;
-  const memeNom = CACHE.clients_mesures.filter(c=>c.nom===nom);
+  /* CORRECTIF : comparaison des noms insensible à la casse et aux espaces en
+     double ("Awa Jallow", "awa jallow", "Awa  Jallow" = le même client).
+     Avant, la moindre différence de frappe créait une fiche en double. */
+  const normNom = (v)=>(v||'').trim().toLowerCase().replace(/\s+/g,' ');
+  const cible = normNom(nom);
+  const memeNom = CACHE.clients_mesures.filter(c=>normNom(c.nom)===cible);
   if(memeNom.length===0) return null;
   if(tel){
     const telNettoye = tel.replace(/[^0-9]/g,'');
-    const parTel = CACHE.clients_mesures.find(c=>c.tel && c.tel.replace(/[^0-9]/g,'')===telNettoye && telNettoye!=='');
-    if(parTel) return parTel;
+    if(telNettoye!==''){
+      /* CORRECTIF MAJEUR (perte de mesures) : la recherche par téléphone est
+         désormais limitée aux fiches PORTANT LE MÊME NOM. Avant, elle balayait
+         tout le carnet d'adresses : quand deux clients différents partageaient
+         un même numéro (très courant dans une famille), la fiche de l'AUTRE
+         client était renvoyée, puis écrasée avec le nom et les mesures du
+         nouveau client — ses mesures étaient définitivement perdues. */
+      const parTel = memeNom.find(c=>c.tel && c.tel.replace(/[^0-9]/g,'')===telNettoye);
+      if(parTel) return parTel;
+    }
   }
   if(memeNom.length===1) return memeNom[0];
   return 'AMBIGU';
@@ -3003,9 +3016,13 @@ function cloturerLaJournee(){
      on la limite donc à la vraie fenêtre de fermeture (18h-19h) pour éviter
      qu'un manager ne clôture la journée par erreur trop tôt, alors qu'elle
      n'est pas encore terminée. */
+  /* CORRECTIF : la fenêtre était limitée à 18h00-19h00. Passé 19h00 le manager
+     ne pouvait plus clôturer du tout (cas signalé : impossible à 21h). Elle est
+     élargie à partir de 17h00 jusqu'à minuit — cela empêche toujours une clôture
+     accidentelle le matin, sans bloquer une fermeture tardive. */
   const heureActuelle = new Date().getHours();
-  if(heureActuelle < 18 || heureActuelle >= 19){
-    toast('⛔ La clôture n\'est possible qu\'entre 18h00 et 19h00 — la journée n\'est pas encore terminée');
+  if(heureActuelle < 17){
+    toast('⛔ La clôture n\'est possible qu\'à partir de 17h00 — la journée n\'est pas encore terminée');
     return;
   }
   const num = numeroProprietaire();
@@ -3421,7 +3438,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-27-avance-date-encaissement';
+const APP_VERSION = 'v2026-07-27-mesures-cloture';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -3475,6 +3492,23 @@ function enregistrerMesure(){
     longJupe: genreMesures==='Femme' ? document.getElementById('ms-longjupe').value : ''
   };
   const idEdition = document.getElementById('ms-edit-id').value;
+
+  /* CORRECTIF (perte de mesures) : lors de la modification d'une fiche existante,
+     un champ laissé vide ne remplace plus la valeur déjà enregistrée. Avant, une
+     mesure non re-saisie était écrasée par du vide et disparaissait de la fiche.
+     Pour corriger une mesure, il suffit de saisir la nouvelle valeur par-dessus. */
+  if(idEdition){
+    const ancienne = CACHE.clients_mesures.find(c=>c.id===idEdition);
+    if(ancienne){
+      Object.keys(fiche).forEach(cle=>{
+        if(cle==='nom' || cle==='genre') return;
+        const nouvelle = (fiche[cle]==null ? '' : String(fiche[cle])).trim();
+        if(nouvelle==='' && ancienne[cle]!=null && String(ancienne[cle]).trim()!==''){
+          fiche[cle] = ancienne[cle];
+        }
+      });
+    }
+  }
 
   /* Affichage immédiat dans "Fiches clients", sans attendre le serveur. */
   if(idEdition){
