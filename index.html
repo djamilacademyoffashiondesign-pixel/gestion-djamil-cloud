@@ -4314,4 +4314,26 @@ attacherEcouteur('salaires_mensuel', rendreSalaires);
     border: none !important;
     width: 100% !important;
   }
-</style>
+</style><script>
+  /* Ajout dynamique du bouton flottant WhatsApp */
+  document.addEventListener("DOMContentLoaded", function() {
+    var waBtn = document.createElement("a");
+    waBtn.href = "https://wa.me/"; // Vous pourrez ajouter votre numéro plus tard ex: https://wa.me/221770000000
+    waBtn.target = "_blank";
+    waBtn.style.position = "fixed";
+    waBtn.style.bottom = "20px";
+    waBtn.style.right = "20px";
+    waBtn.style.backgroundColor = "#25D366";
+    waBtn.style.color = "#FFF";
+    waBtn.style.borderRadius = "50px";
+    waBtn.style.padding = "12px 18px";
+    waBtn.style.fontWeight = "bold";
+    waBtn.style.boxShadow = "0px 4px 10px rgba(0,0,0,0.3)";
+    waBtn.style.zIndex = "9999";
+    waBtn.style.textDecoration = "none";
+    waBtn.innerText = "💬 WhatsApp";
+    
+    document.body.appendChild(waBtn);
+  });
+</script>
+
