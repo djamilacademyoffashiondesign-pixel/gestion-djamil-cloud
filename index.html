@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Moyenne des 7 derniers jours actifs :","Average of the last 7 active days:"],["Historique des clôtures — 14 derniers jours","Closing history — last 14 days"],["Historique des clôtures","Closing history"],["Clôturer la journée ?","Close the day?"],["Confirmer la clôture","Confirm closing"],["Cette action est définitive et envoie le résumé au propriétaire.","This action is final and sends the summary to the owner."],["Dépenses du jour :","Today's expenses:"],["Total reçu :","Total received:"],["Solde net :","Net balance:"],["Envoyer le résumé","Send the summary"],["Touchez le bouton pour ouvrir WhatsApp :","Tap the button to open WhatsApp:"],["Ouvrir WhatsApp","Open WhatsApp"],["La journée n'a pas encore été clôturée.","The day has not been closed yet."],["clôturée","closed"],["non clôturée","not closed"],["Reçu :","Received:"],["Dépenses :","Expenses:"],["Solde :","Balance:"],["Annuler","Cancel"],["Fermer","Close"]);
 PHX.push(["Nom de la catégorie","Category name"],["Nom de l'article","Item name"],["Prix","Price"]);
 function traduireNoeud(node){
     var val = node.nodeValue, trimmed = val.trim();
@@ -430,6 +431,9 @@ function traduireNoeud(node){
       <h2>Clôture du jour</h2>
       <div id="apercu-cloture"></div>
       <button class="btn" style="margin-top:12px;" onclick="cloturerLaJournee()">🔒 Clôturer la journée & Notifier le propriétaire</button>
+      <div style="text-align:center;margin-top:8px;">
+        <a href="#" onclick="ouvrirHistoriqueClotures();return false;" style="color:var(--or-clair);font-size:0.78rem;font-family:'Helvetica Neue',Arial,sans-serif;">📅 Historique des clôtures</a>
+      </div>
       <div style="text-align:center;margin-top:6px;">
         <a href="#" onclick="changerNumeroProprietaire();return false;" style="color:var(--gris);font-size:0.72rem;font-family:'Helvetica Neue',Arial,sans-serif;">⚙️ Changer le numéro du propriétaire</a>
       </div>
@@ -3046,10 +3050,38 @@ function cloturerLaJournee(){
   );
   const lien = lienWhatsApp(num, msg);
   if(lien){
-    if(confirm('Envoyer le résumé de clôture par WhatsApp au propriétaire ?\nCette action est définitive.')){
-      afficherEcranSucces('Journée clôturée avec succès', 'Total reçu: '+totalRecu+' D — Solde net: '+solde+' D');
-      setTimeout(()=>{ window.open(lien, "_blank"); }, 1200);
-    }
+    /* CORRECTIF ROBUSTESSE : l'ancien confirm() + window.open differe etait
+       bloque silencieusement par le navigateur (surtout en PWA standalone).
+       Remplace par une modale recapitulative + un vrai lien <a> cliquable. */
+    const recap = `
+      <div class="liste-item">
+        <div class="meta">Atelier : ${recuAtelier} D</div>
+        <div class="meta">Pressing : ${recuPressing} D</div>
+        <div class="meta">Boutique : ${recuBoutique} D</div>
+        <div class="meta">Autre : ${recuGeneral} D</div>
+        <div class="meta" style="margin-top:8px;">Dépenses du jour : ${totalDepenses} D</div>
+        <div style="margin-top:8px;font-size:1.5rem;font-weight:800;color:var(--vert);">Total reçu : ${totalRecu} D</div>
+        <div class="nom" style="margin-top:4px;">Solde net : ${solde} D</div>
+      </div>
+      <div class="meta" style="margin-top:12px;color:var(--rouge);">Cette action est définitive et envoie le résumé au propriétaire.</div>`;
+    ouvrirModale('Clôturer la journée ?', recap, [
+      { texte:'Annuler', style:'secondary' },
+      { texte:'Confirmer la clôture', action:function(){
+          try { localStorage.setItem('cd_cloture_'+aujourdhuiISO, '1'); } catch(e){}
+          const w = window.open(lien, '_blank');
+          if(!w){
+            /* Pop-up bloque : on affiche un lien que le manager peut toucher. */
+            ouvrirModale('Envoyer le résumé',
+              '<div class="meta">Touchez le bouton pour ouvrir WhatsApp :</div>'
+              + '<div style="margin-top:12px;"><a href="'+lien+'" target="_blank" rel="noopener" '
+              + 'style="display:block;text-align:center;background:#25D366;color:#fff;padding:13px;border-radius:10px;'
+              + 'text-decoration:none;font-weight:700;">Ouvrir WhatsApp</a></div>');
+          } else {
+            afficherEcranSucces('Journée clôturée avec succès', 'Total reçu: '+totalRecu+' D — Solde net: '+solde+' D');
+          }
+          verifierRappelCloture();
+        } }
+    ]);
   } else {
     toast('Numéro invalide — vérifiez-le via "Changer le numéro du propriétaire"');
   }
@@ -3072,16 +3104,116 @@ function calculerClotureDuJour(){
 
   const zone = document.getElementById('apercu-cloture');
   if(!zone) return;
+
+  /* Comparatif : moyenne des encaissements des 7 jours precedents (jours
+     avec activite uniquement, pour ne pas ecraser la moyenne avec des
+     dimanches fermes). Sert de repere visuel, jamais de calcul comptable. */
+  const ref = moyenneRecette7Jours();
+  const couleurTotal = totalJour > 0 ? 'var(--vert)' : 'var(--gris)';
+  let comparatif = '';
+  if(ref > 0){
+    const pct = Math.round((totalJour / ref) * 100);
+    const largeur = Math.max(2, Math.min(100, pct));
+    const teinte = pct >= 100 ? 'var(--vert)' : (pct >= 60 ? 'var(--or)' : 'var(--rouge)');
+    comparatif = `
+      <div class="meta" style="margin-top:10px;">Moyenne des 7 derniers jours actifs : ${Math.round(ref)} D
+        &nbsp;·&nbsp;<span style="color:${teinte};font-weight:700;">${pct}%</span></div>
+      <div style="margin-top:5px;height:7px;border-radius:6px;background:rgba(255,255,255,.10);overflow:hidden;">
+        <div style="height:100%;width:${largeur}%;background:${teinte};border-radius:6px;"></div>
+      </div>`;
+  }
+
   zone.innerHTML = `
     <div class="liste-item">
       <div class="meta">${aujourdhui} — Fermeture</div>
       <div class="meta">Atelier: ${nbAtelier} encaissement(s) — ${recuAtelier} D</div>
       <div class="meta">Pressing: ${nbPressing} encaissement(s) — ${recuPressing} D</div>
       <div class="meta">Boutique: ${nbBoutique} encaissement(s) — ${recuBoutique} D</div>
-      <div class="nom" style="margin-top:8px;font-size:1.1rem;">TOTAL REÇU AUJOURD'HUI: ${totalJour} D</div>
+      <div class="meta" style="margin-top:12px;letter-spacing:.06em;">TOTAL REÇU AUJOURD'HUI</div>
+      <div style="font-size:2.1rem;font-weight:800;line-height:1.15;color:${couleurTotal};">${totalJour} D</div>
+      ${comparatif}
     </div>
   `;
 }
+
+/* ================= COMPARATIF & HISTORIQUE DES CLOTURES =================
+   Tout est recalcule depuis CACHE.transactions : aucune nouvelle collection
+   Firestore, aucun changement de modele de donnees. */
+function recetteDuJourISO(iso){
+  return (CACHE.transactions||[])
+    .filter(t=>t.dateISO===iso && ['Atelier','Pressing','Boutique','Général'].indexOf(t.source)>=0)
+    .reduce((s,t)=>s+(t.montant||0),0);
+}
+function moyenneRecette7Jours(){
+  const jours = [];
+  for(let i=1;i<=7;i++){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    const iso = d.toISOString().slice(0,10);
+    const m = recetteDuJourISO(iso);
+    if(m > 0) jours.push(m);
+  }
+  if(!jours.length) return 0;
+  return jours.reduce((a,b)=>a+b,0)/jours.length;
+}
+function ouvrirHistoriqueClotures(){
+  const lignes = [];
+  for(let i=0;i<14;i++){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    const iso = d.toISOString().slice(0,10);
+    const total = recetteDuJourISO(iso);
+    const dep = (CACHE.depenses||[]).filter(x=>x.dateISO===iso).reduce((s,x)=>s+(x.montant||0),0);
+    const cloture = localStorage.getItem('cd_cloture_'+iso) === '1';
+    lignes.push(`
+      <div class="liste-item">
+        <div class="nom">${d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'2-digit'})}
+          ${cloture ? '<span style="color:var(--vert);"> · clôturée</span>' : '<span style="color:var(--gris);"> · non clôturée</span>'}</div>
+        <div class="meta">Reçu : ${total} D &nbsp;·&nbsp; Dépenses : ${dep} D &nbsp;·&nbsp; Solde : ${total-dep} D</div>
+      </div>`);
+  }
+  ouvrirModale('Historique des clôtures — 14 derniers jours', lignes.join(''));
+}
+
+/* Modale generique additive (aucune dependance a une lib) */
+function ouvrirModale(titre, corpsHTML, boutons){
+  const fond = document.createElement('div');
+  fond.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
+  const boite = document.createElement('div');
+  boite.style.cssText = 'background:#141416;border:1px solid rgba(201,162,39,.35);border-radius:14px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:18px;';
+  boite.innerHTML = '<h2 style="margin:0 0 12px;font-size:1.05rem;">'+titre+'</h2>'
+                  + '<div>'+corpsHTML+'</div><div id="modale-actions" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;"></div>';
+  fond.appendChild(boite);
+  const zoneActions = boite.querySelector('#modale-actions');
+  (boutons || [{texte:'Fermer', style:'secondary'}]).forEach(function(b){
+    const btn = document.createElement('button');
+    btn.className = 'btn' + (b.style === 'secondary' ? ' secondary' : '');
+    btn.style.flex = '1';
+    btn.textContent = b.texte;
+    btn.onclick = function(){ fond.remove(); if(b.action) b.action(); };
+    zoneActions.appendChild(btn);
+  });
+  fond.addEventListener('click', function(e){ if(e.target === fond) fond.remove(); });
+  document.body.appendChild(fond);
+  return fond;
+}
+
+/* Rappel de cloture : discret, sur l'ecran Apercu, a partir de 19h. */
+function verifierRappelCloture(){
+  const zone = document.getElementById('apercu-cloture');
+  if(!zone) return;
+  const iso = dateISOAujourdhui();
+  const dejaFait = localStorage.getItem('cd_cloture_'+iso) === '1';
+  const existant = document.getElementById('rappel-cloture');
+  if(existant) existant.remove();
+  if(dejaFait || new Date().getHours() < 19) return;
+  const banniere = document.createElement('div');
+  banniere.id = 'rappel-cloture';
+  banniere.style.cssText = 'margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.45);font-size:.82rem;';
+  banniere.textContent = "⏰ La journée n'a pas encore été clôturée.";
+  zone.appendChild(banniere);
+}
+setInterval(verifierRappelCloture, 60000);
 
 /* Associe chaque statut à l'action de notification correspondante,
    pour que le tableau de bord (Aperçu) affiche TOUTES les étapes
@@ -3439,7 +3571,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-whatsapp-interne-role';
+const APP_VERSION = 'v2026-07-30-cloture-v2';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
