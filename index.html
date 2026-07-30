@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
 CHUNKS.push(["Moyenne des 7 derniers jours actifs :","Average of the last 7 active days:"],["Historique des clôtures — 14 derniers jours","Closing history — last 14 days"],["Historique des clôtures","Closing history"],["Clôturer la journée ?","Close the day?"],["Confirmer la clôture","Confirm closing"],["Cette action est définitive et envoie le résumé au propriétaire.","This action is final and sends the summary to the owner."],["Dépenses du jour :","Today's expenses:"],["Total reçu :","Total received:"],["Solde net :","Net balance:"],["Envoyer le résumé","Send the summary"],["Touchez le bouton pour ouvrir WhatsApp :","Tap the button to open WhatsApp:"],["Ouvrir WhatsApp","Open WhatsApp"],["La journée n'a pas encore été clôturée.","The day has not been closed yet."],["clôturée","closed"],["non clôturée","not closed"],["Reçu :","Received:"],["Dépenses :","Expenses:"],["Solde :","Balance:"],["Annuler","Cancel"],["Fermer","Close"]);
@@ -826,6 +827,9 @@ function traduireNoeud(node){
     </div>
     <div class="panel">
       <h2>Dépenses récentes</h2>
+      <div class="item-actions" style="margin-bottom:8px;">
+        <button onclick="chercherDoublonsDepenses()">🔎 Vérifier les doublons</button>
+      </div>
       <div id="depenses-liste"></div>
     </div>
     <div class="panel">
@@ -1075,6 +1079,14 @@ function supprimerAvecOptimisme(nomCollection, id, cacheKey, rendreFn, messageSu
     console.error('Erreur suppression '+nomCollection, err);
     toast('⚠️ La suppression n\'a pas pu être confirmée en ligne (réseau faible) — réessayez si l\'élément réapparaît');
   });
+  /* CONTROLE : si l'ecouteur temps reel fait reapparaitre l'element, c'est que
+     la suppression n'a pas ete acceptee par le serveur. On le dit clairement
+     au lieu de laisser croire que la ligne a disparu des calculs. */
+  setTimeout(function(){
+    if(cacheKey && (CACHE[cacheKey]||[]).some(function(x){ return x.id === id; })){
+      toast('⚠️ Cet élément est revenu : la suppression a été refusée par le serveur');
+    }
+  }, 6000);
 }
 function retirerDeSecours(nomCollection, idLocal){
   const liste = listeSecours(nomCollection).filter(x=>x.idLocal!==idLocal);
@@ -2929,6 +2941,39 @@ function ajouterProduit(){
   }).catch(err=>toast('Erreur: '+err.message))
   .finally(()=>basculerChargement('btn-produit', false, 'Ajouter au stock'));
 }
+/* MANQUE COMBLE : aucune fonction ne permettait de corriger un article deja
+   enregistre. Le seul ajustement possible etait la "reduction" au moment de la
+   vente, qui ne peut que BAISSER le prix. On peut desormais corriger le nom,
+   le prix et le stock, a la hausse comme a la baisse. */
+async function modifierProduit(id){
+  if(!await demanderCodeAdmin('Modifier un article')) return;
+  const p = (CACHE.boutique_inventaire||[]).find(x=>x.id===id);
+  if(!p){ toast('Article introuvable'); return; }
+
+  const nom = prompt("Nom de l'article :", p.nom || '');
+  if(nom === null) return;
+  if(!String(nom).trim()){ toast("Le nom ne peut pas être vide"); return; }
+
+  const saisiePrix = prompt('Prix de vente (D) :', p.prix != null ? p.prix : 0);
+  if(saisiePrix === null) return;
+  const prix = Number(saisiePrix);
+  if(isNaN(prix) || prix < 0){ toast('Prix invalide'); return; }
+
+  const saisieQte = prompt('Quantité en stock :', p.qte != null ? p.qte : 0);
+  if(saisieQte === null) return;
+  const qte = Number(saisieQte);
+  if(isNaN(qte) || qte < 0){ toast('Quantité invalide'); return; }
+
+  const modifs = { nom:String(nom).trim(), prix:prix, qte:qte,
+                   misAJourLe: firebase.firestore.FieldValue.serverTimestamp() };
+  /* Affichage immediat, ecriture ensuite (meme principe que les suppressions). */
+  Object.assign(p, {nom:modifs.nom, prix:prix, qte:qte});
+  rendreBoutique();
+  db.collection('boutique_inventaire').doc(id).update(modifs)
+    .then(function(){ toast('Article corrigé'); })
+    .catch(function(err){ console.error('Erreur modification article', err);
+      toast('⚠️ Correction non confirmée en ligne — elle sera renvoyée au retour du réseau'); });
+}
 async function supprimerProduit(id){
   if(!await demanderCodeAdmin('Supprimer un article')) return;
   if(!confirm('Supprimer cet article ?')) return;
@@ -2995,6 +3040,7 @@ function rendreBoutique(){
         ${alerte}
         <div class="item-actions">
           <button onclick="vendreProduit('${p.id}')">Vendre</button>
+          <button onclick="modifierProduit('${p.id}')">✏️ Corriger</button>
           <button class="del" onclick="supprimerProduit('${p.id}')">Supprimer</button>
         </div>
       </div>`;
@@ -3941,7 +3987,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-impayes';
+const APP_VERSION = 'v2026-07-30-corrections';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -4198,6 +4244,75 @@ function ajouterDepense(){
   toast('Dépense enregistrée');
   basculerChargement('btn-depense', false, 'Enregistrer la dépense');
 }
+/* Corriger un montant mal saisi sans avoir a supprimer puis ressaisir. */
+async function modifierDepense(id){
+  if(!await demanderCodeAdmin('Modifier une dépense')) return;
+  const d = (CACHE.depenses||[]).find(x=>x.id===id);
+  if(!d){ toast('Dépense introuvable'); return; }
+
+  const categorie = prompt('Catégorie :', d.categorie || '');
+  if(categorie === null) return;
+  const saisieMontant = prompt('Montant (D) :', d.montant != null ? d.montant : 0);
+  if(saisieMontant === null) return;
+  const montant = Number(saisieMontant);
+  if(isNaN(montant) || montant < 0){ toast('Montant invalide'); return; }
+  const description = prompt('Description (facultatif) :', d.description || '');
+  if(description === null) return;
+
+  const modifs = { categorie:String(categorie).trim() || 'Dépense', montant:montant,
+                   description:String(description).trim(),
+                   misAJourLe: firebase.firestore.FieldValue.serverTimestamp() };
+  Object.assign(d, {categorie:modifs.categorie, montant:montant, description:modifs.description});
+  rendreDepenses(); rendreBilanFinances(); rendreApercu();
+  db.collection('depenses').doc(id).update(modifs)
+    .then(function(){ toast('Dépense corrigée'); })
+    .catch(function(err){ console.error('Erreur modification dépense', err);
+      toast('⚠️ Correction non confirmée en ligne — elle sera renvoyée au retour du réseau'); });
+}
+
+/* Detecteur de doublons : meme jour, meme categorie, meme montant.
+   Cas typique : la facture de courant saisie deux fois par le manager. */
+function chercherDoublonsDepenses(){
+  const groupes = {};
+  (CACHE.depenses||[]).forEach(function(d){
+    const cle = (d.dateISO||'?') + '|' + (d.categorie||'') + '|' + (d.montant||0);
+    (groupes[cle] = groupes[cle] || []).push(d);
+  });
+  const suspects = Object.keys(groupes).filter(function(k){ return groupes[k].length > 1; });
+  if(!suspects.length){ ouvrirModale('Doublons', '<div class="meta">Aucun doublon détecté dans les dépenses.</div>'); return; }
+
+  const corps = suspects.map(function(k){
+    const g = groupes[k];
+    const d = g[0];
+    return '<div class="liste-item">'
+      + '<div class="nom">' + (d.categorie||'Dépense') + ' — ' + d.montant + ' D</div>'
+      + '<div class="meta">' + (d.date||d.dateISO||'') + ' · saisi <strong>' + g.length + ' fois</strong> — compté ' + (g.length*(d.montant||0)) + ' D au total</div>'
+      + '<div style="margin-top:8px;"><button onclick="supprimerDoublonsDepense(\'' + k + '\')">Ne garder qu\'une seule ligne</button></div>'
+      + '</div>';
+  }).join('');
+  ouvrirModale('Doublons détectés', corps);
+}
+
+async function supprimerDoublonsDepense(cle){
+  if(!await demanderCodeAdmin('Supprimer des doublons')) return;
+  const aSupprimer = (CACHE.depenses||[]).filter(function(d){
+    return ((d.dateISO||'?') + '|' + (d.categorie||'') + '|' + (d.montant||0)) === cle;
+  }).slice(1);   /* on garde la premiere ligne */
+  if(!aSupprimer.length){ toast('Rien à supprimer'); return; }
+  if(!confirm('Supprimer ' + aSupprimer.length + ' ligne(s) en double ?')) return;
+
+  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  let echecs = 0;
+  for(const d of aSupprimer){
+    try { await db.collection('depenses').doc(d.id).delete(); }
+    catch(e){ echecs++; console.error('Suppression doublon échouée', e); }
+  }
+  CACHE.depenses = (CACHE.depenses||[]).filter(function(x){ return aSupprimer.indexOf(x) === -1; });
+  rendreDepenses(); rendreBilanFinances(); rendreApercu();
+  toast(echecs ? '⚠️ ' + echecs + ' suppression(s) non confirmée(s) — réessayez en ligne'
+               : aSupprimer.length + ' doublon(s) supprimé(s)');
+}
+
 async function supprimerDepense(id){
   if(!await demanderCodeAdmin('Supprimer une dépense')) return;
   if(!confirm('Supprimer cette dépense ?')) return;
@@ -4242,6 +4357,7 @@ function rendreDepenses(){
         <div class="meta">${d.activite} · ${d.date}</div>
         ${d.description ? '<div class="meta">'+d.description+'</div>' : ''}
         <div class="item-actions">
+          <button onclick="modifierDepense('${d.id}')">✏️ Corriger</button>
           <button class="del" onclick="supprimerDepense('${d.id}')">Supprimer</button>
         </div>
       </div>
