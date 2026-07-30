@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
 CHUNKS.push(["Moyenne des 7 derniers jours actifs :","Average of the last 7 active days:"],["Historique des clôtures — 14 derniers jours","Closing history — last 14 days"],["Historique des clôtures","Closing history"],["Clôturer la journée ?","Close the day?"],["Confirmer la clôture","Confirm closing"],["Cette action est définitive et envoie le résumé au propriétaire.","This action is final and sends the summary to the owner."],["Dépenses du jour :","Today's expenses:"],["Total reçu :","Total received:"],["Solde net :","Net balance:"],["Envoyer le résumé","Send the summary"],["Touchez le bouton pour ouvrir WhatsApp :","Tap the button to open WhatsApp:"],["Ouvrir WhatsApp","Open WhatsApp"],["La journée n'a pas encore été clôturée.","The day has not been closed yet."],["clôturée","closed"],["non clôturée","not closed"],["Reçu :","Received:"],["Dépenses :","Expenses:"],["Solde :","Balance:"],["Annuler","Cancel"],["Fermer","Close"]);
 PHX.push(["Nom de la catégorie","Category name"],["Nom de l'article","Item name"],["Prix","Price"]);
@@ -439,6 +440,13 @@ function traduireNoeud(node){
       </div>
       <div style="text-align:center;margin-top:6px;">
         <a href="#" onclick="changerCapaciteJour();return false;" style="color:var(--gris);font-size:0.72rem;font-family:'Helvetica Neue',Arial,sans-serif;">⚙️ Nombre de vêtements par jour</a>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>💰 Impayés & vêtements à récupérer</h2>
+      <div id="apercu-impayes"></div>
+      <div class="item-actions" style="margin-top:10px;">
+        <button id="btn-filtre-impayes" onclick="basculerFiltreImpayes()">Voir tous les impayés</button>
       </div>
     </div>
     <div class="panel">
@@ -3396,6 +3404,121 @@ function rendrePlanningSemaine(){
 }
 function changerSemaine(pas){ decalageSemaine += pas; rendrePlanningSemaine(); }
 
+/* ================= IMPAYES & VETEMENTS A RECUPERER =================
+   Regroupe sur l'Apercu tous les clients qui doivent encore de l'argent,
+   atelier ET pressing, sans avoir a ouvrir chaque rayon. Recalcule depuis
+   le CACHE : aucun champ nouveau, aucune ecriture. */
+
+let filtreImpayes = 'retard';   /* 'retard' = seulement les echeances passees, 'tout' = tous */
+
+function listerImpayes(){
+  const auj = new Date(); auj.setHours(0,0,0,0);
+  const liste = [];
+
+  (CACHE.commandes_couture || []).forEach(function(c){
+    if(c.statut === 'Annulé') return;
+    const reste = (Number(c.prix)||0) - (Number(c.acompte)||0);
+    if(reste <= 0) return;
+    let retard = null;
+    if(c.livraison){
+      const d = dateDepuisISO(c.livraison); d.setHours(0,0,0,0);
+      retard = Math.round((auj - d) / 86400000);
+    }
+    liste.push({ rayon:'Atelier', icone:'✂️', nom:c.nom||'—', tel:c.tel||'', code:c.code||'',
+                 reste:reste, prix:Number(c.prix)||0, statut:c.statut||'', date:c.livraison||'', retard:retard });
+  });
+
+  (CACHE.depots_pressing || []).forEach(function(t){
+    if(t.statut === 'Annulé') return;
+    const reste = (Number(t.prix)||0) - (Number(t.avance)||0);
+    if(reste <= 0) return;
+    let retard = null;
+    if(t.retrait){
+      const d = dateDepuisISO(t.retrait); d.setHours(0,0,0,0);
+      retard = Math.round((auj - d) / 86400000);
+    }
+    liste.push({ rayon:'Pressing', icone:'👔', nom:t.nom||'—', tel:t.tel||'', code:t.code||'',
+                 reste:reste, prix:Number(t.prix)||0, statut:t.statut||'', date:t.retrait||'', retard:retard });
+  });
+
+  /* Le plus en retard en premier, puis le montant le plus eleve. */
+  liste.sort(function(a,b){
+    const ra = (a.retard === null ? -9999 : a.retard);
+    const rb = (b.retard === null ? -9999 : b.retard);
+    if(rb !== ra) return rb - ra;
+    return b.reste - a.reste;
+  });
+  return liste;
+}
+
+function messageRelance(x){
+  /* NOM_COMMERCE est la variable globale tenue a jour en temps reel par ecouterNomCommerce(). */
+  const nomCommerce = (typeof NOM_COMMERCE !== 'undefined' && NOM_COMMERCE) ? NOM_COMMERCE : 'Chez Djamil';
+  const fr = 'Bonjour ' + x.nom + ', votre ' + (x.rayon === 'Atelier' ? 'commande' : 'ticket pressing')
+    + (x.code ? ' (Code ' + x.code + ')' : '') + ' est prêt(e). Il reste ' + x.reste
+    + ' D à régler au retrait. Nous vous attendons — ' + nomCommerce + '.';
+  const en = 'Hello ' + x.nom + ', your ' + (x.rayon === 'Atelier' ? 'order' : 'dry cleaning ticket')
+    + (x.code ? ' (Code ' + x.code + ')' : '') + ' is ready. There is ' + x.reste
+    + ' D left to pay on collection. We look forward to seeing you — ' + nomCommerce + '.';
+  return texteMsg(fr, en);
+}
+
+function basculerFiltreImpayes(){
+  filtreImpayes = (filtreImpayes === 'retard') ? 'tout' : 'retard';
+  rendreImpayes();
+}
+
+function rendreImpayes(){
+  const zone = document.getElementById('apercu-impayes');
+  if(!zone) return;
+  const toutes = listerImpayes();
+  const enRetard = toutes.filter(function(x){ return x.retard !== null && x.retard > 0; });
+  const affichees = (filtreImpayes === 'retard') ? enRetard : toutes;
+
+  const totalDu = toutes.reduce(function(s,x){ return s + x.reste; }, 0);
+  const totalRetard = enRetard.reduce(function(s,x){ return s + x.reste; }, 0);
+
+  let html = '<div class="stats-grid" style="margin-top:4px;">'
+    + '<div class="stat"><div class="val" style="color:var(--rouge);">' + totalRetard + '</div><div class="lab">EN RETARD (D)</div></div>'
+    + '<div class="stat"><div class="val">' + totalDu + '</div><div class="lab">TOTAL DÛ (D)</div></div>'
+    + '</div>';
+
+  html += '<div class="meta" style="margin-top:8px;">'
+    + (filtreImpayes === 'retard'
+        ? enRetard.length + ' client(s) en retard — sur ' + toutes.length + ' impayé(s)'
+        : toutes.length + ' impayé(s) au total')
+    + '</div>';
+
+  if(!affichees.length){
+    html += '<div class="vide" style="margin-top:8px;">' + (filtreImpayes === 'retard' ? 'Aucun retard de paiement.' : 'Aucun impayé.') + '</div>';
+  } else {
+    html += affichees.map(function(x){
+      const lien = (typeof lienWhatsApp === 'function' && x.tel) ? lienWhatsApp(x.tel, messageRelance(x)) : null;
+      let badge = '';
+      if(x.retard === null) badge = '<span style="color:var(--gris);">date non renseignée</span>';
+      else if(x.retard > 0) badge = '<span style="color:var(--rouge);font-weight:700;">en retard de ' + x.retard + ' jour(s)</span>';
+      else if(x.retard === 0) badge = "<span style=\"color:var(--or);\">échéance aujourd'hui</span>";
+      else badge = '<span style="color:var(--vert);">dans ' + (-x.retard) + ' jour(s)</span>';
+      return '<div class="liste-item" style="' + (x.retard !== null && x.retard > 0 ? 'border-left:3px solid var(--rouge);' : '') + '">'
+        + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+        +   '<span>' + x.icone + ' ' + x.nom + '</span>'
+        +   '<span style="color:var(--rouge);">' + x.reste + ' D</span>'
+        + '</div>'
+        + '<div class="meta">' + x.rayon + (x.code ? ' · ' + x.code : '') + (x.statut ? ' · ' + x.statut : '') + '</div>'
+        + '<div class="meta">' + badge + (x.date ? ' · prévu le ' + dateDepuisISO(x.date).toLocaleDateString('fr-FR') : '') + '</div>'
+        + '<div class="meta">Payé ' + (x.prix - x.reste) + ' / ' + x.prix + ' D</div>'
+        + (lien
+            ? '<div style="margin-top:8px;"><a href="' + lien + '" target="_blank" rel="noopener" style="display:inline-block;background:#25D366;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700;">💬 Relancer</a></div>'
+            : '<div class="meta" style="color:var(--gris);">Pas de téléphone enregistré</div>')
+        + '</div>';
+    }).join('');
+  }
+  zone.innerHTML = html;
+
+  const btn = document.getElementById('btn-filtre-impayes');
+  if(btn) btn.textContent = (filtreImpayes === 'retard') ? 'Voir tous les impayés' : 'Voir seulement les retards';
+}
+
 /* ================= ALERTE ECHEANCES PROCHES =================
    Sonnerie + banniere quand une livraison tombe dans les 3 jours.
    Fonctionne pendant que l'application est ouverte. */
@@ -3654,6 +3777,7 @@ function rendreApercu(){
   verifierRappelCloture();
   rendrePlanningSemaine();
   verifierEcheancesProches();
+  rendreImpayes();
   majChargeLivraison();
   afficherStatutCodeTemporaire();
   const atelier=CACHE.commandes_couture;
@@ -3817,7 +3941,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-planning-atelier';
+const APP_VERSION = 'v2026-07-30-impayes';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
