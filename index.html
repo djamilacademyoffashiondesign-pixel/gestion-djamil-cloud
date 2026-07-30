@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
 CHUNKS.push(["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
@@ -442,6 +443,14 @@ function traduireNoeud(node){
       </div>
       <div style="text-align:center;margin-top:6px;">
         <a href="#" onclick="changerCapaciteJour();return false;" style="color:var(--gris);font-size:0.72rem;font-family:'Helvetica Neue',Arial,sans-serif;">⚙️ Nombre de vêtements par jour</a>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>🧵 Plan de travail proposé</h2>
+      <div class="meta">Répartition automatique de la couture, échéance la plus proche d'abord.</div>
+      <div id="apercu-plan-travail" style="margin-top:8px;"></div>
+      <div class="item-actions" style="margin-top:10px;">
+        <button id="btn-plan-travail" onclick="basculerPlanTravail()">Voir tout le plan</button>
       </div>
     </div>
     <div class="panel">
@@ -3552,6 +3561,137 @@ function rendrePlanningSemaine(){
 }
 function changerSemaine(pas){ decalageSemaine += pas; rendrePlanningSemaine(); }
 
+/* ================= PLAN DE TRAVAIL PROPOSE =================
+   Le planning ci-dessus montre les RENDEZ-VOUS (quand le client vient chercher).
+   Ceci est different : il repartit le TRAVAIL REEL jour par jour.
+   Regle : on coud d'abord ce qui est promis le plus tot (echeance la plus
+   proche en premier), a raison de la capacite quotidienne, du lundi au samedi.
+   Un gros lot est automatiquement decoupe sur plusieurs jours.
+   Aucune donnee n'est ecrite : c'est une proposition recalculee a chaque
+   ouverture, qui suit l'avancement reel des statuts. */
+
+let joursPlanAffiches = 6;
+
+/* Statuts pour lesquels la couture est terminee : plus rien a planifier. */
+function coutureTerminee(statut){
+  return ['Prêt','Livré','Annulé','Annulé (tissu récupéré)'].indexOf(statut) >= 0;
+}
+
+function planifierProduction(){
+  const cap = capaciteJour();
+  const restants = (CACHE.commandes_couture||[])
+    .filter(function(c){ return !coutureTerminee(c.statut); })
+    .map(function(c){
+      return { nom:c.nom||'—', code:c.code||'', livraison:c.livraison||'',
+               total:(c.articles && c.articles.length) ? c.articles.length : 1,
+               reste:(c.articles && c.articles.length) ? c.articles.length : 1,
+               statut:c.statut||'' };
+    })
+    /* Echeance la plus proche d'abord ; les commandes sans date passent en dernier. */
+    .sort(function(a,b){
+      if(!a.livraison && !b.livraison) return b.total - a.total;
+      if(!a.livraison) return 1;
+      if(!b.livraison) return -1;
+      if(a.livraison !== b.livraison) return a.livraison < b.livraison ? -1 : 1;
+      return b.total - a.total;
+    });
+
+  const jours = [];
+  const retards = {};
+  const d = new Date(); d.setHours(12,0,0,0);
+  let garde = 0;
+
+  while(restants.some(function(o){ return o.reste > 0; }) && garde < 120){
+    garde++;
+    if(d.getDay() === 0){ d.setDate(d.getDate()+1); continue; }   /* dimanche ferme */
+    const iso = isoDeDate(d);
+    let libre = cap;
+    const taches = [];
+    for(let i=0; i<restants.length && libre > 0; i++){
+      const o = restants[i];
+      if(o.reste <= 0) continue;
+      const pris = Math.min(libre, o.reste);
+      o.reste -= pris;
+      libre -= pris;
+      const tard = (o.livraison && iso > o.livraison);
+      if(tard){
+        const cle = o.nom + '|' + o.code;
+        const dLiv = dateDepuisISO(o.livraison);
+        const jrs = Math.round((dateDepuisISO(iso) - dLiv) / 86400000);
+        if(!retards[cle] || retards[cle].jours < jrs){
+          retards[cle] = { nom:o.nom, code:o.code, livraison:o.livraison, jours:jrs, total:o.total };
+        }
+      }
+      taches.push({ nom:o.nom, code:o.code, pris:pris, total:o.total,
+                    dejaFait:o.total - o.reste - pris, reste:o.reste,
+                    livraison:o.livraison, tard:tard });
+    }
+    if(taches.length) jours.push({ iso:iso, taches:taches, libre:libre });
+    d.setDate(d.getDate()+1);
+  }
+  return { jours:jours, retards:Object.keys(retards).map(function(k){ return retards[k]; }) };
+}
+
+function basculerPlanTravail(){
+  joursPlanAffiches = (joursPlanAffiches === 6) ? 24 : 6;
+  rendrePlanTravail();
+}
+
+function rendrePlanTravail(){
+  const zone = document.getElementById('apercu-plan-travail');
+  if(!zone) return;
+  const cap = capaciteJour();
+  const plan = planifierProduction();
+
+  if(!plan.jours.length){
+    zone.innerHTML = '<div class="vide">Aucun vêtement en attente de couture.</div>';
+    return;
+  }
+
+  let html = '';
+
+  if(plan.retards.length){
+    html += '<div style="margin-bottom:10px;padding:11px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.5);">'
+      + '<div class="nom">⚠️ ' + plan.retards.length + ' commande(s) ne pourront pas être finies à temps</div>'
+      + plan.retards.map(function(r){
+          return '<div class="meta">• ' + r.nom + (r.code ? ' · ' + r.code : '') + ' — ' + r.total
+               + ' vêtement(s), promis le ' + dateDepuisISO(r.livraison).toLocaleDateString('fr-FR')
+               + ' → <strong>' + r.jours + ' jour(s) de retard</strong></div>';
+        }).join('')
+      + '<div class="meta" style="margin-top:7px;">Il faut soit prévenir ces clientes, soit augmenter la capacité quotidienne (actuellement '
+      + cap + '/jour).</div>'
+      + '</div>';
+  }
+
+  html += plan.jours.slice(0, joursPlanAffiches).map(function(j){
+    const d = dateDepuisISO(j.iso);
+    const fait = cap - j.libre;
+    return '<div class="liste-item">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span>' + d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}) + '</span>'
+      +   '<span style="color:var(--or);">' + fait + '/' + cap + '</span>'
+      + '</div>'
+      + j.taches.map(function(t){
+          const suivi = (t.pris < t.total)
+            ? ' <span style="opacity:.7;">(' + (t.dejaFait + t.pris) + '/' + t.total + ')</span>' : '';
+          return '<div class="meta" style="margin-top:4px;">'
+            + (t.tard ? '<span style="color:var(--rouge);">⚠️ </span>' : '')
+            + '<strong>' + t.nom + '</strong> — ' + t.pris + ' vêtement(s)' + suivi
+            + (t.code ? ' · ' + t.code : '') + '</div>';
+        }).join('')
+      + '</div>';
+  }).join('');
+
+  const total = plan.jours.reduce(function(s,j){ return s + (cap - j.libre); }, 0);
+  const dernier = dateDepuisISO(plan.jours[plan.jours.length-1].iso);
+  html += '<div class="meta" style="margin-top:10px;">' + total + ' vêtement(s) en attente · atelier occupé jusqu\'au '
+       + dernier.toLocaleDateString('fr-FR') + '</div>';
+
+  zone.innerHTML = html;
+  const btn = document.getElementById('btn-plan-travail');
+  if(btn) btn.textContent = (joursPlanAffiches === 6) ? 'Voir tout le plan' : 'Voir la semaine seulement';
+}
+
 /* ================= IMPAYES & VETEMENTS A RECUPERER =================
    Regroupe sur l'Apercu tous les clients qui doivent encore de l'argent,
    atelier ET pressing, sans avoir a ouvrir chaque rayon. Recalcule depuis
@@ -3613,6 +3753,7 @@ function messageRelance(x){
 
 function basculerFiltreImpayes(){
   filtreImpayes = (filtreImpayes === 'retard') ? 'tout' : 'retard';
+  rendrePlanTravail();
   rendreImpayes();
 }
 
@@ -4089,7 +4230,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-recettes-liees';
+const APP_VERSION = 'v2026-07-30-plan-travail';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
