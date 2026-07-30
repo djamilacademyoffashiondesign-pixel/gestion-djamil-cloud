@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
 CHUNKS.push(["Moyenne des 7 derniers jours actifs :","Average of the last 7 active days:"],["Historique des clôtures — 14 derniers jours","Closing history — last 14 days"],["Historique des clôtures","Closing history"],["Clôturer la journée ?","Close the day?"],["Confirmer la clôture","Confirm closing"],["Cette action est définitive et envoie le résumé au propriétaire.","This action is final and sends the summary to the owner."],["Dépenses du jour :","Today's expenses:"],["Total reçu :","Total received:"],["Solde net :","Net balance:"],["Envoyer le résumé","Send the summary"],["Touchez le bouton pour ouvrir WhatsApp :","Tap the button to open WhatsApp:"],["Ouvrir WhatsApp","Open WhatsApp"],["La journée n'a pas encore été clôturée.","The day has not been closed yet."],["clôturée","closed"],["non clôturée","not closed"],["Reçu :","Received:"],["Dépenses :","Expenses:"],["Solde :","Balance:"],["Annuler","Cancel"],["Fermer","Close"]);
 PHX.push(["Nom de la catégorie","Category name"],["Nom de l'article","Item name"],["Prix","Price"]);
 function traduireNoeud(node){
@@ -428,6 +429,19 @@ function traduireNoeud(node){
     </div>
     <div class="stats-grid" id="apercu-stats"></div>
     <div class="panel">
+      <h2>📅 Planning de l'atelier</h2>
+      <div class="meta" id="planning-titre"></div>
+      <div id="apercu-planning" style="margin-top:8px;"></div>
+      <div id="apercu-echeances"></div>
+      <div class="item-actions" style="margin-top:10px;">
+        <button onclick="changerSemaine(-1)">◀ Semaine précédente</button>
+        <button onclick="changerSemaine(1)">Semaine suivante ▶</button>
+      </div>
+      <div style="text-align:center;margin-top:6px;">
+        <a href="#" onclick="changerCapaciteJour();return false;" style="color:var(--gris);font-size:0.72rem;font-family:'Helvetica Neue',Arial,sans-serif;">⚙️ Nombre de vêtements par jour</a>
+      </div>
+    </div>
+    <div class="panel">
       <h2>Clôture du jour</h2>
       <div id="apercu-cloture"></div>
       <button class="btn" style="margin-top:12px;" onclick="cloturerLaJournee()">🔒 Clôturer la journée & Notifier le propriétaire</button>
@@ -583,7 +597,8 @@ function traduireNoeud(node){
       <label>Date de dépôt</label>
       <input id="a-depot" type="date">
       <label>Date de livraison prévue</label>
-      <input id="a-livraison" type="date">
+      <input id="a-livraison" type="date" onchange="majChargeLivraison()">
+      <div id="a-livraison-charge" class="meta" style="margin-top:4px;"></div>
       <button class="btn" id="btn-commande" onclick="ajouterCommande()">Créer la commande</button>
     </div>
     <div class="panel">
@@ -1805,6 +1820,13 @@ async function ajouterCommande(){
   if(!nom){ toast('Entrez le nom du client'); return; }
   const articlesValides = lignesArticles.filter(l=>l.nom.trim() && Number(l.prix)>0);
   if(articlesValides.length===0){ toast('Ajoutez au moins un article avec un nom et un prix'); return; }
+  /* CAPACITE : l'atelier livre un nombre limite de vêtements par jour (lundi-samedi).
+     On previent AVANT toute ecriture, en proposant le premier jour libre. */
+  const dateLivraisonChoisie = (document.getElementById('a-livraison')||{}).value;
+  if(dateLivraisonChoisie){
+    const feuVert = await verifierCapaciteLivraison(dateLivraisonChoisie, articlesValides.length);
+    if(!feuVert) return;
+  }
   const mesures={
     cou:document.getElementById('m-cou').value,
     epaule:document.getElementById('m-epaule').value,
@@ -3215,6 +3237,226 @@ function verifierRappelCloture(){
 }
 setInterval(verifierRappelCloture, 60000);
 
+/* ================= PLANNING DE PRODUCTION (CAPACITE PAR JOUR) =================
+   Additif : tout est recalcule depuis CACHE.commandes_couture (champs livraison
+   et articles, deja existants). Aucun champ nouveau, aucune migration. */
+
+const CAPACITE_DEFAUT = 5;
+let decalageSemaine = 0;   /* 0 = semaine en cours, 1 = suivante ... */
+
+function capaciteJour(){
+  const v = parseInt(localStorage.getItem('cd_capacite_jour'), 10);
+  return (v && v > 0) ? v : CAPACITE_DEFAUT;
+}
+function changerCapaciteJour(){
+  const actuel = capaciteJour();
+  const rep = prompt("Combien de vêtements l'atelier peut-il livrer par jour ?", actuel);
+  if(rep === null) return;
+  const n = parseInt(rep, 10);
+  if(!n || n < 1 || n > 50){ toast('Entrez un nombre entre 1 et 50'); return; }
+  try { localStorage.setItem('cd_capacite_jour', String(n)); } catch(e){}
+  toast('Capacité réglée à ' + n + ' vêtement(s) par jour');
+  rendrePlanningSemaine();
+}
+
+function isoDeDate(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function dateDepuisISO(iso){ return new Date(iso + 'T12:00:00'); }
+
+/* Nombre de pieces engagees pour un jour de livraison donne.
+   Les commandes deja livrees ne pesent plus sur l'atelier. */
+function chargeDuJour(iso){
+  const lignes = [];
+  let pieces = 0;
+  (CACHE.commandes_couture || []).forEach(function(c){
+    if(c.livraison !== iso) return;
+    if(c.statut === 'Livré' || c.statut === 'Annulé') return;
+    const n = (c.articles && c.articles.length) ? c.articles.length : 1;
+    pieces += n;
+    lignes.push({ nom: c.nom || '—', code: c.code || '', n: n, statut: c.statut || '' });
+  });
+  return { pieces: pieces, lignes: lignes };
+}
+
+/* Premier jour ouvre (lundi-samedi) capable d'accueillir "besoin" pieces. */
+function prochainJourDisponible(isoDepart, besoin){
+  const cap = capaciteJour();
+  const d = dateDepuisISO(isoDepart || isoDeDate(new Date()));
+  for(let i=0;i<60;i++){
+    if(d.getDay() !== 0){   /* 0 = dimanche, atelier ferme */
+      const iso = isoDeDate(d);
+      if(chargeDuJour(iso).pieces + besoin <= cap) return iso;
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return null;
+}
+
+/* Verification a la creation d'une commande. Renvoie une promesse :
+   true = on continue, false = on annule. */
+function verifierCapaciteLivraison(iso, besoin){
+  return new Promise(function(resoudre){
+    const cap = capaciteJour();
+    const d = dateDepuisISO(iso);
+    const charge = chargeDuJour(iso);
+    const dimanche = (d.getDay() === 0);
+    const plein = (charge.pieces + besoin > cap);
+    if(!dimanche && !plein){ resoudre(true); return; }
+
+    const libre = prochainJourDisponible(iso, besoin);
+    const jourFr = d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'});
+    const detail = charge.lignes.length
+      ? charge.lignes.map(function(l){ return '<div class="meta">• ' + l.nom + ' — ' + l.n + ' vêtement(s)' + (l.code ? ' (' + l.code + ')' : '') + '</div>'; }).join('')
+      : '<div class="meta">Aucune commande ce jour-là.</div>';
+
+    const corps = '<div class="liste-item">'
+      + '<div class="nom">' + (dimanche ? 'Dimanche — atelier fermé' : 'Journée complète : ' + charge.pieces + '/' + cap) + '</div>'
+      + '<div class="meta" style="margin-top:6px;">' + jourFr + '</div>'
+      + '<div style="margin-top:8px;">' + detail + '</div>'
+      + '<div class="meta" style="margin-top:8px;">Cette commande ajoute ' + besoin + ' vêtement(s).</div>'
+      + '</div>'
+      + (libre ? '<div class="meta" style="margin-top:12px;color:var(--vert);">Premier jour disponible : '
+          + dateDepuisISO(libre).toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'}) + '</div>' : '');
+
+    const boutons = [{ texte:'Annuler', style:'secondary', action:function(){ resoudre(false); } }];
+    if(libre){
+      boutons.push({ texte:'Utiliser ce jour', action:function(){
+        const champ = document.getElementById('a-livraison');
+        if(champ){ champ.value = libre; majChargeLivraison(); }
+        toast('Date de livraison reportée au ' + dateDepuisISO(libre).toLocaleDateString('fr-FR'));
+        resoudre(true);
+      }});
+    }
+    boutons.push({ texte:'Forcer quand même', action:function(){ resoudre(true); } });
+    ouvrirModale(dimanche ? 'Jour de fermeture' : 'Journée complète', corps, boutons);
+  });
+}
+
+/* Indicateur vivant sous le champ "Date de livraison prévue". */
+function majChargeLivraison(){
+  const champ = document.getElementById('a-livraison');
+  const zone = document.getElementById('a-livraison-charge');
+  if(!champ || !zone) return;
+  if(!champ.value){ zone.innerHTML = ''; return; }
+  const cap = capaciteJour();
+  const d = dateDepuisISO(champ.value);
+  if(d.getDay() === 0){
+    zone.innerHTML = '<span style="color:var(--rouge);">Dimanche — atelier fermé</span>';
+    return;
+  }
+  const n = chargeDuJour(champ.value).pieces;
+  const teinte = n >= cap ? 'var(--rouge)' : (n >= cap-1 ? 'var(--or)' : 'var(--vert)');
+  zone.innerHTML = '<span style="color:' + teinte + ';">Ce jour-là : ' + n + '/' + cap + ' vêtement(s) déjà prévus</span>';
+}
+
+/* Tableau lundi -> samedi. */
+function rendrePlanningSemaine(){
+  const zone = document.getElementById('apercu-planning');
+  if(!zone) return;
+  const cap = capaciteJour();
+  const base = new Date();
+  base.setDate(base.getDate() + decalageSemaine*7);
+  const jour = base.getDay();
+  const lundi = new Date(base);
+  lundi.setDate(base.getDate() - ((jour + 6) % 7));   /* recule jusqu'au lundi */
+  const isoAujourdhui = isoDeDate(new Date());
+
+  let html = '';
+  for(let i=0;i<6;i++){
+    const d = new Date(lundi);
+    d.setDate(lundi.getDate() + i);
+    const iso = isoDeDate(d);
+    const c = chargeDuJour(iso);
+    const teinte = c.pieces >= cap ? 'var(--rouge)' : (c.pieces >= cap-1 ? 'var(--or)' : 'var(--vert)');
+    const restant = Math.max(0, cap - c.pieces);
+    const auj = (iso === isoAujourdhui);
+    const lignes = c.lignes.length
+      ? c.lignes.map(function(l){ return '<div class="meta">• ' + l.nom + ' — <strong>' + l.n + '</strong> vêtement(s)' + (l.code ? ' · ' + l.code : '') + '</div>'; }).join('')
+      : '<div class="meta" style="opacity:.55;">— libre —</div>';
+    html += '<div class="liste-item" style="' + (auj ? 'border-left:3px solid var(--or);' : '') + '">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span>' + d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}) + (auj ? " · aujourd'hui" : '') + '</span>'
+      +   '<span style="color:' + teinte + ';">' + c.pieces + '/' + cap + '</span>'
+      + '</div>'
+      + '<div style="margin-top:5px;height:6px;border-radius:6px;background:rgba(255,255,255,.10);overflow:hidden;">'
+      +   '<div style="height:100%;width:' + Math.min(100, Math.round(c.pieces/cap*100)) + '%;background:' + teinte + ';"></div>'
+      + '</div>'
+      + '<div style="margin-top:7px;">' + lignes + '</div>'
+      + (restant > 0 ? '<div class="meta" style="margin-top:5px;color:var(--vert);">Encore ' + restant + ' place(s)</div>'
+                     : '<div class="meta" style="margin-top:5px;color:var(--rouge);">Journée complète</div>')
+      + '</div>';
+  }
+  zone.innerHTML = html;
+  const titre = document.getElementById('planning-titre');
+  if(titre){
+    const fin = new Date(lundi); fin.setDate(lundi.getDate()+5);
+    titre.textContent = 'Semaine du ' + lundi.toLocaleDateString('fr-FR') + ' au ' + fin.toLocaleDateString('fr-FR');
+  }
+}
+function changerSemaine(pas){ decalageSemaine += pas; rendrePlanningSemaine(); }
+
+/* ================= ALERTE ECHEANCES PROCHES =================
+   Sonnerie + banniere quand une livraison tombe dans les 3 jours.
+   Fonctionne pendant que l'application est ouverte. */
+let contexteAudio = null;
+function bipAlerte(){
+  try {
+    if(!contexteAudio) contexteAudio = new (window.AudioContext || window.webkitAudioContext)();
+    if(contexteAudio.state === 'suspended') contexteAudio.resume();
+    [0, 260, 520].forEach(function(retard){
+      setTimeout(function(){
+        const o = contexteAudio.createOscillator();
+        const g = contexteAudio.createGain();
+        o.type = 'sine'; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.001, contexteAudio.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.25, contexteAudio.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, contexteAudio.currentTime + 0.20);
+        o.connect(g); g.connect(contexteAudio.destination);
+        o.start(); o.stop(contexteAudio.currentTime + 0.22);
+      }, retard);
+    });
+  } catch(e){}
+}
+function verifierEcheancesProches(){
+  const zone = document.getElementById('apercu-echeances');
+  if(!zone) return;
+  const auj = new Date(); auj.setHours(0,0,0,0);
+  const proches = [];
+  (CACHE.commandes_couture || []).forEach(function(c){
+    if(!c.livraison || c.statut === 'Livré' || c.statut === 'Annulé') return;
+    const d = dateDepuisISO(c.livraison); d.setHours(0,0,0,0);
+    const jours = Math.round((d - auj) / 86400000);
+    if(jours >= 0 && jours <= 3) proches.push({c:c, jours:jours});
+  });
+  if(!proches.length){ zone.innerHTML = ''; return; }
+  proches.sort(function(a,b){ return a.jours - b.jours; });
+  zone.innerHTML = '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.14);border:1px solid rgba(201,162,39,.5);">'
+    + '<div class="nom">🔔 ' + proches.length + ' livraison(s) dans les 3 jours</div>'
+    + proches.map(function(p){
+        const q = p.jours === 0 ? "aujourd'hui" : (p.jours === 1 ? 'demain' : 'dans ' + p.jours + ' jours');
+        return '<div class="meta">• ' + (p.c.nom||'—') + ' — ' + q + (p.c.code ? ' · ' + p.c.code : '') + '</div>';
+      }).join('')
+    + '</div>';
+  /* Une seule sonnerie par jour, pour ne pas harceler le manager. */
+  const cle = 'cd_bip_' + isoDeDate(new Date());
+  try {
+    if(localStorage.getItem(cle) !== '1'){
+      localStorage.setItem(cle, '1');
+      bipAlerte();
+      if(window.Notification && Notification.permission === 'granted'){
+        new Notification('Chez Djamil', {body: proches.length + ' livraison(s) dans les 3 jours'});
+      }
+    }
+  } catch(e){}
+}
+/* Le navigateur exige un geste de l'utilisateur avant tout son. */
+document.addEventListener('click', function amorcerAudio(){
+  try { if(!contexteAudio) contexteAudio = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+  if(window.Notification && Notification.permission === 'default'){ try{ Notification.requestPermission(); }catch(e){} }
+  document.removeEventListener('click', amorcerAudio);
+}, {once:true});
+
 /* Associe chaque statut à l'action de notification correspondante,
    pour que le tableau de bord (Aperçu) affiche TOUTES les étapes
    nécessitant une notification client, pas seulement celles proches
@@ -3409,6 +3651,10 @@ function afficherHistoriqueClient(nomEnc, telEnc){
 
 function rendreApercu(){
   calculerClotureDuJour();
+  verifierRappelCloture();
+  rendrePlanningSemaine();
+  verifierEcheancesProches();
+  majChargeLivraison();
   afficherStatutCodeTemporaire();
   const atelier=CACHE.commandes_couture;
   const pressing=CACHE.depots_pressing;
@@ -3571,7 +3817,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-cloture-v2';
+const APP_VERSION = 'v2026-07-30-planning-atelier';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
