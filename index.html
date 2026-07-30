@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -454,6 +455,9 @@ function traduireNoeud(node){
       <h2>Clôture du jour</h2>
       <div id="apercu-cloture"></div>
       <button class="btn" style="margin-top:12px;" onclick="cloturerLaJournee()">🔒 Clôturer la journée & Notifier le propriétaire</button>
+      <div style="text-align:center;margin-top:8px;">
+        <a href="#" onclick="ouvrirRecettesDuJour();return false;" style="color:var(--or-clair);font-size:0.78rem;font-family:'Helvetica Neue',Arial,sans-serif;">🧾 Vérifier les recettes du jour</a>
+      </div>
       <div style="text-align:center;margin-top:8px;">
         <a href="#" onclick="ouvrirHistoriqueClotures();return false;" style="color:var(--or-clair);font-size:0.78rem;font-family:'Helvetica Neue',Arial,sans-serif;">📅 Historique des clôtures</a>
       </div>
@@ -1956,10 +1960,106 @@ async function ajouterCommande(){
     basculerChargement('btn-commande', false, 'Créer la commande');
   }
 }
+/* ================= RECETTES LIEES =================
+   DEFAUT CORRIGE : supprimer une commande (ou un ticket) ne supprimait QUE la
+   fiche. L'argent encaisse reste enregistre dans la collection "transactions",
+   donc il continuait d'apparaitre dans les Finances et dans la cloture du jour,
+   range sous le mauvais rayon. On propose desormais de supprimer aussi ces
+   recettes. Le lien se fait par le code, qui figure dans la description. */
+function recettesLiees(code, source){
+  if(!code) return [];
+  return (CACHE.transactions||[]).filter(function(t){
+    return t.source === source && String(t.description||'').indexOf(code) >= 0;
+  });
+}
+
+function proposerSuppressionRecettesLiees(code, source, nomClient){
+  const liees = recettesLiees(code, source);
+  if(!liees.length) return;
+  const total = liees.reduce(function(s,t){ return s + (t.montant||0); }, 0);
+  const corps = '<div class="liste-item">'
+    + '<div class="nom">' + (nomClient||'') + (code ? ' — ' + code : '') + '</div>'
+    + '<div class="meta" style="margin-top:6px;">Cette fiche a généré ' + liees.length + ' recette(s) dans les Finances :</div>'
+    + liees.map(function(t){ return '<div class="meta">• ' + (t.date||'') + ' — ' + t.montant + ' D · ' + (t.description||'') + '</div>'; }).join('')
+    + '<div style="margin-top:8px;font-weight:700;color:var(--or);">Total : ' + total + ' D encore comptés en ' + source + '</div>'
+    + '</div>'
+    + '<div class="meta" style="margin-top:10px;">Si cette somme a été saisie par erreur dans ce rayon, supprimez-la aussi. Si l\'argent a bien été reçu, gardez-la.</div>';
+
+  ouvrirModale('Et l\'argent déjà encaissé ?', corps, [
+    { texte:'Garder les recettes', style:'secondary' },
+    { texte:'Supprimer aussi (' + total + ' D)', action:function(){ supprimerRecettes(liees); } }
+  ]);
+}
+
+async function supprimerRecettes(liste){
+  if(!liste || !liste.length) return;
+  let echecs = 0;
+  for(const t of liste){
+    try { await db.collection('transactions').doc(t.id).delete(); }
+    catch(e){ echecs++; console.error('Suppression recette échouée', e); }
+  }
+  CACHE.transactions = (CACHE.transactions||[]).filter(function(x){ return liste.indexOf(x) === -1; });
+  rendreBilanFinances(); rendreRecettes(); rendreApercu();
+  toast(echecs ? '⚠️ ' + echecs + ' recette(s) non supprimée(s) — réessayez en ligne' : 'Recettes supprimées');
+  avertirSiJourneeDejaCloturee();
+}
+
+/* La cloture n'a jamais empeche de corriger : elle envoie seulement un resume.
+   On previent que le total transmis au proprietaire ne correspond plus. */
+function avertirSiJourneeDejaCloturee(){
+  try {
+    if(localStorage.getItem('cd_cloture_' + dateISOAujourdhui()) === '1'){
+      toast('⚠️ La journée était déjà clôturée — le résumé envoyé ne correspond plus au nouveau total');
+    }
+  } catch(e){}
+}
+
+/* ================= VERIFICATION DES RECETTES DU JOUR =================
+   Permet de voir, rayon par rayon, ce qui est compte aujourd'hui et d'enlever
+   une ligne mal rangee, meme apres la cloture. */
+function ouvrirRecettesDuJour(){
+  const iso = dateISOAujourdhui();
+  const dujour = (CACHE.transactions||[]).filter(function(t){ return t.dateISO === iso; });
+  if(!dujour.length){ ouvrirModale('Recettes du jour', '<div class="meta">Aucune recette enregistrée aujourd\'hui.</div>'); return; }
+
+  const rayons = ['Atelier','Pressing','Boutique','Général'];
+  const icones = {Atelier:'✂️', Pressing:'👔', Boutique:'🛍️', 'Général':'📋'};
+  let corps = '';
+  rayons.forEach(function(r){
+    const lignes = dujour.filter(function(t){ return (t.source||'Général') === r; });
+    if(!lignes.length) return;
+    const sous = lignes.reduce(function(s,t){ return s + (t.montant||0); }, 0);
+    corps += '<div class="liste-item">'
+      + '<div class="nom">' + (icones[r]||'') + ' ' + r + ' — ' + sous + ' D · ' + lignes.length + ' entrée(s)</div>'
+      + lignes.map(function(t){
+          return '<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08);">'
+            + '<div class="meta">' + t.montant + ' D · ' + (t.description || 'sans description') + '</div>'
+            + '<div style="margin-top:5px;"><button class="del" onclick="supprimerRecetteDuJour(\'' + t.id + '\')">Supprimer cette ligne</button></div>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  });
+  const total = dujour.reduce(function(s,t){ return s + (t.montant||0); }, 0);
+  corps += '<div class="meta" style="margin-top:10px;">Total du jour : <strong>' + total + ' D</strong></div>';
+  ouvrirModale('Recettes du jour — vérification', corps);
+}
+
+async function supprimerRecetteDuJour(id){
+  if(!await demanderCodeAdmin('Supprimer une recette')) return;
+  const t = (CACHE.transactions||[]).find(function(x){ return x.id === id; });
+  if(!t) return;
+  if(!confirm('Supprimer ' + t.montant + ' D (' + (t.source||'') + ') des recettes du jour ?')) return;
+  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  await supprimerRecettes([t]);
+  ouvrirRecettesDuJour();
+}
+
 async function supprimerCommande(id){
   if(!await demanderCodeAdmin('Supprimer une commande')) return;
   if(!confirm('Supprimer cette commande ?')) return;
+  const c = (CACHE.commandes_couture||[]).find(function(x){ return x.id === id; }) || {};
   supprimerAvecOptimisme('commandes_couture', id, 'commandes_couture', rendreAtelier, 'Commande supprimée');
+  proposerSuppressionRecettesLiees(c.code, 'Atelier', c.nom);
 }
 /* Enregistrement rapide d'un client dont le dépôt date d'avant l'application
    (ancien client non enregistré) : crée directement une commande au statut
@@ -2696,7 +2796,9 @@ function validerRetrait(id){
 async function supprimerTicket(id){
   if(!await demanderCodeAdmin('Supprimer un ticket')) return;
   if(!confirm('Supprimer ce ticket ?')) return;
+  const t = (CACHE.depots_pressing||[]).find(function(x){ return x.id === id; }) || {};
   supprimerAvecOptimisme('depots_pressing', id, 'depots_pressing', rendrePressing, 'Ticket supprimé');
+  proposerSuppressionRecettesLiees(t.code, 'Pressing', t.nom);
 }
 /* Équivalent pressing de enregistrerClientHistoriqueAtelier : pour un client
    dont le dépôt pressing date d'avant l'application. */
@@ -3987,7 +4089,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-corrections';
+const APP_VERSION = 'v2026-07-30-recettes-liees';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
