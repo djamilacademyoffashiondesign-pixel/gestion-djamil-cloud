@@ -3439,7 +3439,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-bouton-whatsapp-interne';
+const APP_VERSION = 'v2026-07-30-whatsapp-interne-role';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -4323,8 +4323,28 @@ attacherEcouteur('salaires_mensuel', rendreSalaires);
   var NUM_DIRECTEUR = "2207717111";   /* Djamil */
   var NUM_MANAGER   = "2207628683";   /* Manager */
 
-  function modeDirecteur(){
-    try { return localStorage.getItem('cd_mode_directeur') === '1'; } catch(e){ return false; }
+  /* Role de CET appareil.
+     'cd_wa_role' = choix explicite ('directeur' / 'manager'), fait par appui long
+     sur le bouton. Si absent, on retombe sur l'etat du mode directeur. */
+  function estDirecteur(){
+    try {
+      var r = localStorage.getItem('cd_wa_role');
+      if(r === 'directeur') return true;
+      if(r === 'manager')   return false;
+      return localStorage.getItem('cd_mode_directeur') === '1';
+    } catch(e){ return false; }
+  }
+  function basculerRole(){
+    try {
+      var nouveau = estDirecteur() ? 'manager' : 'directeur';
+      localStorage.setItem('cd_wa_role', nouveau);
+      var en = langue() === 'en';
+      alert(nouveau === 'directeur'
+        ? (en ? "This device is now the DIRECTOR's. The button will contact the manager."
+              : "Cet appareil est maintenant celui du DIRECTEUR. Le bouton contactera le manager.")
+        : (en ? "This device is now the MANAGER's. The button will contact the director."
+              : "Cet appareil est maintenant celui du MANAGER. Le bouton contactera le directeur."));
+    } catch(e){}
   }
   function langue(){
     try { return localStorage.getItem('appLang') || 'fr'; } catch(e){ return 'fr'; }
@@ -4342,13 +4362,26 @@ attacherEcouteur('salaires_mensuel', rendreSalaires);
       + "box-shadow:0 6px 18px rgba(0,0,0,.4);";
     rafraichir(a);
     a.addEventListener('click', function(){ rafraichir(a); });
+
+    /* Appui long (700 ms) = changer le role de cet appareil */
+    var minuteur = null, longPress = false;
+    function debut(){ longPress = false; minuteur = setTimeout(function(){ longPress = true; basculerRole(); rafraichir(a); }, 700); }
+    function fin(){ if(minuteur){ clearTimeout(minuteur); minuteur = null; } }
+    a.addEventListener('touchstart', debut, {passive:true});
+    a.addEventListener('touchend', fin);
+    a.addEventListener('touchmove', fin, {passive:true});
+    a.addEventListener('mousedown', debut);
+    a.addEventListener('mouseup', fin);
+    a.addEventListener('mouseleave', fin);
+    a.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+    a.addEventListener('click', function(e){ if(longPress){ e.preventDefault(); longPress = false; } }, true);
     document.body.appendChild(a);
     /* Le role peut changer sans rechargement (mode directeur) */
     setInterval(function(){ rafraichir(a); }, 1500);
   }
 
   function rafraichir(a){
-    var dir = modeDirecteur();
+    var dir = estDirecteur();
     var num = dir ? NUM_MANAGER : NUM_DIRECTEUR;
     var en  = langue() === 'en';
     var libelle = dir ? (en ? "Manager" : "Manager")
