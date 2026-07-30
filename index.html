@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
 CHUNKS.push(["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
@@ -2412,6 +2413,121 @@ function badgeEcheance(jours, libelleEchu){
   }
   return {classe:'', badge:''};
 }
+/* ================= SUIVI VETEMENT PAR VETEMENT =================
+   MANQUE COMBLE : le statut portait sur la commande ENTIERE. Si une cliente
+   depose 4 ensembles, en annule 2 et que 2 sont deja prets, la fiche continuait
+   d'afficher 4 a faire et un total inchange.
+   Chaque article porte desormais un etat : 'a_faire' (defaut), 'pret', 'annule'.
+   Le champ est optionnel : les commandes existantes restent valides sans
+   migration, un article sans etat est simplement "a faire". */
+
+function etatArticle(a){ return (a && a.etat) ? a.etat : 'a_faire'; }
+function articlesActifs(c){   /* ce que la cliente emportera : hors annules */
+  return (c.articles||[]).filter(function(a){ return etatArticle(a) !== 'annule'; });
+}
+function articlesRestants(c){ /* ce qu'il reste a coudre */
+  return (c.articles||[]).filter(function(a){ return etatArticle(a) === 'a_faire'; });
+}
+function resumeArticles(c){
+  const arts = c.articles||[];
+  if(!arts.length) return null;
+  return { total:arts.length,
+           prets:arts.filter(function(a){ return etatArticle(a)==='pret'; }).length,
+           annules:arts.filter(function(a){ return etatArticle(a)==='annule'; }).length,
+           aFaire:arts.filter(function(a){ return etatArticle(a)==='a_faire'; }).length };
+}
+
+function ouvrirSuiviVetements(id){
+  const c = (CACHE.commandes_couture||[]).find(function(x){ return x.id===id; });
+  if(!c){ toast('Commande introuvable'); return; }
+  const arts = c.articles||[];
+  if(!arts.length){ ouvrirModale('Suivi des vêtements', '<div class="meta">Cette commande n\'a pas d\'articles détaillés.</div>'); return; }
+
+  const etiquettes = { a_faire:'À faire', pret:'Prêt', annule:'Annulé' };
+  const couleurs  = { a_faire:'var(--or)', pret:'var(--vert)', annule:'var(--rouge)' };
+
+  const corps = arts.map(function(a, i){
+    const e = etatArticle(a);
+    return '<div class="liste-item">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span' + (e==='annule' ? ' style="text-decoration:line-through;opacity:.6;"' : '') + '>' + (a.nom||'Article') + '</span>'
+      +   '<span style="color:' + couleurs[e] + ';">' + etiquettes[e] + '</span>'
+      + '</div>'
+      + '<div class="meta">' + (a.prix||0) + ' D</div>'
+      + '<div class="item-actions" style="margin-top:7px;">'
+      +   (e!=='a_faire' ? '<button onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'a_faire\')">À faire</button>' : '')
+      +   (e!=='pret'    ? '<button onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'pret\')" style="color:var(--vert);border-color:rgba(63,174,92,.4);">✅ Prêt</button>' : '')
+      +   (e!=='annule'  ? '<button class="del" onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'annule\')">✖ Annulé</button>' : '')
+      + '</div></div>';
+  }).join('');
+
+  const r = resumeArticles(c);
+  const totalActif = articlesActifs(c).reduce(function(s,a){ return s + (Number(a.prix)||0); }, 0);
+  const pied = '<div class="meta" style="margin-top:10px;">'
+    + r.prets + ' prêt(s) · ' + r.aFaire + ' à faire · ' + r.annules + ' annulé(s)<br>'
+    + 'Total facturé après annulations : <strong>' + totalActif + ' D</strong>'
+    + (c.prixInitial && c.prixInitial !== totalActif ? ' <span style="opacity:.6;">(commande initiale ' + c.prixInitial + ' D)</span>' : '')
+    + '</div>';
+
+  ouvrirModale('Suivi des vêtements — ' + (c.nom||''), corps + pied);
+}
+
+async function changerEtatArticle(id, index, etat){
+  const c = (CACHE.commandes_couture||[]).find(function(x){ return x.id===id; });
+  if(!c || !c.articles || !c.articles[index]) return;
+  const ancien = etatArticle(c.articles[index]);
+  if(ancien === etat) return;
+
+  /* Annuler un vetement touche a l'argent : on protege par le code admin. */
+  if(etat === 'annule' || ancien === 'annule'){
+    if(!await demanderCodeAdmin('Annuler ou rétablir un vêtement')) return;
+  }
+
+  const articles = c.articles.map(function(a, i){
+    return i === index ? Object.assign({}, a, {etat: etat}) : Object.assign({}, a);
+  });
+  const nouveauPrix = articles.filter(function(a){ return etatArticle(a) !== 'annule'; })
+                              .reduce(function(s,a){ return s + (Number(a.prix)||0); }, 0);
+  const prixInitial = (c.prixInitial != null) ? c.prixInitial : (Number(c.prix)||0);
+
+  const modifs = { articles:articles, prix:nouveauPrix, prixInitial:prixInitial,
+                   misAJourLe: firebase.firestore.FieldValue.serverTimestamp() };
+
+  /* Si tous les vetements encore actifs sont cousus, la commande est prete. */
+  const actifs = articles.filter(function(a){ return etatArticle(a) !== 'annule'; });
+  const tousPrets = actifs.length > 0 && actifs.every(function(a){ return etatArticle(a) === 'pret'; });
+  if(tousPrets && c.statut !== 'Prêt' && c.statut !== 'Livré') modifs.statut = 'Prêt';
+
+  Object.assign(c, {articles:articles, prix:nouveauPrix, prixInitial:prixInitial});
+  if(modifs.statut) c.statut = modifs.statut;
+  rendreAtelier();
+
+  db.collection('commandes_couture').doc(id).update(modifs)
+    .then(function(){
+      if(modifs.statut) toast('Tous les vêtements sont prêts — commande marquée « Prêt »');
+      else toast('Vêtement mis à jour');
+      ouvrirSuiviVetements(id);
+      const acompte = Number(c.acompte)||0;
+      if(acompte > nouveauPrix){
+        const surplus = acompte - nouveauPrix;
+        ouvrirModale('Argent versé en trop', 
+          '<div class="liste-item"><div class="nom">' + (c.nom||'') + '</div>'
+          + '<div class="meta" style="margin-top:6px;">Nouveau total après annulation : ' + nouveauPrix + ' D</div>'
+          + '<div class="meta">Déjà versé : ' + acompte + ' D</div>'
+          + '<div style="margin-top:8px;font-weight:700;color:var(--rouge);">À rembourser : ' + surplus + ' D</div></div>'
+          + '<div class="meta" style="margin-top:10px;">Si vous rendez cet argent aujourd\'hui, enregistrez-le pour que la caisse du jour reste juste.</div>',
+          [ { texte:'Plus tard', style:'secondary' },
+            { texte:'Enregistrer le remboursement', action:function(){
+                enregistrerAjustementFinance(-surplus, 'Atelier',
+                  'Remboursement — ' + (c.nom||'') + ' — ' + (c.code||'') + ' (vêtements annulés)');
+                toast('Remboursement de ' + surplus + ' D enregistré');
+              } } ]);
+      }
+    })
+    .catch(function(err){ console.error('Erreur suivi vêtement', err);
+      toast('⚠️ Modification non confirmée en ligne — elle sera renvoyée au retour du réseau'); });
+}
+
 function carteCommandeAtelier(c){
   const reste=c.prix-c.acompte;
   const opts=STATUTS_ATELIER.map(s=>`<option value="${s}" ${s===c.statut?'selected':''}>${s}</option>`).join('');
@@ -2425,7 +2541,13 @@ function carteCommandeAtelier(c){
     <div class="nom">${c.nom} <span style="color:var(--gris);font-size:0.75rem;">(${c.genre||''})</span> ${c.code ? '<span class="badge attente">Code '+c.code+'</span>' : ''} ${c.type==='Retouche' ? '<span class="badge ok">✂️ Retouche</span>' : ''} ${c.type==='Prêt-à-porter' ? '<span class="badge ok">🛍️ Prêt-à-porter</span>' : ''} ${reste<=0 ? '<span class="badge ok">✅ PAYÉ</span>' : ''}</div>
     ${c.tel ? '<div class="meta">📞 <a href="tel:'+c.tel+'" style="color:var(--or-clair);">'+c.tel+'</a></div>' : ''}
     <div class="meta">${c.desc||''}</div>
-    ${(c.articles && c.articles.length) ? '<div class="meta">'+c.articles.map(a=>a.nom+': '+a.prix+' D').join(' · ')+'</div>' : ''}
+    ${(c.articles && c.articles.length) ? '<div class="meta">'+c.articles.map(a=>{
+      const e = etatArticle(a);
+      const marque = e==='pret' ? '✅ ' : (e==='annule' ? '✖ ' : '');
+      const style = e==='annule' ? 'text-decoration:line-through;opacity:.55;' : (e==='pret' ? 'color:var(--vert);' : '');
+      return '<span style="'+style+'">'+marque+a.nom+': '+a.prix+' D</span>';
+    }).join(' · ')+'</div>' : ''}
+    ${(() => { const r = resumeArticles(c); return r ? '<div class="meta">🧷 '+r.prets+'/'+r.total+' prêt(s)'+(r.annules?' · '+r.annules+' annulé(s)':'')+(r.aFaire?' · '+r.aFaire+' à faire':'')+'</div>' : ''; })()}
     ${c.depot ? '<div class="meta">Dépôt: '+c.depot+'</div>' : ''}
     ${c.livraison ? '<div class="meta">Livraison prévue: '+c.livraison+'</div>' : ''}
     ${(() => {
@@ -2449,6 +2571,7 @@ function carteCommandeAtelier(c){
       ${c.statut==='Essayage' && c.tel ? `<button onclick="rappelEssayage('${c.id}')" style="color:#d98c2b;border-color:rgba(217,140,43,0.4);">🟡 Rappel Essayage</button>` : ''}
       ${c.statut==='Prêt' && c.tel ? `<button onclick="notifierCommandePrete('${c.id}')" style="color:var(--vert);border-color:rgba(63,174,92,0.4);">🟢 Commande Prête</button>` : ''}
       ${c.statut==='Livré' && c.tel ? `<button onclick="notifierRemerciementAtelier('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">🙏 Remerciement</button>` : ''}
+      ${(c.articles && c.articles.length) ? `<button onclick="ouvrirSuiviVetements('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">🧷 Vêtements</button>` : ''}
       <button onclick="corrigerTelephoneAtelier('${c.id}')">✏️ Tél.</button>
       <button onclick="corrigerAvanceAtelier('${c.id}')">✏️ Avance</button>
       <button onclick="corrigerLivraisonAtelier('${c.id}')">📅 Date livraison</button>
@@ -3437,7 +3560,9 @@ function chargeDuJour(iso){
   (CACHE.commandes_couture || []).forEach(function(c){
     if(c.livraison !== iso) return;
     if(c.statut === 'Livré' || c.statut === 'Annulé') return;
-    const n = (c.articles && c.articles.length) ? c.articles.length : 1;
+    /* Les vêtements annulés ne sont plus attendus par la cliente. */
+    const n = (c.articles && c.articles.length) ? articlesActifs(c).length : 1;
+    if(n === 0) return;
     pieces += n;
     lignes.push({ nom: c.nom || '—', code: c.code || '', n: n, statut: c.statut || '' });
   });
@@ -3582,11 +3707,14 @@ function planifierProduction(){
   const restants = (CACHE.commandes_couture||[])
     .filter(function(c){ return !coutureTerminee(c.statut); })
     .map(function(c){
+      /* Seuls les vêtements encore à coudre entrent dans le plan : ceux déjà
+         marqués prêts, et ceux annulés, ne prennent plus de place. */
+      const aFaire = (c.articles && c.articles.length) ? articlesRestants(c).length : 1;
       return { nom:c.nom||'—', code:c.code||'', livraison:c.livraison||'',
-               total:(c.articles && c.articles.length) ? c.articles.length : 1,
-               reste:(c.articles && c.articles.length) ? c.articles.length : 1,
-               statut:c.statut||'' };
+               total:(c.articles && c.articles.length) ? articlesActifs(c).length : 1,
+               reste:aFaire, statut:c.statut||'' };
     })
+    .filter(function(o){ return o.reste > 0; })
     /* Echeance la plus proche d'abord ; les commandes sans date passent en dernier. */
     .sort(function(a,b){
       if(!a.livraison && !b.livraison) return b.total - a.total;
@@ -4230,7 +4358,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-30-plan-travail';
+const APP_VERSION = 'v2026-07-31-suivi-vetements';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
