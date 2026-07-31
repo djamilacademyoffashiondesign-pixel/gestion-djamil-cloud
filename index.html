@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 3 days"],["commande(s) prête(s) — la cliente passe bientôt","order(s) ready — the client is coming soon"]);
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
@@ -3994,22 +3995,44 @@ function verifierEcheancesProches(){
   });
   if(!proches.length){ zone.innerHTML = ''; return; }
   proches.sort(function(a,b){ return a.jours - b.jours; });
-  zone.innerHTML = '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.14);border:1px solid rgba(201,162,39,.5);">'
-    + '<div class="nom">🔔 ' + proches.length + ' livraison(s) dans les 3 jours</div>'
-    + proches.map(function(p){
-        const q = p.jours === 0 ? "aujourd'hui" : (p.jours === 1 ? 'demain' : 'dans ' + p.jours + ' jours');
-        return '<div class="meta">• ' + (p.c.nom||'—') + ' — ' + q + (p.c.code ? ' · ' + p.c.code : '')
-             + (p.pret ? ' <span style="color:var(--vert);">✅ prêt</span>' : '') + '</div>';
-      }).join('')
-    + '</div>';
-  /* Une seule sonnerie par jour, pour ne pas harceler le manager. */
+
+  /* Deux situations tres differentes, donc deux encadres separes :
+     - doré  : il reste du travail et l'echeance approche -> c'est une alerte
+     - vert  : tout est cousu, on attend seulement la cliente -> c'est un rappel */
+  const aFinir = proches.filter(function(p){ return !p.pret; });
+  const pretes = proches.filter(function(p){ return p.pret; });
+
+  function quand(p){
+    return p.jours === 0 ? "aujourd'hui" : (p.jours === 1 ? 'demain' : 'dans ' + p.jours + ' jours');
+  }
+  function ligne(p){
+    return '<div class="meta">• ' + (p.c.nom||'—') + ' — ' + quand(p) + (p.c.code ? ' · ' + p.c.code : '') + '</div>';
+  }
+
+  let html = '';
+  if(aFinir.length){
+    html += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.14);border:1px solid rgba(201,162,39,.5);">'
+      + '<div class="nom">🔔 ' + aFinir.length + ' commande(s) à finir dans les 3 jours</div>'
+      + aFinir.map(ligne).join('')
+      + '</div>';
+  }
+  if(pretes.length){
+    html += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(63,174,92,.13);border:1px solid rgba(63,174,92,.45);">'
+      + '<div class="nom">✅ ' + pretes.length + ' commande(s) prête(s) — la cliente passe bientôt</div>'
+      + pretes.map(ligne).join('')
+      + '</div>';
+  }
+  zone.innerHTML = html;
+  /* Une seule sonnerie par jour, et seulement s'il reste vraiment du travail :
+     une commande deja cousue n'a pas a declencher d'alerte. */
+  if(!aFinir.length) return;
   const cle = 'cd_bip_' + isoDeDate(new Date());
   try {
     if(localStorage.getItem(cle) !== '1'){
       localStorage.setItem(cle, '1');
       bipAlerte();
       if(window.Notification && Notification.permission === 'granted'){
-        new Notification('Chez Djamil', {body: proches.length + ' livraison(s) dans les 3 jours'});
+        new Notification('Chez Djamil', {body: aFinir.length + ' commande(s) à finir dans les 3 jours'});
       }
     }
   } catch(e){}
@@ -4382,7 +4405,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-capacite-reelle';
+const APP_VERSION = 'v2026-07-31-alertes-separees';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
