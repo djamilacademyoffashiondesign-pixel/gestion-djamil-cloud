@@ -4726,7 +4726,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-controle-paie';
+const APP_VERSION = 'v2026-07-31-salaire-mois-couvert';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5645,10 +5645,23 @@ function rendreBilanFinances(){
      Aucune depense n'est supprimee : c'est une question de presentation. */
   function estSalaire(d){ return (d.categorie||'') === 'Salaire'; }
 
+  /* DATE COMPTABLE D'UNE DEPENSE.
+     Pour un salaire, le mois qui compte est celui que le salaire COUVRE, pas
+     celui ou l'argent est sorti. Djamil paie souvent en avance (le salaire
+     d'aout verse le 31 juillet) ou en retard (le salaire de juin verse en
+     aout) : sans cela, un meme mois pouvait porter deux salaires ou aucun,
+     et les bilans mensuels devenaient illisibles.
+     Le champ moisSalaire n'existe que sur les depenses recentes ; sans lui on
+     retombe naturellement sur la date de sortie. */
+  function dateComptable(d){
+    if(estSalaire(d) && d.moisSalaire) return d.moisSalaire + '-15';
+    return d.dateISO;
+  }
+
   function totauxParActivite(filtreFn, sortirSalaires){
     const lignes = ACTIVITES.map(a=>{
       const recettes = transactions.filter(t=>filtreFn(t.dateISO) && (t.source||'Général')===a.cle).reduce((s,t)=>s+(t.montant||0),0);
-      const sorties  = depenses.filter(d=>filtreFn(d.dateISO) && (d.activite||'Général')===a.cle && !(sortirSalaires && estSalaire(d))).reduce((s,d)=>s+(d.montant||0),0);
+      const sorties  = depenses.filter(d=>filtreFn(dateComptable(d)) && (d.activite||'Général')===a.cle && !(sortirSalaires && estSalaire(d))).reduce((s,d)=>s+(d.montant||0),0);
       return {...a, recettes, sorties, solde: recettes-sorties};
     });
     const total = {
@@ -5656,6 +5669,8 @@ function rendreBilanFinances(){
       sorties:  lignes.reduce((s,l)=>s+l.sorties,0)
     };
     total.solde = total.recettes-total.sorties;
+    /* Ici, au contraire, on veut la sortie REELLE d'argent du jour ou de la
+       semaine : c'est bien aujourd'hui que la caisse s'est videe. */
     const salaires = sortirSalaires
       ? depenses.filter(d=>filtreFn(d.dateISO) && estSalaire(d)).reduce((s,d)=>s+(d.montant||0),0)
       : 0;
@@ -5768,8 +5783,15 @@ function rendreRecapMoisAnnee(){
     parMois[m][src] = (parMois[m][src]||0)+(t.montant||0);
   });
   depenses.forEach(dep=>{
-    if(!dep.dateISO) return;
-    const d = new Date(dep.dateISO);
+    /* Meme regle que dans le Bilan : un salaire est rattache au mois qu'il
+       COUVRE (champ moisSalaire), pas au jour ou l'argent est sorti. Sans
+       cela, le salaire d'aout paye le 31 juillet gonflait juillet et laissait
+       aout vide. */
+    const reference = ((dep.categorie||'')==='Salaire' && dep.moisSalaire)
+      ? dep.moisSalaire + '-15'
+      : dep.dateISO;
+    if(!reference) return;
+    const d = new Date(reference);
     if(d.getFullYear()!==anneeActuelle) return;
     const m = d.getMonth();
     parMois[m] = parMois[m]||moisVide();
