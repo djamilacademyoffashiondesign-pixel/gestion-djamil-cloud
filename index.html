@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Salaires versés aujourd'hui :","Salaries paid today:"],["charge du mois, comptée dans le bilan mensuel","monthly charge, counted in the monthly summary"]);
 CHUNKS.push(["Salaires versés sur la période :","Salaries paid in this period:"],["charge mensuelle, comptée dans le bilan du mois","monthly charge, counted in the month's summary"]);
 CHUNKS.push(["Salaires en retard","Overdue salaries"],["Mois passés non soldés. Le paiement reste rattaché au mois concerné.","Past months not settled. The payment stays linked to the month it covers."],["Aucun salaire en retard.","No overdue salary."],["salaire(s) en retard","overdue salary(ies)"],["déjà versé","already paid"],["payé en retard le","paid late on"]);
 CHUNKS.push(["C'est un cadeau — le vêtement est pour quelqu'un d'autre","It's a gift — the garment is for someone else"],["Qui portera le vêtement","Who will wear the garment"],["Son téléphone (facultatif)","Their phone (optional)"],["Indiquez qui portera le vêtement","Enter who will wear the garment"],["ce sont ses mesures","these are their measurements"],["Paiement et contact :","Payment and contact:"]);
@@ -3503,11 +3504,17 @@ function cloturerLaJournee(){
   const recuBoutique = parSource('Boutique');
   const recuGeneral = parSource('Général');
   const totalRecu = recuAtelier+recuPressing+recuBoutique+recuGeneral;
-  const totalDepenses = depensesJour.reduce((s,d)=>s+(d.montant||0),0);
+  /* Meme regle que dans le Bilan : un salaire est une charge du MOIS. Verse en
+     une fois, il faisait plonger le solde net du jour (-71 305 D pour une
+     journee pourtant normale) et le resume envoye au proprietaire donnait une
+     fausse image de la journee. Les salaires sont donc comptes a part. */
+  const depensesCourantes = depensesJour.filter(d=>(d.categorie||'')!=='Salaire');
+  const salairesJour = depensesJour.filter(d=>(d.categorie||'')==='Salaire').reduce((s,d)=>s+(d.montant||0),0);
+  const totalDepenses = depensesCourantes.reduce((s,d)=>s+(d.montant||0),0);
   const solde = totalRecu-totalDepenses;
   const msg = texteMsg(
-    `🔒 Clôture de journée — Chez Djamil\nDate: ${aujourdhui}\n\nAtelier: ${recuAtelier} D\nPressing: ${recuPressing} D\nBoutique: ${recuBoutique} D\nAutre: ${recuGeneral} D\n\nTotal reçu: ${totalRecu} D\nDépenses du jour: ${totalDepenses} D\nSolde net: ${solde} D\n\nLa journée a été clôturée par le manager.`,
-    `🔒 Day closing — Chez Djamil\nDate: ${aujourdhui}\n\nAtelier: ${recuAtelier} D\nPressing: ${recuPressing} D\nBoutique: ${recuBoutique} D\nOther: ${recuGeneral} D\n\nTotal received: ${totalRecu} D\nToday's expenses: ${totalDepenses} D\nNet balance: ${solde} D\n\nThe day has been closed by the manager.`
+    `🔒 Clôture de journée — Chez Djamil\nDate: ${aujourdhui}\n\nAtelier: ${recuAtelier} D\nPressing: ${recuPressing} D\nBoutique: ${recuBoutique} D\nAutre: ${recuGeneral} D\n\nTotal reçu: ${totalRecu} D\nDépenses du jour: ${totalDepenses} D\nSolde net: ${solde} D${salairesJour ? `\n\n💼 Salaires versés aujourd'hui: ${salairesJour} D (charge du mois, hors solde du jour)` : ''}\n\nLa journée a été clôturée par le manager.`,
+    `🔒 Day closing — Chez Djamil\nDate: ${aujourdhui}\n\nAtelier: ${recuAtelier} D\nPressing: ${recuPressing} D\nBoutique: ${recuBoutique} D\nOther: ${recuGeneral} D\n\nTotal received: ${totalRecu} D\nToday's expenses: ${totalDepenses} D\nNet balance: ${solde} D${salairesJour ? `\n\n💼 Salaries paid today: ${salairesJour} D (monthly charge, excluded from the day's balance)` : ''}\n\nThe day has been closed by the manager.`
   );
   const lien = lienWhatsApp(num, msg);
   if(lien){
@@ -3522,7 +3529,8 @@ function cloturerLaJournee(){
         <div class="meta">Autre : ${recuGeneral} D</div>
         <div class="meta" style="margin-top:8px;">Dépenses du jour : ${totalDepenses} D</div>
         <div style="margin-top:8px;font-size:1.5rem;font-weight:800;color:var(--vert);">Total reçu : ${totalRecu} D</div>
-        <div class="nom" style="margin-top:4px;">Solde net : ${solde} D</div>
+        <div class="nom" style="margin-top:4px;color:${solde>=0?'var(--vert)':'var(--rouge)'};">Solde net : ${solde} D</div>
+        ${salairesJour ? `<div class="meta" style="margin-top:8px;color:var(--or);">💼 Salaires versés aujourd'hui : ${salairesJour} D — charge du mois, comptée dans le bilan mensuel</div>` : ''}
       </div>
       <div class="meta" style="margin-top:12px;color:var(--rouge);">Cette action est définitive et envoie le résumé au propriétaire.</div>`;
     ouvrirModale('Clôturer la journée ?', recap, [
@@ -4712,7 +4720,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-bilan-salaires';
+const APP_VERSION = 'v2026-07-31-cloture-salaires';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
