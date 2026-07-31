@@ -40,6 +40,8 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Quantité vendue","Quantity sold"],["Réduction accordée (D) — 0 si aucune","Discount given (D) — 0 if none"],["Client","Customer"],["Prénom","First name"],["Nom","Last name"],["Téléphone WhatsApp","WhatsApp phone"],["Le client sera enregistré et recevra un message de remerciement.","The customer will be saved and will receive a thank-you message."],["Enregistrer la vente","Record the sale"],["Remercier le client","Thank the customer"],["Envoyer le remerciement","Send the thank-you"],["l'unité","each"],["en stock","in stock"]);
+CHUNKS.push(["Ventes boutique à confirmer","Shop sales to confirm"],["Chaque vente du manager est enregistrée aussitôt, puis validée par le directeur.","Every sale by the manager is recorded at once, then approved by the director."],["Aucune vente en attente.","No sale pending."],["vente(s) à confirmer","sale(s) to confirm"],["Confirmer","Confirm"],["Vérifier","Check"],["Vérifier cette vente","Check this sale"],["client non enregistré","customer not recorded"],["Vente confirmée","Sale confirmed"]);
 CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 3 days"],["commande(s) prête(s) — la cliente passe bientôt","order(s) ready — the client is coming soon"]);
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
@@ -455,6 +457,11 @@ function traduireNoeud(node){
       <div class="item-actions" style="margin-top:10px;">
         <button id="btn-plan-travail" onclick="basculerPlanTravail()">Voir tout le plan</button>
       </div>
+    </div>
+    <div class="panel">
+      <h2>🛍️ Ventes boutique à confirmer</h2>
+      <div class="meta">Chaque vente du manager est enregistrée aussitôt, puis validée par le directeur.</div>
+      <div id="apercu-ventes" style="margin-top:8px;"></div>
     </div>
     <div class="panel">
       <h2>💰 Impayés & vêtements à récupérer</h2>
@@ -3215,51 +3222,111 @@ async function supprimerProduit(id){
   if(!confirm('Supprimer cet article ?')) return;
   supprimerAvecOptimisme('boutique_inventaire', id, 'boutique_inventaire', rendreBoutique, 'Article supprimé');
 }
+/* ================= VENTE BOUTIQUE =================
+   AVANT : une suite de fenetres surgissantes (quantite, reduction, nom,
+   telephone). Le manager les enchainait a l'aveugle et sautait le client,
+   donc aucune fiche client boutique ne se constituait.
+   MAINTENANT : un vrai formulaire ou tout est visible d'un coup. */
 function vendreProduit(id){
-  const data=CACHE.boutique_inventaire;
-  const p=data.find(x=>x.id===id);
+  const p = (CACHE.boutique_inventaire||[]).find(x=>x.id===id);
   if(!p) return;
   if(p.qte<=0){ toast('Stock épuisé'); return; }
-  const qte=Number(prompt('Quantité vendue ?','1'));
-  if(!qte || qte<=0) return;
-  if(qte>p.qte){ toast('Quantité supérieure au stock'); return; }
-  const totalNormal = qte*p.prix;
-  const saisieRemise = prompt('Réduction accordée (D), laissez 0 si aucune — prix normal: '+totalNormal+' D :', '0');
-  if(saisieRemise===null) return;
-  let remise = Number(saisieRemise)||0;
-  if(remise<0) remise=0;
-  let totalFinal = totalNormal - remise;
-  if(totalFinal<0){ toast('La réduction dépasse le prix — vente annulée'); return; }
-  const nomClient = prompt('Nom du client (laisser vide si non applicable) ?','') || '';
-  const telClient = nomClient ? (prompt('Numéro WhatsApp du client (laisser vide pour ne pas notifier) ?','') || '') : '';
-  const batch=db.batch();
-  const refProduit=db.collection('boutique_inventaire').doc(id);
-  batch.update(refProduit, {
+
+  let fond;
+  const champ = 'width:100%;padding:11px;margin-top:4px;background:#0e0e10;color:#eee;'
+              + 'border:1px solid rgba(255,255,255,.18);border-radius:9px;font-size:1rem;font-family:inherit;';
+  const etiquette = 'font-size:.78rem;color:var(--gris);margin-top:11px;display:block;';
+
+  const corps =
+      '<div class="liste-item"><div class="nom">' + p.nom + '</div>'
+    + '<div class="meta">' + p.prix + ' D l\'unité · ' + p.qte + ' en stock</div></div>'
+    + '<label style="' + etiquette + '">Quantité vendue</label>'
+    + '<input id="v-qte" type="number" min="1" max="' + p.qte + '" value="1" style="' + champ + '">'
+    + '<label style="' + etiquette + '">Réduction accordée (D) — 0 si aucune</label>'
+    + '<input id="v-remise" type="number" min="0" value="0" style="' + champ + '">'
+    + '<div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12);">'
+    +   '<div class="nom">👤 Client</div>'
+    +   '<label style="' + etiquette + '">Prénom</label>'
+    +   '<input id="v-prenom" type="text" placeholder="Ex: Fatou" style="' + champ + '">'
+    +   '<label style="' + etiquette + '">Nom</label>'
+    +   '<input id="v-nom" type="text" placeholder="Ex: Ndiaye" style="' + champ + '">'
+    +   '<label style="' + etiquette + '">Téléphone WhatsApp</label>'
+    +   '<input id="v-tel" type="tel" inputmode="tel" placeholder="Ex: 7717111" style="' + champ + '">'
+    +   '<div class="meta" style="margin-top:8px;">Le client sera enregistré et recevra un message de remerciement.</div>'
+    + '</div>';
+
+  fond = ouvrirModale('Vendre — ' + p.nom, corps, [
+    { texte:'Annuler', style:'secondary' },
+    { texte:'Enregistrer la vente', action:function(){
+        const lire = function(idChamp){ const e = fond.querySelector('#'+idChamp); return e ? e.value : ''; };
+        const qte = Number(lire('v-qte'));
+        let remise = Number(lire('v-remise')) || 0;
+        const prenom = String(lire('v-prenom')).trim();
+        const nomFam = String(lire('v-nom')).trim();
+        const tel = String(lire('v-tel')).trim();
+
+        if(!qte || qte<=0){ toast('Quantité invalide'); return; }
+        if(qte>p.qte){ toast('Quantité supérieure au stock'); return; }
+        if(remise<0) remise = 0;
+        const totalNormal = qte*p.prix;
+        const totalFinal = totalNormal - remise;
+        if(totalFinal<0){ toast('La réduction dépasse le prix — vente annulée'); return; }
+
+        const nomClient = (prenom + ' ' + nomFam).trim();
+        enregistrerVenteBoutique(p, qte, remise, totalFinal, nomClient, tel);
+      } }
+  ]);
+}
+
+function enregistrerVenteBoutique(p, qte, remise, totalFinal, nomClient, telClient){
+  const batch = db.batch();
+  batch.update(db.collection('boutique_inventaire').doc(p.id), {
     qte: p.qte-qte,
     vendus: (p.vendus||0)+qte,
     recette: (p.recette||0)+totalFinal
   });
-  const refVente=db.collection('boutique_ventes').doc();
-  batch.set(refVente, {
-    produitId:id,
+  batch.set(db.collection('boutique_ventes').doc(), {
+    produitId:p.id,
     nomProduit:p.nom,
-    qte,
+    qte:qte,
     prixUnitaire:p.prix,
-    remise,
+    remise:remise,
     total:totalFinal,
     client: nomClient,
     telephone: telClient,
+    /* Toute vente attend la confirmation du directeur. Les ventes anterieures
+       n'ont pas ce champ et sont considerees comme deja reglees. */
+    confirmee: false,
     date:new Date().toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   });
-  batch.commit().then(()=>{
-    enregistrerTransaction(totalFinal, 'Boutique', p.nom+(remise>0 ? ' (réduction '+remise+' D)' : ''));
-    toast('Vente enregistrée'+(remise>0 ? ' — réduction de '+remise+' D appliquée' : ''));
+
+  batch.commit().then(function(){
+    enregistrerTransaction(totalFinal, 'Boutique', p.nom + (nomClient ? ' — ' + nomClient : '') + (remise>0 ? ' (réduction '+remise+' D)' : ''));
+    toast('Vente enregistrée' + (remise>0 ? ' — réduction de '+remise+' D' : ''));
+
     if(nomClient && telClient){
-      envoyerNotificationWhatsAppDynamique(nomClient, telClient, 'Boutique', 'Vendu', p.nom+' x'+qte, totalFinal, totalFinal, '');
+      /* Lien reel plutot que window.open : jamais bloque par le navigateur. */
+      const msg = texteMsg(
+        'Bonjour ' + nomClient + ', merci pour votre achat chez '
+          + ((typeof NOM_COMMERCE !== 'undefined' && NOM_COMMERCE) ? NOM_COMMERCE : 'Chez Djamil')
+          + ' : ' + p.nom + ' x' + qte + ' — ' + totalFinal + ' D. Au plaisir de vous revoir ! 🙏',
+        'Hello ' + nomClient + ', thank you for your purchase at '
+          + ((typeof NOM_COMMERCE !== 'undefined' && NOM_COMMERCE) ? NOM_COMMERCE : 'Chez Djamil')
+          + ': ' + p.nom + ' x' + qte + ' — ' + totalFinal + ' D. We look forward to seeing you again! 🙏');
+      const lien = lienWhatsApp(telClient, msg);
+      if(lien){
+        ouvrirModale('Remercier le client',
+            '<div class="liste-item"><div class="nom">' + nomClient + '</div>'
+          + '<div class="meta">' + p.nom + ' x' + qte + ' — ' + totalFinal + ' D</div></div>'
+          + '<div style="margin-top:12px;"><a href="' + lien + '" target="_blank" rel="noopener" '
+          + 'style="display:block;text-align:center;background:#25D366;color:#fff;padding:13px;border-radius:10px;'
+          + 'text-decoration:none;font-weight:700;">💬 Envoyer le remerciement</a></div>');
+      }
+    } else if(!nomClient){
+      toast('Vente enregistrée sans client — pensez à noter le nom la prochaine fois');
     }
-  })
-    .catch(err=>toast('Erreur: '+err.message));
+  }).catch(function(err){ toast('Erreur: '+err.message); });
 }
 function rendreBoutique(){
   const data=CACHE.boutique_inventaire;
@@ -3708,6 +3775,95 @@ function rendrePlanningSemaine(){
 }
 function changerSemaine(pas){ decalageSemaine += pas; rendrePlanningSemaine(); }
 
+/* ================= VENTES BOUTIQUE A CONFIRMER =================
+   Le manager vend sans le directeur : le stock se soustrait et la recette est
+   enregistree immediatement (rien n'est bloque, le commerce continue).
+   Mais le directeur est prevenu et valide ensuite chaque vente. */
+
+function ventesAConfirmer(){
+  return (CACHE.boutique_ventes||[]).filter(function(v){ return v.confirmee === false; })
+    .sort(function(a,b){
+      const ta = a.creeLe && a.creeLe.seconds ? a.creeLe.seconds : 0;
+      const tb = b.creeLe && b.creeLe.seconds ? b.creeLe.seconds : 0;
+      return tb - ta;
+    });
+}
+
+function rendreVentesAConfirmer(){
+  const zone = document.getElementById('apercu-ventes');
+  if(!zone) return;
+  const attente = ventesAConfirmer();
+  if(!attente.length){ zone.innerHTML = '<div class="vide">Aucune vente en attente.</div>'; return; }
+
+  const total = attente.reduce(function(s,v){ return s + (v.total||0); }, 0);
+  zone.innerHTML =
+      '<div style="padding:11px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.5);">'
+    +   '<div class="nom">🔴 ' + attente.length + ' vente(s) à confirmer — ' + total + ' D</div>'
+    + '</div>'
+    + attente.map(function(v){
+        return '<div class="liste-item" style="border-left:3px solid var(--rouge);">'
+          + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+          +   '<span>🛍️ ' + (v.nomProduit||'Article') + ' × ' + (v.qte||1) + '</span>'
+          +   '<span style="color:var(--or);">' + (v.total||0) + ' D</span>'
+          + '</div>'
+          + '<div class="meta">' + (v.date||'') + (v.remise ? ' · réduction ' + v.remise + ' D' : '') + '</div>'
+          + '<div class="meta">' + (v.client ? '👤 ' + v.client : '👤 client non enregistré')
+          +   (v.telephone ? ' · ' + v.telephone : '') + '</div>'
+          + '<div class="item-actions" style="margin-top:7px;">'
+          +   '<button onclick="confirmerVenteBoutique(\'' + v.id + '\')" style="color:var(--vert);border-color:rgba(63,174,92,.4);">✅ Confirmer</button>'
+          +   '<button class="del" onclick="contesterVenteBoutique(\'' + v.id + '\')">⚠️ Vérifier</button>'
+          + '</div></div>';
+      }).join('');
+}
+
+async function confirmerVenteBoutique(id){
+  if(!await demanderCodeAdmin('Confirmer une vente')) return;
+  const v = (CACHE.boutique_ventes||[]).find(function(x){ return x.id===id; });
+  if(!v) return;
+  v.confirmee = true;
+  rendreVentesAConfirmer();
+  db.collection('boutique_ventes').doc(id).update({
+    confirmee: true,
+    confirmeeLe: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){ toast('Vente confirmée'); })
+    .catch(function(err){ console.error('Erreur confirmation vente', err);
+      toast('⚠️ Confirmation non enregistrée en ligne — réessayez'); });
+}
+
+/* Le directeur conteste : on ne supprime rien tout seul, on affiche quoi faire. */
+function contesterVenteBoutique(id){
+  const v = (CACHE.boutique_ventes||[]).find(function(x){ return x.id===id; });
+  if(!v) return;
+  ouvrirModale('Vérifier cette vente',
+      '<div class="liste-item"><div class="nom">' + (v.nomProduit||'') + ' × ' + (v.qte||1) + ' — ' + (v.total||0) + ' D</div>'
+    + '<div class="meta" style="margin-top:6px;">' + (v.date||'') + (v.client ? ' · ' + v.client : '') + '</div></div>'
+    + '<div class="meta" style="margin-top:10px;">Cette vente a déjà retiré ' + (v.qte||1)
+    + ' article(s) du stock et ajouté ' + (v.total||0) + ' D à la caisse du jour.</div>'
+    + '<div class="meta" style="margin-top:8px;">Pour l\'annuler complètement : corrigez le stock avec « ✏️ Corriger » sur l\'article, puis retirez la recette avec « 🧾 Vérifier les recettes du jour ». Appelez d\'abord votre manager pour comprendre ce qui s\'est passé.</div>');
+}
+
+/* Alerte sonore a l'arrivee d'une vente jamais vue sur cet appareil. */
+function surveillerNouvellesVentes(){
+  const attente = ventesAConfirmer();
+  if(!attente.length) return;
+  let vues = [];
+  try { vues = JSON.parse(localStorage.getItem('cd_ventes_vues') || '[]'); } catch(e){}
+  const nouvelles = attente.filter(function(v){ return vues.indexOf(v.id) < 0; });
+  if(!nouvelles.length) return;
+  try {
+    localStorage.setItem('cd_ventes_vues', JSON.stringify(attente.map(function(v){ return v.id; }).slice(0,200)));
+  } catch(e){}
+  /* Au tout premier chargement apres la mise a jour, on ne sonne pas. */
+  if(!vues.length) return;
+  bipAlerte();
+  toast('🔴 ' + nouvelles.length + ' nouvelle(s) vente boutique à confirmer');
+  if(window.Notification && Notification.permission === 'granted'){
+    new Notification('Chez Djamil — boutique', {
+      body: nouvelles.map(function(v){ return (v.nomProduit||'Article') + ' — ' + (v.total||0) + ' D'; }).join(', ')
+    });
+  }
+}
+
 /* ================= PLAN DE TRAVAIL PROPOSE =================
    Le planning ci-dessus montre les RENDEZ-VOUS (quand le client vient chercher).
    Ceci est different : il repartit le TRAVAIL REEL jour par jour.
@@ -3904,6 +4060,7 @@ function messageRelance(x){
 function basculerFiltreImpayes(){
   filtreImpayes = (filtreImpayes === 'retard') ? 'tout' : 'retard';
   rendrePlanTravail();
+  rendreVentesAConfirmer();
   rendreImpayes();
 }
 
@@ -4405,7 +4562,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-alertes-separees';
+const APP_VERSION = 'v2026-07-31-vente-formulaire';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5293,7 +5450,7 @@ attacherEcouteur('commandes_couture', rendreAtelier);
 attacherEcouteur('depots_pressing', rendrePressing);
 attacherEcouteur('boutique_inventaire', rendreBoutique);
 attacherEcouteur('visiteurs', rendreVisiteurs);
-attacherEcouteur('boutique_ventes', ()=>{});
+attacherEcouteur('boutique_ventes', ()=>{ rendreVentesAConfirmer(); surveillerNouvellesVentes(); });
 attacherEcouteur('clients_mesures', ()=>{ rendreMesures(); mettreAJourListeClients(); });
 attacherEcouteur('transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); });
 attacherEcouteur('depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); });
