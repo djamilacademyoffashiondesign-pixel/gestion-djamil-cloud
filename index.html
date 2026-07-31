@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Contrôle paie / finances","Payroll / finance check"],["Salaires marqués payés dont la dépense a disparu des Finances.","Salaries marked paid whose expense has vanished from Finances."],["Paie et Finances sont cohérentes.","Payroll and Finances are consistent."],["Réenregistrer la dépense","Re-record the expense"],["Marquer comme non payé","Mark as unpaid"]);
 CHUNKS.push(["Salaires versés aujourd'hui :","Salaries paid today:"],["charge du mois, comptée dans le bilan mensuel","monthly charge, counted in the monthly summary"]);
 CHUNKS.push(["Salaires versés sur la période :","Salaries paid in this period:"],["charge mensuelle, comptée dans le bilan du mois","monthly charge, counted in the month's summary"]);
 CHUNKS.push(["Salaires en retard","Overdue salaries"],["Mois passés non soldés. Le paiement reste rattaché au mois concerné.","Past months not settled. The payment stays linked to the month it covers."],["Aucun salaire en retard.","No overdue salary."],["salaire(s) en retard","overdue salary(ies)"],["déjà versé","already paid"],["payé en retard le","paid late on"]);
@@ -908,6 +909,11 @@ function traduireNoeud(node){
       <input id="salaires-mois" type="month" onchange="rendreSalaires()">
       <div class="stats-grid" id="salaires-stats"></div>
       <div id="salaires-liste"></div>
+    </div>
+    <div class="panel">
+      <h2>Contrôle paie / finances</h2>
+      <div class="meta" style="color:var(--gris);font-size:0.78rem;margin-bottom:8px;">Salaires marqués payés dont la dépense a disparu des Finances.</div>
+      <div id="salaires-coherence"></div>
     </div>
     <div class="panel">
       <h2>Salaires en retard</h2>
@@ -4720,7 +4726,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-cloture-salaires';
+const APP_VERSION = 'v2026-07-31-controle-paie';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5229,6 +5235,104 @@ function allerAuMoisSalaire(mois){
   champ.scrollIntoView({behavior:'smooth', block:'center'});
 }
 
+/* ================= COHERENCE PAIE <-> FINANCES =================
+   Un salaire vit a DEUX endroits : la fiche de paie (salaires_mensuel, qui dit
+   "paye") et la depense (depenses, l'argent qui sort de la caisse). Supprimer
+   la depense dans les Finances ne touche PAS la fiche de paie : l'employe reste
+   marque paye alors que la sortie d'argent a disparu de tous les bilans, y
+   compris celui du mois. Ce controle repere l'ecart et permet de le reparer. */
+function depenseSalaireExiste(nomEmploye, mois){
+  const etiquette = moisAffichage(mois);
+  return (CACHE.depenses||[]).some(function(d){
+    if((d.categorie||'') !== 'Salaire') return false;
+    if(d.moisSalaire === mois) return String(d.description||'').indexOf(nomEmploye) >= 0;
+    /* Depenses anterieures au champ moisSalaire : on retombe sur la description. */
+    const desc = String(d.description||'');
+    return desc.indexOf(nomEmploye) >= 0 && desc.indexOf(etiquette) >= 0;
+  });
+}
+
+function listerSalairesSansDepense(){
+  const manquants = [];
+  (CACHE.salaires_mensuel||[]).forEach(function(sm){
+    if(!sm.paye) return;
+    const montant = sm.montantVerse || sm.salaireMensuel || 0;
+    if(montant <= 0) return;
+    if(!depenseSalaireExiste(sm.employeNom||'', sm.mois)){
+      manquants.push({ nom:sm.employeNom||'—', mois:sm.mois, montant:montant });
+    }
+  });
+  manquants.sort(function(a,b){ return a.mois < b.mois ? -1 : 1; });
+  return manquants;
+}
+
+function rendreCoherenceSalaires(){
+  const zone = document.getElementById('salaires-coherence');
+  if(!zone) return;
+  const manquants = listerSalairesSansDepense();
+  if(!manquants.length){ zone.innerHTML = '<div class="vide">Paie et Finances sont cohérentes.</div>'; return; }
+  const total = manquants.reduce(function(s,m){ return s + m.montant; }, 0);
+  zone.innerHTML =
+      '<div style="padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.15);border:1px solid rgba(201,162,39,.55);">'
+    +   '<div class="nom">⚠️ ' + manquants.length + ' salaire(s) marqué(s) payé(s) sans dépense enregistrée — ' + total + ' D</div>'
+    +   '<div class="meta" style="margin-top:6px;">Cet argent est sorti de la caisse mais n\'apparaît dans aucun bilan. Vos bénéfices sont surestimés d\'autant.</div>'
+    + '</div>'
+    + manquants.map(function(m){
+        return '<div class="liste-item" style="border-left:3px solid var(--or);">'
+          + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+          +   '<span>' + m.nom + '</span><span style="color:var(--or);">' + m.montant + ' D</span></div>'
+          + '<div class="meta">' + moisAffichage(m.mois) + '</div>'
+          + '<div class="item-actions" style="margin-top:7px;">'
+          +   '<button onclick="reenregistrerDepenseSalaire(\'' + encodeURIComponent(m.nom) + '\',\'' + m.mois + '\',' + m.montant + ')">↩️ Réenregistrer la dépense</button>'
+          +   '<button class="del" onclick="annulerPaiementSalaire(\'' + encodeURIComponent(m.nom) + '\',\'' + m.mois + '\')">Marquer comme non payé</button>'
+          + '</div></div>';
+      }).join('');
+}
+
+async function reenregistrerDepenseSalaire(nomEncode, mois, montant){
+  const nom = decodeURIComponent(nomEncode);
+  if(!await demanderCodeAdmin('Réenregistrer une dépense de salaire')) return;
+  const defaut = dateISOAujourdhui();
+  const rep = prompt('Date à laquelle l\'argent est réellement sorti (AAAA-MM-JJ) :', defaut);
+  if(rep === null) return;
+  const iso = String(rep).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
+  const d = new Date(iso + 'T12:00:00');
+  ecrireAvecSecours('depenses', {
+    activite:'Général',
+    categorie:'Salaire',
+    montant: Number(montant)||0,
+    moisSalaire: mois,
+    description:'Salaire de ' + moisAffichage(mois) + ' — ' + nom + ' (dépense réenregistrée)',
+    dateISO: iso,
+    date: d.toLocaleDateString('fr-FR'),
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  }, 'La dépense de salaire n\'a pas pu être synchronisée');
+  toast('Dépense de ' + montant + ' D réenregistrée au ' + d.toLocaleDateString('fr-FR'));
+  setTimeout(function(){ rendreCoherenceSalaires(); rendreBilanFinances(); }, 400);
+}
+
+/* L'autre reparation possible : si le salaire n'a finalement PAS ete verse,
+   c'est la fiche de paie qu'il faut corriger, pas la depense qu'il faut creer. */
+async function annulerPaiementSalaire(nomEncode, mois){
+  const nom = decodeURIComponent(nomEncode);
+  if(!await demanderCodeAdmin('Annuler un paiement de salaire')) return;
+  const sm = (CACHE.salaires_mensuel||[]).find(function(x){ return x.employeNom===nom && x.mois===mois; });
+  if(!sm){ toast('Fiche de paie introuvable'); return; }
+  if(!confirm('Marquer le salaire de ' + nom + ' pour ' + moisAffichage(mois) + ' comme NON payé ?\n\nÀ faire seulement si l\'argent n\'est pas réellement sorti.')) return;
+  sm.paye = false;
+  sm.montantVerse = 0;
+  rendreSalaires();
+  if(!String(sm.id).startsWith('local_')){
+    db.collection('salaires_mensuel').doc(sm.id).update({
+      paye:false, montantVerse:0,
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(err){ console.error('Erreur annulation paiement', err);
+      toast('⚠️ Non confirmé en ligne — réessayez'); });
+  }
+  toast(nom + ' — ' + moisAffichage(mois) + ' remis en attente de paiement');
+}
+
 /* Trouve (sans en créer) l'enregistrement mensuel d'un employé pour le mois donné. */
 function trouverSalaireMensuel(employeId, mois){
   return CACHE.salaires_mensuel.find(s=>s.employeId===employeId && s.mois===mois) || null;
@@ -5416,6 +5520,7 @@ async function payerSoldeMois(employeId, nomEmploye){
 }
 function rendreSalaires(){
   rendreSalairesEnRetard();
+  rendreCoherenceSalaires();
   const champMois = document.getElementById('salaires-mois');
   if(champMois && !champMois.value) champMois.value = moisAujourdhui();
   const mois = champMois ? (champMois.value || moisAujourdhui()) : moisAujourdhui();
