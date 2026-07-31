@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Salaires versés sur la période :","Salaries paid in this period:"],["charge mensuelle, comptée dans le bilan du mois","monthly charge, counted in the month's summary"]);
 CHUNKS.push(["Salaires en retard","Overdue salaries"],["Mois passés non soldés. Le paiement reste rattaché au mois concerné.","Past months not settled. The payment stays linked to the month it covers."],["Aucun salaire en retard.","No overdue salary."],["salaire(s) en retard","overdue salary(ies)"],["déjà versé","already paid"],["payé en retard le","paid late on"]);
 CHUNKS.push(["C'est un cadeau — le vêtement est pour quelqu'un d'autre","It's a gift — the garment is for someone else"],["Qui portera le vêtement","Who will wear the garment"],["Son téléphone (facultatif)","Their phone (optional)"],["Indiquez qui portera le vêtement","Enter who will wear the garment"],["ce sont ses mesures","these are their measurements"],["Paiement et contact :","Payment and contact:"]);
 CHUNKS.push(["Marquer les clients servis","Mark customers served"],["Reporter","Postpone"],["Livré","Delivered"],["Récupéré","Collected"],["Une fois pointé, le client sort des rappels et le planning se libère.","Once ticked off, the customer leaves the reminders and the schedule frees up."],["Aucun rendez-vous proche.","No upcoming appointment."]);
@@ -4711,7 +4712,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-salaires-retard';
+const APP_VERSION = 'v2026-07-31-bilan-salaires';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5523,10 +5524,18 @@ function rendreBilanFinances(){
     {cle:'Général',  icone:'📋'}
   ];
 
-  function totauxParActivite(filtreFn){
+  /* Un salaire est une charge MENSUELLE. Verse en une fois, il ecrasait le
+     solde du jour et de la semaine : une bonne journee affichait -71 305 D et
+     le chiffre ne voulait plus rien dire pour piloter l'activite quotidienne.
+     Il est donc sorti des periodes courtes (jour, semaine) et affiche a part,
+     puis compte normalement dans le mois et dans l'annee, ou il a sa place.
+     Aucune depense n'est supprimee : c'est une question de presentation. */
+  function estSalaire(d){ return (d.categorie||'') === 'Salaire'; }
+
+  function totauxParActivite(filtreFn, sortirSalaires){
     const lignes = ACTIVITES.map(a=>{
       const recettes = transactions.filter(t=>filtreFn(t.dateISO) && (t.source||'Général')===a.cle).reduce((s,t)=>s+(t.montant||0),0);
-      const sorties  = depenses.filter(d=>filtreFn(d.dateISO) && (d.activite||'Général')===a.cle).reduce((s,d)=>s+(d.montant||0),0);
+      const sorties  = depenses.filter(d=>filtreFn(d.dateISO) && (d.activite||'Général')===a.cle && !(sortirSalaires && estSalaire(d))).reduce((s,d)=>s+(d.montant||0),0);
       return {...a, recettes, sorties, solde: recettes-sorties};
     });
     const total = {
@@ -5534,13 +5543,16 @@ function rendreBilanFinances(){
       sorties:  lignes.reduce((s,l)=>s+l.sorties,0)
     };
     total.solde = total.recettes-total.sorties;
-    return {lignes, total};
+    const salaires = sortirSalaires
+      ? depenses.filter(d=>filtreFn(d.dateISO) && estSalaire(d)).reduce((s,d)=>s+(d.montant||0),0)
+      : 0;
+    return {lignes, total, salaires};
   }
 
-  const jour = totauxParActivite(d=>d===aujourdhuiISO);
-  const semaine = totauxParActivite(d=>dansLaSemaineEnCours(d));
-  const mois = totauxParActivite(d=>dansLeMoisEnCours(d));
-  const annee = totauxParActivite(d=>dansLAnneeEnCours(d));
+  const jour = totauxParActivite(d=>d===aujourdhuiISO, true);
+  const semaine = totauxParActivite(d=>dansLaSemaineEnCours(d), true);
+  const mois = totauxParActivite(d=>dansLeMoisEnCours(d), false);
+  const annee = totauxParActivite(d=>dansLAnneeEnCours(d), false);
 
   /* Libellés avec dates exactes (jour/mois/année) — indispensable pour retrouver
      à quelle période correspond un bilan si on le consulte plus tard en archive. */
@@ -5562,9 +5574,15 @@ function rendreBilanFinances(){
       .filter(l => l.cle!=='Général' || l.recettes || l.sorties)
       .map(l=>`<div class="meta">${l.icone} ${l.cle} — Recettes: ${l.recettes} D · Dépenses: ${l.sorties} D · <span style="color:${l.solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${l.solde} D</span></div>`)
       .join('');
+    /* Les salaires sortis du calcul sont tout de même annoncés, pour que
+       l'argent ne disparaisse jamais de l'écran sans explication. */
+    const ligneSalaires = res.salaires
+      ? `<div class="meta" style="margin-top:6px;color:var(--or);">💼 Salaires versés sur la période : ${res.salaires} D — charge mensuelle, comptée dans le bilan du mois</div>`
+      : '';
     return `<div class="liste-item">
       <div class="nom">${titre}</div>
       ${detail}
+      ${ligneSalaires}
       <div class="meta" style="border-top:1px solid rgba(255,255,255,0.18);margin-top:6px;padding-top:6px;font-weight:800;color:${res.total.solde>=0?'var(--vert)':'var(--rouge)'};">TOTAL — Recettes: ${res.total.recettes} D · Dépenses: ${res.total.sorties} D · Solde: ${res.total.solde} D</div>
     </div>`;
   }
