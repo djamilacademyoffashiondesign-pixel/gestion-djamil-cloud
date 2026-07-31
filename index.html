@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["C'est un cadeau — le vêtement est pour quelqu'un d'autre","It's a gift — the garment is for someone else"],["Qui portera le vêtement","Who will wear the garment"],["Son téléphone (facultatif)","Their phone (optional)"],["Indiquez qui portera le vêtement","Enter who will wear the garment"],["ce sont ses mesures","these are their measurements"],["Paiement et contact :","Payment and contact:"]);
 CHUNKS.push(["Marquer les clients servis","Mark customers served"],["Reporter","Postpone"],["Livré","Delivered"],["Récupéré","Collected"],["Une fois pointé, le client sort des rappels et le planning se libère.","Once ticked off, the customer leaves the reminders and the schedule frees up."],["Aucun rendez-vous proche.","No upcoming appointment."]);
 CHUNKS.push(["Quantité vendue","Quantity sold"],["Réduction accordée (D) — 0 si aucune","Discount given (D) — 0 if none"],["Client","Customer"],["Prénom","First name"],["Nom","Last name"],["Téléphone WhatsApp","WhatsApp phone"],["Le client sera enregistré et recevra un message de remerciement.","The customer will be saved and will receive a thank-you message."],["Enregistrer la vente","Record the sale"],["Remercier le client","Thank the customer"],["Envoyer le remerciement","Send the thank-you"],["l'unité","each"],["en stock","in stock"]);
 CHUNKS.push(["Ventes boutique à confirmer","Shop sales to confirm"],["Chaque vente du manager est enregistrée aussitôt, puis validée par le directeur.","Every sale by the manager is recorded at once, then approved by the director."],["Aucune vente en attente.","No sale pending."],["vente(s) à confirmer","sale(s) to confirm"],["Confirmer","Confirm"],["Vérifier","Check"],["Vérifier cette vente","Check this sale"],["client non enregistré","customer not recorded"],["Vente confirmée","Sale confirmed"]);
@@ -575,6 +576,17 @@ function traduireNoeud(node){
       <datalist id="liste-clients-existants"></datalist>
       <label>Téléphone</label>
       <input id="a-tel" placeholder="Ex: 7XX XXXX" oninput="tenterResolutionParTelephone('a')">
+      <label style="display:flex;align-items:center;gap:9px;margin-top:12px;cursor:pointer;">
+        <input type="checkbox" id="a-cadeau" onchange="basculerBlocCadeau()" style="width:auto;margin:0;">
+        <span>🎁 C'est un cadeau — le vêtement est pour quelqu'un d'autre</span>
+      </label>
+      <div id="bloc-cadeau" style="display:none;padding:11px;margin-top:8px;border-radius:10px;border:1px solid rgba(201,162,39,.4);background:rgba(201,162,39,.07);">
+        <label>Qui portera le vêtement</label>
+        <input id="a-benef-nom" placeholder="Ex: Mme Sow" list="liste-clients-existants" oninput="remplirMesuresBeneficiaire()">
+        <label>Son téléphone (facultatif)</label>
+        <input id="a-benef-tel" placeholder="Ex: 7XX XXXX" oninput="remplirMesuresBeneficiaire()">
+        <div class="meta" style="margin-top:7px;">Les mesures à saisir plus bas sont <strong>les siennes</strong>. La cliente qui dépose et qui paie reste celle du haut.</div>
+      </div>
       <label id="a-desc-label">Notes / précisions (tissu, style, instructions particulières...)</label>
       <textarea id="a-desc" rows="2" placeholder="Ex: Tissu bazin apporté par le client, finition dorée"></textarea>
       <label>Photo(s) du/des tissu(s) déposé(s)</label>
@@ -1642,6 +1654,50 @@ function trouverClientExistant(nom, tel){
    de nom (deux clients homonymes) SANS jamais effacer le champ téléphone en
    cours de frappe, et sans rien effacer si aucune correspondance n'est trouvée
    (l'utilisateur est peut-être en train de créer un nouveau client). */
+/* ================= COMMANDE OFFERTE (CADEAU) =================
+   Cas courant : une cliente depose et paie, mais le vetement est pour une
+   autre personne — et ce sont LES MESURES DE CETTE AUTRE PERSONNE qui comptent.
+   Enregistrer le tout sous un seul nom melangeait les mesures de deux clientes
+   dans le carnet d'adresses. La commande porte donc deux identites :
+   le nom (celle qui paie) et le beneficiaire (celle qui portera). */
+function basculerBlocCadeau(){
+  const coche = document.getElementById('a-cadeau');
+  const bloc = document.getElementById('bloc-cadeau');
+  if(!coche || !bloc) return;
+  bloc.style.display = coche.checked ? 'block' : 'none';
+  if(!coche.checked){
+    const n = document.getElementById('a-benef-nom'); if(n) n.value = '';
+    const t = document.getElementById('a-benef-tel'); if(t) t.value = '';
+  }
+}
+
+/* Pre-remplit les mesures depuis la fiche du BENEFICIAIRE, pas de la payeuse. */
+function remplirMesuresBeneficiaire(){
+  const nom = (document.getElementById('a-benef-nom')||{}).value;
+  const tel = (document.getElementById('a-benef-tel')||{}).value;
+  if(!nom || !String(nom).trim()) return;
+  const client = trouverClientExistant(String(nom).trim(), String(tel||'').trim());
+  if(!client || client === 'AMBIGU') return;
+  choisirGenre(client.genre||'Homme');
+  const correspondances = {
+    'm-cou':'cou', 'm-epaule':'epaule', 'm-poitrine':'poitrine',
+    'm-longmanche':'longManche', 'm-tourmanche':'tourManche', 'm-poignet':'poignet',
+    'm-tourtaille':'tourTaille', 'm-longtaille':'longTaille', 'm-ceinture':'ceinture',
+    'm-bassin':'bassin', 'm-cuisse':'cuisse', 'm-pince':'pince',
+    'm-tourgenou':'tourGenou', 'm-baspantalon':'basPantalon',
+    'm-longhaut':'longHaut', 'm-longpantalon':'longPantalon'
+  };
+  Object.keys(correspondances).forEach(function(idChamp){
+    const e = document.getElementById(idChamp);
+    if(e) e.value = client[correspondances[idChamp]] || '';
+  });
+  const robe = document.getElementById('m-longrobe');
+  const jupe = document.getElementById('m-longjupe');
+  if(robe) robe.value = client.genre==='Femme' ? (client.longRobe||'') : '';
+  if(jupe) jupe.value = client.genre==='Femme' ? (client.longJupe||'') : '';
+  toast('Mesures de ' + (client.nom||nom) + ' pré-remplies');
+}
+
 function tenterResolutionParTelephone(prefixe){
   const champNom = prefixe==='a' ? 'a-nom' : 'ms-nom';
   const champTel = prefixe==='a' ? 'a-tel' : 'ms-tel';
@@ -1862,6 +1918,9 @@ async function enregistrerContactSansEcraserMesures(nom, tel, genre){
 async function ajouterCommande(){
   const nom=document.getElementById('a-nom').value.trim();
   if(!nom){ toast('Entrez le nom du client'); return; }
+  const estCadeau = !!(document.getElementById('a-cadeau')||{}).checked;
+  const nomBeneficiaire = estCadeau ? (document.getElementById('a-benef-nom').value.trim()) : '';
+  if(estCadeau && !nomBeneficiaire){ toast('Indiquez qui portera le vêtement'); return; }
   const articlesValides = lignesArticles.filter(l=>l.nom.trim() && Number(l.prix)>0);
   if(articlesValides.length===0){ toast('Ajoutez au moins un article avec un nom et un prix'); return; }
   /* CAPACITE : l'atelier livre un nombre limite de vêtements par jour (lundi-samedi).
@@ -1921,6 +1980,10 @@ async function ajouterCommande(){
       genre:genreActuel,
       nom,
       tel:document.getElementById('a-tel').value.trim(),
+      /* Cadeau : le vêtement est pour quelqu'un d'autre. Champs optionnels,
+         absents des commandes existantes — aucune migration nécessaire. */
+      beneficiaire: estCadeau ? nomBeneficiaire : '',
+      beneficiaireTel: estCadeau ? (document.getElementById('a-benef-tel').value.trim()) : '',
       desc,
       articles,
       mesures:JSON.stringify(mesures),
@@ -1935,6 +1998,8 @@ async function ajouterCommande(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('commandes_couture', cmd, 'La commande n\'a pas pu être synchronisée en ligne');
+    const caseCadeau = document.getElementById('a-cadeau');
+    if(caseCadeau){ caseCadeau.checked = false; basculerBlocCadeau(); }
     /* CORRECTIF : la recette est datée du JOUR OÙ L'ARGENT EST ENCAISSÉ, pas de
        la "Date de dépôt" du vêtement. Avant, passer cmd.depot ici datait l'avance
        au jour du dépôt : si ce n'était pas aujourd'hui, l'argent disparaissait de
@@ -1942,12 +2007,16 @@ async function ajouterCommande(){
        reçue un autre jour, utiliser « Corriger l'avance » qui demande la vraie date. */
     enregistrerTransaction(acompte, 'Atelier', nom+' — '+code);
     if(typeCommandeActuel!=='Retouche'){
-      synchroniserCarnetAdresses(nom, cmd.tel, genreActuel, mesures).catch(err=>console.error('Le carnet d\'adresses n\'a pas pu être synchronisé', err));
+      /* Les mesures appartiennent a la personne qui PORTE le vetement. */
+      synchroniserCarnetAdresses(estCadeau ? nomBeneficiaire : nom,
+                                 estCadeau ? cmd.beneficiaireTel : cmd.tel,
+                                 genreActuel, mesures)
+        .catch(err=>console.error('Le carnet d\'adresses n\'a pas pu être synchronisé', err));
     } else {
       enregistrerContactSansEcraserMesures(nom, cmd.tel, genreActuel).catch(err=>console.error('Le contact retouche n\'a pas pu être synchronisé', err));
     }
     const typeCree = typeCommandeActuel;
-    viderChamps(['a-nom','a-tel','a-desc','a-acompte','a-depot','a-livraison',
+    viderChamps(['a-nom','a-tel','a-benef-nom','a-benef-tel','a-desc','a-acompte','a-depot','a-livraison',
       'm-cou','m-epaule','m-poitrine','m-longmanche','m-tourmanche','m-poignet',
       'm-tourtaille','m-longtaille','m-ceinture','m-bassin','m-cuisse','m-pince','m-tourgenou','m-baspantalon','m-longhaut','m-longpantalon','m-longrobe','m-longjupe']);
     document.getElementById('a-photo-tissu').value='';
@@ -2554,6 +2623,7 @@ function carteCommandeAtelier(c){
   return `<div class="liste-item ${classeAlerte}">
     <div class="nom">${c.nom} <span style="color:var(--gris);font-size:0.75rem;">(${c.genre||''})</span> ${c.code ? '<span class="badge attente">Code '+c.code+'</span>' : ''} ${c.type==='Retouche' ? '<span class="badge ok">✂️ Retouche</span>' : ''} ${c.type==='Prêt-à-porter' ? '<span class="badge ok">🛍️ Prêt-à-porter</span>' : ''} ${reste<=0 ? '<span class="badge ok">✅ PAYÉ</span>' : ''}</div>
     ${c.tel ? '<div class="meta">📞 <a href="tel:'+c.tel+'" style="color:var(--or-clair);">'+c.tel+'</a></div>' : ''}
+    ${c.beneficiaire ? '<div class="meta" style="color:var(--or-clair);">🎁 Pour <strong>'+c.beneficiaire+'</strong> — ce sont ses mesures'+(c.beneficiaireTel ? ' · <a href="tel:'+c.beneficiaireTel+'" style="color:var(--or-clair);">'+c.beneficiaireTel+'</a>' : '')+'</div><div class="meta" style="opacity:.75;">Paiement et contact : '+c.nom+'</div>' : ''}
     <div class="meta">${c.desc||''}</div>
     ${(c.articles && c.articles.length) ? '<div class="meta">'+c.articles.map(a=>{
       const e = etatArticle(a);
@@ -4635,7 +4705,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-pointage-rdv';
+const APP_VERSION = 'v2026-07-31-commande-cadeau';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
