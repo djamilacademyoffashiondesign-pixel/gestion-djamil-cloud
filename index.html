@@ -40,6 +40,9 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Versé selon les fiches de paie :","Paid according to payroll records:"],["Enregistré en dépenses :","Recorded as expenses:"],["Paie et Finances concordent pour","Payroll and Finances match for"],["D versés mais absents des dépenses","D paid but missing from expenses"],["Enregistrer la dépense","Record the expense"]);
+CHUNKS.push(["Vérifier le total","Check the total"],["D'où vient ce total ?","Where does this total come from?"],["D'où vient le total des salaires","Where the salary total comes from"],["en double","duplicate"],["versé enregistré :","recorded as paid:"],["dépasse le salaire","exceeds the salary"],["employé(s) actif(s)","active employee(s)"]);
+CHUNKS.push(["Salaire mensuel :","Monthly salary:"],["Total versé enregistré :","Recorded total paid:"]);
 CHUNKS.push(["Contrôle paie / finances","Payroll / finance check"],["Salaires marqués payés dont la dépense a disparu des Finances.","Salaries marked paid whose expense has vanished from Finances."],["Paie et Finances sont cohérentes.","Payroll and Finances are consistent."],["Réenregistrer la dépense","Re-record the expense"],["Marquer comme non payé","Mark as unpaid"]);
 CHUNKS.push(["Salaires versés aujourd'hui :","Salaries paid today:"],["charge du mois, comptée dans le bilan mensuel","monthly charge, counted in the monthly summary"]);
 CHUNKS.push(["Salaires versés sur la période :","Salaries paid in this period:"],["charge mensuelle, comptée dans le bilan du mois","monthly charge, counted in the month's summary"]);
@@ -909,6 +912,13 @@ function traduireNoeud(node){
       <input id="salaires-mois" type="month" onchange="rendreSalaires()">
       <div class="stats-grid" id="salaires-stats"></div>
       <div id="salaires-liste"></div>
+    </div>
+    <div class="panel">
+      <h2>Vérifier le total</h2>
+      <div class="meta" style="color:var(--gris);font-size:0.78rem;margin-bottom:8px;">Détail employé par employé du total affiché en haut, avec repérage des fiches en double.</div>
+      <div class="item-actions">
+        <button onclick="auditerTotalSalaires()">🔎 D'où vient ce total ?</button>
+      </div>
     </div>
     <div class="panel">
       <h2>Contrôle paie / finances</h2>
@@ -4726,7 +4736,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-salaire-mois-couvert';
+const APP_VERSION = 'v2026-07-31-rapprochement-mensuel';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5235,6 +5245,58 @@ function allerAuMoisSalaire(mois){
   champ.scrollIntoView({behavior:'smooth', block:'center'});
 }
 
+/* ================= AUDIT DU TOTAL DES SALAIRES =================
+   Le total « SALAIRES (D) » est la somme des salaires mensuels de TOUS les
+   employes actifs. Quand il ne correspond pas aux fiches visibles, c'est
+   presque toujours qu'il reste des employes en double ou d'anciens employes
+   jamais desactives, plus bas dans la liste. Ce detail le montre. */
+function auditerTotalSalaires(){
+  const actifs = (CACHE.employes||[]).filter(function(e){ return e.actif !== false; });
+  if(!actifs.length){ ouvrirModale('Détail du total', '<div class="meta">Aucun employé actif.</div>'); return; }
+
+  const parNom = {};
+  actifs.forEach(function(e){
+    const cle = String(e.nom||'').trim().toLowerCase().replace(/\s+/g,' ');
+    (parNom[cle] = parNom[cle] || []).push(e);
+  });
+  const doublons = Object.keys(parNom).filter(function(k){ return parNom[k].length > 1; });
+
+  const total = actifs.reduce(function(s,e){ return s + (e.salaireMensuel||0); }, 0);
+  const mois = (document.getElementById('salaires-mois')||{}).value || moisAujourdhui();
+
+  let corps = '';
+  if(doublons.length){
+    corps += '<div style="padding:11px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.5);margin-bottom:10px;">'
+      + '<div class="nom">⚠️ ' + doublons.length + ' employé(s) enregistré(s) plusieurs fois</div>'
+      + '<div class="meta" style="margin-top:5px;">Chaque doublon ajoute son salaire au total. Supprimez les fiches en trop dans « Employés » plus bas.</div>'
+      + '</div>';
+  }
+
+  corps += actifs.slice().sort(function(a,b){ return (a.nom||'').localeCompare(b.nom||''); }).map(function(e){
+    const cle = String(e.nom||'').trim().toLowerCase().replace(/\s+/g,' ');
+    const double = parNom[cle].length > 1;
+    const enreg = trouverSalaireMensuel(e.id, mois);
+    return '<div class="liste-item"' + (double ? ' style="border-left:3px solid var(--rouge);"' : '') + '>'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span>' + (e.nom||'—') + (double ? ' <span style="color:var(--rouge);">· en double</span>' : '') + '</span>'
+      +   '<span style="color:var(--or);">' + (e.salaireMensuel||0) + ' D</span></div>'
+      + '<div class="meta">' + (e.poste||'—') + '</div>'
+      + (enreg
+          ? '<div class="meta">' + moisAffichage(mois) + ' — versé enregistré : ' + (enreg.montantVerse||0) + ' D'
+            + (enreg.paye ? ' · marqué payé' : '')
+            + ((enreg.montantVerse||0) > (e.salaireMensuel||0)
+                ? ' <span style="color:var(--rouge);">⚠️ dépasse le salaire</span>' : '')
+            + '</div>'
+          : '<div class="meta" style="opacity:.6;">Aucun mouvement enregistré pour ' + moisAffichage(mois) + '</div>')
+      + '</div>';
+  }).join('');
+
+  corps += '<div class="meta" style="margin-top:12px;border-top:1px solid rgba(255,255,255,.18);padding-top:8px;font-weight:800;">'
+    + actifs.length + ' employé(s) actif(s) · TOTAL : ' + total + ' D</div>';
+
+  ouvrirModale('D\'où vient le total des salaires', corps);
+}
+
 /* ================= COHERENCE PAIE <-> FINANCES =================
    Un salaire vit a DEUX endroits : la fiche de paie (salaires_mensuel, qui dit
    "paye") et la depense (depenses, l'argent qui sort de la caisse). Supprimer
@@ -5252,46 +5314,110 @@ function depenseSalaireExiste(nomEmploye, mois){
   });
 }
 
-function listerSalairesSansDepense(){
+function listerSalairesSansDepense_obsolete(){
   const manquants = [];
   (CACHE.salaires_mensuel||[]).forEach(function(sm){
     if(!sm.paye) return;
     const montant = sm.montantVerse || sm.salaireMensuel || 0;
     if(montant <= 0) return;
     if(!depenseSalaireExiste(sm.employeNom||'', sm.mois)){
-      manquants.push({ nom:sm.employeNom||'—', mois:sm.mois, montant:montant });
+      manquants.push({ nom:sm.employeNom||'—', mois:sm.mois, montant:montant,
+                       salaire:sm.salaireMensuel||0, verse:sm.montantVerse||0 });
     }
   });
   manquants.sort(function(a,b){ return a.mois < b.mois ? -1 : 1; });
   return manquants;
 }
 
+/* Total des salaires deja passes en DEPENSES pour un mois donne.
+   On accepte toutes les formes de saisie : la depense creee par le bouton
+   "Payer le solde" (categorie Salaire + moisSalaire), et celle saisie A LA MAIN
+   par Djamil dans "Ajouter une depense" (categorie Salaire, sans moisSalaire,
+   datee du mois). C'est indispensable : chercher le nom de l'employe dans la
+   description produisait de fausses alertes et aurait pousse a enregistrer
+   deux fois le meme salaire. */
+function totalDepensesSalaireDuMois(mois){
+  return (CACHE.depenses||[]).filter(function(d){
+    if((d.categorie||'') !== 'Salaire') return false;
+    if(d.moisSalaire) return d.moisSalaire === mois;
+    return String(d.dateISO||'').slice(0,7) === mois;
+  }).reduce(function(s,d){ return s + (d.montant||0); }, 0);
+}
+
+/* Total que la paie dit avoir verse ce mois-la. */
+function totalPaieDuMois(mois){
+  return (CACHE.employes||[]).filter(function(e){ return e.actif !== false; })
+    .reduce(function(s,e){
+      const enreg = trouverSalaireMensuel(e.id, mois);
+      if(!enreg) return s;
+      const salaire = e.salaireMensuel || 0;
+      const verse = enreg.montantVerse || 0;
+      /* On plafonne au salaire mensuel : un cumul superieur vient d'avances
+         notees plusieurs fois, pas d'argent reellement sorti en plus. */
+      return s + (enreg.paye ? salaire : Math.min(verse, salaire));
+    }, 0);
+}
+
 function rendreCoherenceSalaires(){
   const zone = document.getElementById('salaires-coherence');
   if(!zone) return;
-  const manquants = listerSalairesSansDepense();
-  if(!manquants.length){ zone.innerHTML = '<div class="vide">Paie et Finances sont cohérentes.</div>'; return; }
-  const total = manquants.reduce(function(s,m){ return s + m.montant; }, 0);
-  zone.innerHTML =
-      '<div style="padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.15);border:1px solid rgba(201,162,39,.55);">'
-    +   '<div class="nom">⚠️ ' + manquants.length + ' salaire(s) marqué(s) payé(s) sans dépense enregistrée — ' + total + ' D</div>'
-    +   '<div class="meta" style="margin-top:6px;">Cet argent est sorti de la caisse mais n\'apparaît dans aucun bilan. Vos bénéfices sont surestimés d\'autant.</div>'
-    + '</div>'
-    + manquants.map(function(m){
-        return '<div class="liste-item" style="border-left:3px solid var(--or);">'
-          + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
-          +   '<span>' + m.nom + '</span><span style="color:var(--or);">' + m.montant + ' D</span></div>'
-          + '<div class="meta">' + moisAffichage(m.mois) + '</div>'
-          + '<div class="item-actions" style="margin-top:7px;">'
-          +   '<button onclick="reenregistrerDepenseSalaire(\'' + encodeURIComponent(m.nom) + '\',\'' + m.mois + '\',' + m.montant + ')">↩️ Réenregistrer la dépense</button>'
-          +   '<button class="del" onclick="annulerPaiementSalaire(\'' + encodeURIComponent(m.nom) + '\',\'' + m.mois + '\')">Marquer comme non payé</button>'
-          + '</div></div>';
-      }).join('');
+  const mois = (document.getElementById('salaires-mois')||{}).value || moisAujourdhui();
+  const paie = totalPaieDuMois(mois);
+  const enDepenses = totalDepensesSalaireDuMois(mois);
+  const ecart = paie - enDepenses;
+
+  let html = '<div class="liste-item">'
+    + '<div class="meta">' + moisAffichage(mois) + '</div>'
+    + '<div class="meta" style="margin-top:6px;">Versé selon les fiches de paie : <strong>' + paie + ' D</strong></div>'
+    + '<div class="meta">Enregistré en dépenses : <strong>' + enDepenses + ' D</strong></div>'
+    + '</div>';
+
+  if(ecart <= 0){
+    html += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(63,174,92,.13);border:1px solid rgba(63,174,92,.45);">'
+      + '<div class="nom">✅ Paie et Finances concordent pour ' + moisAffichage(mois) + '</div>'
+      + (ecart < 0 ? '<div class="meta" style="margin-top:5px;color:var(--or);">Les dépenses dépassent la paie de ' + Math.abs(ecart) + ' D — vérifiez qu\'un salaire n\'a pas été saisi deux fois.</div>' : '')
+      + '</div>';
+    zone.innerHTML = html;
+    return;
+  }
+
+  html += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.15);border:1px solid rgba(201,162,39,.55);">'
+    + '<div class="nom">⚠️ ' + ecart + ' D versés mais absents des dépenses</div>'
+    + '<div class="meta" style="margin-top:5px;">Cet argent est sorti de la caisse sans apparaître dans les bilans. Si vous l\'avez déjà saisi à la main sous une autre catégorie que « Salaire », changez sa catégorie plutôt que d\'enregistrer une nouvelle dépense.</div>'
+    + '</div>';
+
+  /* Détail seulement en cas d'écart réel, comme aide à la saisie. */
+  (CACHE.employes||[]).filter(function(e){ return e.actif !== false; }).forEach(function(e){
+    const enreg = trouverSalaireMensuel(e.id, mois);
+    if(!enreg || !enreg.paye) return;
+    const salaire = e.salaireMensuel || 0;
+    const verse = enreg.montantVerse || 0;
+    html += '<div class="liste-item">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span>' + (e.nom||'—') + '</span><span style="color:var(--or);">' + salaire + ' D</span></div>'
+      + (verse > salaire
+          ? '<div class="meta" style="color:var(--rouge);">Total versé enregistré : ' + verse + ' D — dépasse le salaire mensuel, des avances ont été notées plusieurs fois</div>'
+          : '')
+      + '<div class="item-actions" style="margin-top:7px;">'
+      +   '<button onclick="reenregistrerDepenseSalaire(\'' + encodeURIComponent(e.nom||'') + '\',\'' + mois + '\',' + salaire + ')">↩️ Enregistrer la dépense</button>'
+      + '</div></div>';
+  });
+
+  zone.innerHTML = html;
 }
 
 async function reenregistrerDepenseSalaire(nomEncode, mois, montant){
+  /* montant est réassigné plus bas après confirmation par l'utilisateur */
   const nom = decodeURIComponent(nomEncode);
   if(!await demanderCodeAdmin('Réenregistrer une dépense de salaire')) return;
+  /* Le montant proposé vient de la fiche de paie, mais il peut être faux
+     (avances comptées plusieurs fois) : Djamil doit pouvoir le corriger ici,
+     c'est cette somme qui entrera dans les dépenses du mois. */
+  const saisieMontant = prompt('Montant réellement versé à ' + nom + ' (D) :', montant);
+  if(saisieMontant === null) return;
+  const montantFinal = Number(saisieMontant);
+  if(isNaN(montantFinal) || montantFinal <= 0){ toast('Montant invalide'); return; }
+  montant = montantFinal;
   const defaut = dateISOAujourdhui();
   const rep = prompt('Date à laquelle l\'argent est réellement sorti (AAAA-MM-JJ) :', defaut);
   if(rep === null) return;
