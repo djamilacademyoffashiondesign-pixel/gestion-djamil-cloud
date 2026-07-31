@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Salaires en retard","Overdue salaries"],["Mois passés non soldés. Le paiement reste rattaché au mois concerné.","Past months not settled. The payment stays linked to the month it covers."],["Aucun salaire en retard.","No overdue salary."],["salaire(s) en retard","overdue salary(ies)"],["déjà versé","already paid"],["payé en retard le","paid late on"]);
 CHUNKS.push(["C'est un cadeau — le vêtement est pour quelqu'un d'autre","It's a gift — the garment is for someone else"],["Qui portera le vêtement","Who will wear the garment"],["Son téléphone (facultatif)","Their phone (optional)"],["Indiquez qui portera le vêtement","Enter who will wear the garment"],["ce sont ses mesures","these are their measurements"],["Paiement et contact :","Payment and contact:"]);
 CHUNKS.push(["Marquer les clients servis","Mark customers served"],["Reporter","Postpone"],["Livré","Delivered"],["Récupéré","Collected"],["Une fois pointé, le client sort des rappels et le planning se libère.","Once ticked off, the customer leaves the reminders and the schedule frees up."],["Aucun rendez-vous proche.","No upcoming appointment."]);
 CHUNKS.push(["Quantité vendue","Quantity sold"],["Réduction accordée (D) — 0 si aucune","Discount given (D) — 0 if none"],["Client","Customer"],["Prénom","First name"],["Nom","Last name"],["Téléphone WhatsApp","WhatsApp phone"],["Le client sera enregistré et recevra un message de remerciement.","The customer will be saved and will receive a thank-you message."],["Enregistrer la vente","Record the sale"],["Remercier le client","Thank the customer"],["Envoyer le remerciement","Send the thank-you"],["l'unité","each"],["en stock","in stock"]);
@@ -905,6 +906,11 @@ function traduireNoeud(node){
       <input id="salaires-mois" type="month" onchange="rendreSalaires()">
       <div class="stats-grid" id="salaires-stats"></div>
       <div id="salaires-liste"></div>
+    </div>
+    <div class="panel">
+      <h2>Salaires en retard</h2>
+      <div class="meta" style="color:var(--gris);font-size:0.78rem;margin-bottom:8px;">Mois passés non soldés. Le paiement reste rattaché au mois concerné.</div>
+      <div id="salaires-retard"></div>
     </div>
     <div class="panel">
       <h2>Employés</h2>
@@ -4705,7 +4711,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-commande-cadeau';
+const APP_VERSION = 'v2026-07-31-salaires-retard';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5152,6 +5158,68 @@ function rendreEmployes(){
     </div>
   `).join('');
 }
+/* ================= SALAIRES EN RETARD =================
+   Djamil paie autour du 5. Quand un mois passe sans etre regle, rien ne le
+   signalait : il fallait revenir mois par mois avec le selecteur pour s'en
+   apercevoir. Ce tableau remonte tous les mois passes non soldes. */
+function listerSalairesEnRetard(){
+  const moisCourant = moisAujourdhui();
+  const retards = [];
+  (CACHE.employes||[]).forEach(function(e){
+    /* On ne remonte pas avant l'arrivee de l'employe. */
+    let premierMois = null;
+    if(e.creeLe && e.creeLe.seconds){
+      const d = new Date(e.creeLe.seconds*1000);
+      premierMois = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    }
+    for(let i=1; i<=6; i++){
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth()-i);
+      const mois = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      if(mois >= moisCourant) continue;
+      if(premierMois && mois < premierMois) continue;
+      const enreg = trouverSalaireMensuel(e.id, mois);
+      const du = (enreg && enreg.salaireMensuel) || e.salaireMensuel || 0;
+      const verse = enreg ? (enreg.montantVerse||0) : 0;
+      if(enreg && enreg.paye) continue;
+      const reste = du - verse;
+      if(reste > 0) retards.push({ nom:e.nom, mois:mois, du:du, verse:verse, reste:reste });
+    }
+  });
+  retards.sort(function(a,b){ return a.mois < b.mois ? -1 : 1; });
+  return retards;
+}
+
+function rendreSalairesEnRetard(){
+  const zone = document.getElementById('salaires-retard');
+  if(!zone) return;
+  const retards = listerSalairesEnRetard();
+  if(!retards.length){ zone.innerHTML = '<div class="vide">Aucun salaire en retard.</div>'; return; }
+  const total = retards.reduce(function(s,r){ return s + r.reste; }, 0);
+  zone.innerHTML =
+      '<div style="padding:11px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.5);">'
+    +   '<div class="nom">⚠️ ' + retards.length + ' salaire(s) en retard — ' + total + ' D</div>'
+    + '</div>'
+    + retards.map(function(r){
+        return '<div class="liste-item" style="border-left:3px solid var(--rouge);">'
+          + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+          +   '<span>' + r.nom + '</span><span style="color:var(--rouge);">' + r.reste + ' D</span></div>'
+          + '<div class="meta">' + moisAffichage(r.mois) + (r.verse ? ' · déjà versé ' + r.verse + ' D sur ' + r.du + ' D' : '') + '</div>'
+          + '<div style="margin-top:7px;"><button onclick="allerAuMoisSalaire(\'' + r.mois + '\')">Ouvrir ' + moisAffichage(r.mois) + '</button></div>'
+          + '</div>';
+      }).join('');
+}
+
+function allerAuMoisSalaire(mois){
+  const champ = document.getElementById('salaires-mois');
+  if(!champ) return;
+  champ.value = mois;
+  rendreSalaires();
+  toast('Mois affiché : ' + moisAffichage(mois) + ' — le paiement sera rattaché à ce mois');
+  champ.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
 /* Trouve (sans en créer) l'enregistrement mensuel d'un employé pour le mois donné. */
 function trouverSalaireMensuel(employeId, mois){
   return CACHE.salaires_mensuel.find(s=>s.employeId===employeId && s.mois===mois) || null;
@@ -5306,15 +5374,26 @@ async function payerSoldeMois(employeId, nomEmploye){
   /* C'est ICI, en fin de mois, que le salaire touche les finances : le salaire
      COMPLET (avances notées + solde versé) est enregistré en une seule dépense,
      puisque les avances n'ont pas été comptées au moment où elles ont été notées. */
+  /* DEUX DATES DIFFERENTES, et c'est voulu :
+     - dateISO = le jour ou l'argent sort reellement de la caisse. C'est ce qui
+       fait le solde du jour et du mois : si le salaire de juin est paye le
+       2 aout, l'argent manque en aout, pas en juin.
+     - moisSalaire = le mois que ce salaire couvre. C'est ce qui permet de
+       savoir qui a ete paye pour quel mois, meme avec du retard.
+     Melanger les deux fausserait soit la caisse, soit le suivi du personnel. */
+  const enRetard = (mois < moisAujourdhui());
   ecrireAvecSecours('depenses', {
     activite:'Général',
     categorie:'Salaire',
     montant: salaireMensuel,
-    description:'Salaire du mois — '+nomEmploye+' ('+moisAffichage(mois)+') : '+avances+' D d\'avances + '+solde+' D de solde',
+    moisSalaire: mois,
+    description:'Salaire de '+moisAffichage(mois)+' — '+nomEmploye+' : '+avances+' D d\'avances + '+solde+' D de solde'
+                + (enRetard ? ' — payé en retard le '+new Date().toLocaleDateString('fr-FR') : ''),
     dateISO: dateISOAujourdhui(),
     date: new Date().toLocaleDateString('fr-FR'),
     creeLe: firebase.firestore.FieldValue.serverTimestamp()
   }, 'La dépense de salaire n\'a pas pu être synchronisée');
+  if(enRetard) toast('Salaire de '+moisAffichage(mois)+' réglé — la sortie d\'argent est datée d\'aujourd\'hui');
 
   if(employe && employe.tel){
     const msg = texteMsg(
@@ -5327,6 +5406,7 @@ async function payerSoldeMois(employeId, nomEmploye){
   toast('Solde du mois payé — '+nomEmploye);
 }
 function rendreSalaires(){
+  rendreSalairesEnRetard();
   const champMois = document.getElementById('salaires-mois');
   if(champMois && !champMois.value) champMois.value = moisAujourdhui();
   const mois = champMois ? (champMois.value || moisAujourdhui()) : moisAujourdhui();
