@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Marquer les clients servis","Mark customers served"],["Reporter","Postpone"],["Livré","Delivered"],["Récupéré","Collected"],["Une fois pointé, le client sort des rappels et le planning se libère.","Once ticked off, the customer leaves the reminders and the schedule frees up."],["Aucun rendez-vous proche.","No upcoming appointment."]);
 CHUNKS.push(["Quantité vendue","Quantity sold"],["Réduction accordée (D) — 0 si aucune","Discount given (D) — 0 if none"],["Client","Customer"],["Prénom","First name"],["Nom","Last name"],["Téléphone WhatsApp","WhatsApp phone"],["Le client sera enregistré et recevra un message de remerciement.","The customer will be saved and will receive a thank-you message."],["Enregistrer la vente","Record the sale"],["Remercier le client","Thank the customer"],["Envoyer le remerciement","Send the thank-you"],["l'unité","each"],["en stock","in stock"]);
 CHUNKS.push(["Ventes boutique à confirmer","Shop sales to confirm"],["Chaque vente du manager est enregistrée aussitôt, puis validée par le directeur.","Every sale by the manager is recorded at once, then approved by the director."],["Aucune vente en attente.","No sale pending."],["vente(s) à confirmer","sale(s) to confirm"],["Confirmer","Confirm"],["Vérifier","Check"],["Vérifier cette vente","Check this sale"],["client non enregistré","customer not recorded"],["Vente confirmée","Sale confirmed"]);
 CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 3 days"],["commande(s) prête(s) — la cliente passe bientôt","order(s) ready — the client is coming soon"]);
@@ -2437,7 +2438,11 @@ function articlesActifs(c){   /* ce que la cliente emportera : hors annules */
 function articlesRestants(c){ /* ce qu'il reste a coudre */
   return (c.articles||[]).filter(function(a){ return etatArticle(a) === 'a_faire'; });
 }
-function resumeArticles(c){
+/* Renommee : une fonction resumeArticles() existait deja plus haut et sert a
+   construire le texte des messages WhatsApp. Deux fonctions du meme nom se
+   remplacent en JavaScript — l'ancienne etait ecrasee et les messages
+   affichaient "[object Object]". */
+function etatArticlesResume(c){
   const arts = c.articles||[];
   if(!arts.length) return null;
   return { total:arts.length,
@@ -2470,7 +2475,7 @@ function ouvrirSuiviVetements(id){
       + '</div></div>';
   }).join('');
 
-  const r = resumeArticles(c);
+  const r = etatArticlesResume(c);
   const totalActif = articlesActifs(c).reduce(function(s,a){ return s + (Number(a.prix)||0); }, 0);
   const pied = '<div class="meta" style="margin-top:10px;">'
     + r.prets + ' prêt(s) · ' + r.aFaire + ' à faire · ' + r.annules + ' annulé(s)<br>'
@@ -2556,7 +2561,7 @@ function carteCommandeAtelier(c){
       const style = e==='annule' ? 'text-decoration:line-through;opacity:.55;' : (e==='pret' ? 'color:var(--vert);' : '');
       return '<span style="'+style+'">'+marque+a.nom+': '+a.prix+' D</span>';
     }).join(' · ')+'</div>' : ''}
-    ${(() => { const r = resumeArticles(c); return r ? '<div class="meta">🧷 '+r.prets+'/'+r.total+' prêt(s)'+(r.annules?' · '+r.annules+' annulé(s)':'')+(r.aFaire?' · '+r.aFaire+' à faire':'')+'</div>' : ''; })()}
+    ${(() => { const r = etatArticlesResume(c); return r ? '<div class="meta">🧷 '+r.prets+'/'+r.total+' prêt(s)'+(r.annules?' · '+r.annules+' annulé(s)':'')+(r.aFaire?' · '+r.aFaire+' à faire':'')+'</div>' : ''; })()}
     ${c.depot ? '<div class="meta">Dépôt: '+c.depot+'</div>' : ''}
     ${c.livraison ? '<div class="meta">Livraison prévue: '+c.livraison+'</div>' : ''}
     ${(() => {
@@ -4480,18 +4485,85 @@ function rendreApercu(){
   /* ===== RAPPELS RENDEZ-VOUS (3 prochains jours + retards) ===== */
   const rdv = [];
   atelier.forEach(c=>{
-    if(c.statut==='Livré' || c.statut==='Annulé (tissu récupéré)') return;
+    if(c.statut==='Livré' || c.statut==='Annulé' || c.statut==='Annulé (tissu récupéré)') return;
     const j = joursRestants(c.livraison);
-    if(j!==null && j<=3) rdv.push({jours:j, texte:c.nom+' — Atelier ('+libelleJours(j,'livraison')+')'});
+    if(j!==null && j<=3) rdv.push({jours:j, id:c.id, type:'Atelier', nom:c.nom, code:c.code||'',
+                                   texte:c.nom+' — Atelier ('+libelleJours(j,'livraison')+')'});
   });
   pressing.forEach(t=>{
-    if(t.statut==='Récupéré') return;
+    if(t.statut==='Récupéré' || t.statut==='Annulé') return;
     const j = joursRestants(t.retrait);
-    if(j!==null && j<=3) rdv.push({jours:j, texte:t.nom+' — Pressing ('+libelleJours(j,'retrait')+')'});
+    if(j!==null && j<=3) rdv.push({jours:j, id:t.id, type:'Pressing', nom:t.nom, code:t.code||'',
+                                   texte:t.nom+' — Pressing ('+libelleJours(j,'retrait')+')'});
   });
+  RDV_COURANTS = rdv;
   rdv.sort((a,b)=>a.jours-b.jours);
   afficherBanniereRdv(rdv);
   notifierRdvProches(rdv);
+}
+
+/* ================= CLOTURE RAPIDE DES RENDEZ-VOUS =================
+   Ces rappels ne disparaissent que lorsque le statut change. Une cliente
+   servie mais non pointee reste affichee "EN RETARD" indefiniment, et la
+   liste finit par etre ignoree. On peut desormais pointer tout le monde
+   depuis l'Apercu, sans entrer dans chaque rayon. */
+let RDV_COURANTS = [];
+
+function ouvrirClotureRdv(){
+  if(!RDV_COURANTS.length){ ouvrirModale('Rendez-vous', '<div class="meta">Aucun rendez-vous proche.</div>'); return; }
+  const corps = RDV_COURANTS.slice().sort(function(a,b){ return a.jours - b.jours; }).map(function(r){
+    const etat = r.jours < 0 ? '<span style="color:var(--rouge);">en retard de ' + Math.abs(r.jours) + ' jour(s)</span>'
+               : (r.jours === 0 ? '<span style="color:var(--or);">aujourd\'hui</span>'
+               : '<span style="color:var(--vert);">dans ' + r.jours + ' jour(s)</span>');
+    const action = r.type === 'Atelier' ? 'Livré' : 'Récupéré';
+    return '<div class="liste-item">'
+      + '<div class="nom">' + (r.type==='Atelier'?'✂️':'👔') + ' ' + r.nom + (r.code ? ' · ' + r.code : '') + '</div>'
+      + '<div class="meta">' + r.type + ' · ' + etat + '</div>'
+      + '<div class="item-actions" style="margin-top:7px;">'
+      +   '<button onclick="pointerRdv(\'' + r.type + '\',\'' + r.id + '\')" style="color:var(--vert);border-color:rgba(63,174,92,.4);">✅ ' + action + '</button>'
+      +   '<button onclick="reporterRdv(\'' + r.type + '\',\'' + r.id + '\')">📅 Reporter</button>'
+      + '</div></div>';
+  }).join('');
+  ouvrirModale('Marquer les clients servis', corps
+    + '<div class="meta" style="margin-top:10px;">Une fois pointé, le client sort des rappels et le planning se libère.</div>');
+}
+
+async function pointerRdv(type, id){
+  const collection = (type === 'Atelier') ? 'commandes_couture' : 'depots_pressing';
+  const statut = (type === 'Atelier') ? 'Livré' : 'Récupéré';
+  const src = (type === 'Atelier') ? CACHE.commandes_couture : CACHE.depots_pressing;
+  const doc = (src||[]).find(function(x){ return x.id === id; });
+  if(!doc) return;
+  const reste = (Number(doc.prix)||0) - (Number(type==='Atelier' ? doc.acompte : doc.avance)||0);
+  if(reste > 0 && !confirm('Il reste ' + reste + ' D à payer. Marquer quand même comme ' + statut + ' ?')) return;
+  doc.statut = statut;
+  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  (type === 'Atelier') ? rendreAtelier() : rendrePressing();
+  db.collection(collection).doc(id).update({ statut: statut,
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp() })
+    .then(function(){ toast(doc.nom + ' — ' + statut); ouvrirClotureRdv(); })
+    .catch(function(err){ console.error('Erreur pointage', err);
+      toast('⚠️ Non confirmé en ligne — sera renvoyé au retour du réseau'); });
+}
+
+async function reporterRdv(type, id){
+  const collection = (type === 'Atelier') ? 'commandes_couture' : 'depots_pressing';
+  const champ = (type === 'Atelier') ? 'livraison' : 'retrait';
+  const src = (type === 'Atelier') ? CACHE.commandes_couture : CACHE.depots_pressing;
+  const doc = (src||[]).find(function(x){ return x.id === id; });
+  if(!doc) return;
+  const rep = prompt('Nouvelle date (AAAA-MM-JJ) :', doc[champ] || '');
+  if(rep === null) return;
+  const iso = String(rep).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
+  const modifs = {}; modifs[champ] = iso;
+  modifs.misAJourLe = firebase.firestore.FieldValue.serverTimestamp();
+  doc[champ] = iso;
+  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  (type === 'Atelier') ? rendreAtelier() : rendrePressing();
+  db.collection(collection).doc(id).update(modifs)
+    .then(function(){ toast('Rendez-vous reporté au ' + iso); ouvrirClotureRdv(); })
+    .catch(function(err){ console.error('Erreur report', err); toast('⚠️ Non confirmé en ligne'); });
 }
 
 function libelleJours(j, type){
@@ -4508,6 +4580,7 @@ function afficherBanniereRdv(rdv){
   zone.innerHTML = '<div class="banniere-rdv">'
     + '<div class="titre-rdv">⏰ '+rdv.length+' rendez-vous proche(s) !</div>'
     + '<div class="detail-rdv">'+rdv.map(r=>'• '+r.texte).join('<br>')+'</div>'
+    + '<div style="margin-top:10px;"><button onclick="ouvrirClotureRdv()" style="width:100%;">✔️ Marquer les clients servis</button></div>'
     + '</div>';
   /* Vibration une fois par jour et par appareil pour attirer l'attention */
   const cle = 'cd_vibre_'+dateISOAujourdhui();
@@ -4562,7 +4635,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-07-31-vente-formulaire';
+const APP_VERSION = 'v2026-07-31-pointage-rdv';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
