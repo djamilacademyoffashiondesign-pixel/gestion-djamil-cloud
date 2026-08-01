@@ -40,6 +40,8 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Non enregistré","Not saved"],["Le serveur n'a pas accepté cette modification.","The server did not accept this change."],["L'ancienne valeur reviendra au prochain rafraîchissement.","The previous value will return on the next refresh."]);
+CHUNKS.push(["Pourquoi une recette n'apparaît pas ?","Why is an income entry missing?"],["Diagnostic des recettes","Income diagnostic"],["Recettes enregistrées aujourd'hui","Income recorded today"],["encaissement(s) sans recette","payment(s) with no income entry"],["Cet argent figure sur la fiche client mais pas dans les Finances.","This money is on the client record but not in Finances."],["Enregistrer cette recette","Record this income"],["Chaque encaissement a bien sa recette","Every payment has its income entry"],["écriture(s) bloquée(s) hors ligne","write(s) stuck offline"],["Réessayer maintenant","Retry now"]);
 CHUNKS.push(["Ouvrir WhatsApp","Open WhatsApp"],["Aucun numéro enregistré pour ce client","No phone saved for this client"],["Facture de la commande — Code","Order invoice — Code"],["Reçu de dépôt — Code","Drop-off receipt — Code"],["Confirmation de paiement —","Payment confirmation —"],["D reçus","D received"]);
 CHUNKS.push(["Forcer la mise à jour","Force update"],["Version","Version"]);
 CHUNKS.push(["Envoyer la notification","Send the notification"],["Ne pas envoyer","Do not send"],["Nouveau statut :","New status:"],["Statut non enregistré","Status not saved"],["Le changement n'a pas été accepté par le serveur.","The change was not accepted by the server."],["Vérifiez votre connexion, puis réessayez.","Check your connection, then try again."],["Réessayer","Try again"]);
@@ -863,6 +865,9 @@ function traduireNoeud(node){
   <section class="module" id="finances">
     <div class="panel">
       <h2>Bilan — Recettes, Dépenses, Solde</h2>
+      <div class="item-actions" style="margin-bottom:10px;">
+        <button onclick="diagnostiquerRecettes()">🔎 Pourquoi une recette n'apparaît pas ?</button>
+      </div>
       <div id="finances-bilan"></div>
     </div>
     <div class="panel">
@@ -1266,7 +1271,7 @@ let CODE_ADMIN = "1234";
 const REF_CODE_ADMIN_PRINCIPAL = () => db.collection('parametres').doc('codeAdminPrincipal');
 REF_CODE_ADMIN_PRINCIPAL().get().then(doc=>{
   if(doc.exists && doc.data().code) CODE_ADMIN = doc.data().code;
-}).catch(err=>console.error('Erreur chargement code admin', err));
+}).catch(err=>console.error('Chargement code admin', err));
 async function changerCodeAdminPrincipal(){
   const ancien = prompt('Code administrateur ACTUEL (pour confirmer que c\'est bien vous) :');
   if(ancien === null) return;
@@ -1542,6 +1547,29 @@ async function changerNomCommerce(){
 
    Un vrai lien <a> que Djamil touche lui-meme n'est JAMAIS bloque. Toutes les
    notifications passent desormais par cette seule fonction. */
+/* ================= ECHEC D'ECRITURE VISIBLE =================
+   CAUSE DE "je saisis l'avance, et au rechargement c'est comme si le client
+   n'avait jamais paye" : les ecritures Firestore se terminaient toutes par
+   .catch(err => console.error(...)). La console n'existe pas sur un telephone.
+   Djamil voyait donc "Avance corrigee", puis l'ecouteur temps reel remettait
+   l'ancienne valeur — sans qu'aucun message n'explique quoi que ce soit.
+   Desormais chaque echec s'affiche, nomme ce qui n'a pas ete enregistre, et
+   propose de reessayer. */
+function echecEcriture(quoi, err, reessayer){
+  console.error(quoi, err);
+  const detail = err && (err.code || err.message) ? ((err.code||'') + ' ' + (err.message||'')).trim() : '';
+  ouvrirModale('⚠️ Non enregistré',
+      '<div class="liste-item"><div class="nom">' + quoi + '</div>'
+    + '<div class="meta" style="margin-top:6px;color:var(--rouge);">Le serveur n\'a pas accepté cette modification.</div>'
+    + '<div class="meta" style="margin-top:5px;">L\'ancienne valeur reviendra au prochain rafraîchissement.</div>'
+    + (detail ? '<div class="meta" style="margin-top:6px;opacity:.7;font-size:.7rem;">' + detail + '</div>' : '')
+    + '</div>'
+    + '<div class="meta" style="margin-top:10px;">Vérifiez votre connexion, puis réessayez.</div>',
+    reessayer
+      ? [ { texte:'Plus tard', style:'secondary' }, { texte:'Réessayer', action:reessayer } ]
+      : [ { texte:'Fermer', style:'secondary' } ]);
+}
+
 function ouvrirLienWhatsApp(nomClient, lien, contexte){
   if(!lien){ toast('Aucun numéro enregistré pour ce client'); return; }
   ouvrirModale('Envoyer à ' + (nomClient || 'ce client'),
@@ -2344,7 +2372,7 @@ async function corrigerTelephoneAtelier(id){
   if(nouveau===null) return;
   c.tel = nouveau.trim();
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({tel:c.tel}).catch(err=>console.error('Erreur correction téléphone', err));
+  db.collection('commandes_couture').doc(id).update({tel:c.tel}).catch(err=>echecEcriture('Correction téléphone', err));
   toast('Téléphone corrigé');
 }
 async function corrigerAvanceAtelier(id){
@@ -2360,9 +2388,19 @@ async function corrigerAvanceAtelier(id){
   const difference = nouveauMontant - c.acompte;
   c.acompte = nouveauMontant;
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({acompte:nouveauMontant}).catch(err=>console.error('Erreur correction avance', err));
-  enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)', dateSaisie.trim());
-  toast('Avance corrigée');
+  db.collection('commandes_couture').doc(id).update({acompte:nouveauMontant})
+    .then(function(){
+      /* La recette n'est ecrite QUE si l'avance a bien ete enregistree :
+         sinon les Finances afficheraient un encaissement que la fiche client
+         ne porte pas. */
+      enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)', dateSaisie.trim());
+      toast('Avance corrigée — ' + nouveauMontant + ' D');
+    })
+    .catch(function(err){
+      c.acompte = nouveauMontant - difference;   /* on remet la valeur d'avant a l'ecran */
+      rendreAtelier();
+      echecEcriture('Avance de ' + c.nom, err, function(){ corrigerAvanceAtelier(id); });
+    });
 }
 /* Permet de changer la date de livraison prévue quand un client rappelle
    pour avancer ou reculer son rendez-vous (ex: "je veux ma robe dans 3 jours
@@ -2374,7 +2412,7 @@ async function corrigerLivraisonAtelier(id){
   if(nouvelleDate===null) return;
   c.livraison = nouvelleDate.trim();
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({livraison:c.livraison}).catch(err=>console.error('Erreur correction date de livraison', err));
+  db.collection('commandes_couture').doc(id).update({livraison:c.livraison}).catch(err=>echecEcriture('Correction date de livraison', err));
   toast('Date de livraison mise à jour');
 }
 /* Corrige une faute de frappe dans le nom du client, sans rien effacer
@@ -2386,7 +2424,7 @@ async function corrigerNomAtelier(id){
   if(nouveau===null || !nouveau.trim()) return;
   c.nom = nouveau.trim();
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({nom:c.nom}).catch(err=>console.error('Erreur correction nom', err));
+  db.collection('commandes_couture').doc(id).update({nom:c.nom}).catch(err=>echecEcriture('Correction nom', err));
   toast('Nom corrigé');
 }
 /* Corrige le PRIX TOTAL de la commande — sert à la fois pour une erreur de
@@ -2405,7 +2443,7 @@ async function corrigerPrixAtelier(id){
   if(nouveauPrix < c.acompte){ toast('⚠️ Ce prix est inférieur à l\'acompte déjà reçu ('+c.acompte+' D) — corrigez d\'abord l\'acompte si besoin'); return; }
   c.prix = nouveauPrix;
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({prix:nouveauPrix}).catch(err=>console.error('Erreur correction prix', err));
+  db.collection('commandes_couture').doc(id).update({prix:nouveauPrix}).catch(err=>echecEcriture('Correction prix', err));
   toast('Prix mis à jour — '+c.nom+' doit maintenant '+nouveauPrix+' D au total');
 }
 /* Remplace la photo du tissu ou du modèle si la mauvaise photo a été prise
@@ -2428,7 +2466,7 @@ async function remplacerPhotoAtelier(id, type){
       const champ = type==='tissu' ? 'photosTissuURLs' : 'photosModeleURLs';
       c[champ] = [url];
       rendreAtelier();
-      db.collection('commandes_couture').doc(id).update({[champ]:[url]}).catch(err=>console.error('Erreur remplacement photo', err));
+      db.collection('commandes_couture').doc(id).update({[champ]:[url]}).catch(err=>echecEcriture('Remplacement photo', err));
       toast('Photo remplacée');
     } catch(err){
       toast('Erreur: '+err.message);
@@ -2445,7 +2483,7 @@ async function marquerSoldePayeAtelier(id){
   if(!confirm(c.nom+' a payé le solde restant de '+reste+' D ?\nLe total passera à '+c.prix+' D reçu.')) return;
   c.acompte = c.prix; // mise à jour immédiate à l'écran
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({acompte:c.prix}).catch(err=>console.error('Erreur mise à jour solde', err));
+  db.collection('commandes_couture').doc(id).update({acompte:c.prix}).catch(err=>echecEcriture('Mise à jour solde', err));
   enregistrerTransaction(reste, 'Atelier', c.nom+' — '+c.code+' (solde final)');
   toast('Solde encaissé — commande payée en totalité');
   if(c.tel){
@@ -3167,7 +3205,9 @@ function rechercherCodePressing(){
   </div>`;
 }
 function validerRetrait(id){
-  db.collection('depots_pressing').doc(id).update({statut:'Récupéré'}).then(()=>{
+  db.collection('depots_pressing').doc(id).update({statut:'Récupéré'})
+    .catch(err=>echecEcriture('Ticket marqué récupéré', err))
+    .then(()=>{
     toast('Retrait validé');
     rechercherCodePressing();
   });
@@ -3281,7 +3321,7 @@ async function corrigerTelephonePressing(id){
   if(nouveau===null) return;
   t.tel = nouveau.trim();
   rendrePressing();
-  db.collection('depots_pressing').doc(id).update({tel:t.tel}).catch(err=>console.error('Erreur correction téléphone', err));
+  db.collection('depots_pressing').doc(id).update({tel:t.tel}).catch(err=>echecEcriture('Correction téléphone', err));
   toast('Téléphone corrigé');
 }
 async function corrigerAvancePressing(id){
@@ -3297,7 +3337,12 @@ async function corrigerAvancePressing(id){
   const difference = nouveauMontant - t.avance;
   t.avance = nouveauMontant;
   rendrePressing();
-  db.collection('depots_pressing').doc(id).update({avance:nouveauMontant}).catch(err=>console.error('Erreur correction avance', err));
+  db.collection('depots_pressing').doc(id).update({avance:nouveauMontant})
+    .catch(function(err){
+      t.avance = nouveauMontant - difference;
+      rendrePressing();
+      echecEcriture('Avance de ' + t.nom, err, function(){ corrigerAvancePressing(id); });
+    });
   enregistrerAjustementFinance(difference, 'Pressing', t.nom+' — '+t.code+' (correction avance)', dateSaisie.trim());
   toast('Avance corrigée');
 }
@@ -3310,7 +3355,7 @@ async function corrigerRetraitPressing(id){
   if(nouvelleDate===null) return;
   t.retrait = nouvelleDate.trim();
   rendrePressing();
-  db.collection('depots_pressing').doc(id).update({retrait:t.retrait}).catch(err=>console.error('Erreur correction date de retrait', err));
+  db.collection('depots_pressing').doc(id).update({retrait:t.retrait}).catch(err=>echecEcriture('Correction date de retrait', err));
   toast('Date de retrait mise à jour');
 }
 async function corrigerNomPressing(id){
@@ -3320,7 +3365,7 @@ async function corrigerNomPressing(id){
   if(nouveau===null || !nouveau.trim()) return;
   t.nom = nouveau.trim();
   rendrePressing();
-  db.collection('depots_pressing').doc(id).update({nom:t.nom}).catch(err=>console.error('Erreur correction nom', err));
+  db.collection('depots_pressing').doc(id).update({nom:t.nom}).catch(err=>echecEcriture('Correction nom', err));
   toast('Nom corrigé');
 }
 /* Corrige le prix total — pour une erreur de saisie ou pour accorder une
@@ -3336,7 +3381,7 @@ async function corrigerPrixPressing(id){
   if(nouveauPrix < t.avance){ toast('⚠️ Ce prix est inférieur à l\'avance déjà reçue ('+t.avance+' D) — corrigez d\'abord l\'avance si besoin'); return; }
   t.prix = nouveauPrix;
   rendrePressing();
-  db.collection('depots_pressing').doc(id).update({prix:nouveauPrix}).catch(err=>console.error('Erreur correction prix', err));
+  db.collection('depots_pressing').doc(id).update({prix:nouveauPrix}).catch(err=>echecEcriture('Correction prix', err));
   toast('Prix mis à jour — '+t.nom+' doit maintenant '+nouveauPrix+' D au total');
 }
 async function marquerSoldePayePressing(id){
@@ -3349,7 +3394,7 @@ async function marquerSoldePayePressing(id){
   t.avance = t.prix;
   rendrePressing();
   if(document.getElementById('p-recherche-code')) rechercherCodePressing();
-  db.collection('depots_pressing').doc(id).update({avance:t.prix}).catch(err=>console.error('Erreur mise à jour solde', err));
+  db.collection('depots_pressing').doc(id).update({avance:t.prix}).catch(err=>echecEcriture('Mise à jour solde', err));
   enregistrerTransaction(reste, 'Pressing', t.nom+' — '+t.code+' (solde final)');
   toast('Solde encaissé — ticket payé en totalité');
   if(t.tel){
@@ -5180,7 +5225,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-whatsapp-unifie';
+const APP_VERSION = 'v2026-08-01-ecritures-visibles';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5552,6 +5597,110 @@ async function supprimerTransaction(id){
   if(!confirm('Supprimer cette recette ? (utile pour retirer une entrée de test)')) return;
   supprimerAvecOptimisme('transactions', id, 'transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); }, 'Recette supprimée');
 }
+/* ================= DIAGNOSTIC DES RECETTES =================
+   Question posee par Djamil : "l'argent recu aujourd'hui a l'atelier et au
+   pressing n'apparait pas dans les Finances, alors que les depenses oui".
+   Recettes et depenses empruntent pourtant exactement le meme chemin
+   d'ecriture. Trois explications possibles, et une seule facon de trancher :
+   les comparer une par une.
+     1. L'encaissement a bien ete ecrit, mais date d'un AUTRE jour.
+     2. L'ecriture a echoue et dort dans la file hors-ligne.
+     3. Aucun encaissement n'a ete saisi (avance laissee a 0 a la creation).
+   Ce panneau confronte chaque commande/ticket du jour a sa recette. */
+function diagnostiquerRecettes(){
+  const iso = dateISOAujourdhui();
+  const tr = (CACHE.transactions||[]);
+  const duJour = tr.filter(t=>t.dateISO===iso);
+
+  /* 1. Ce que les Finances voient aujourd'hui */
+  let corps = '<div class="liste-item"><div class="nom">Recettes enregistrées aujourd\'hui</div>';
+  if(!duJour.length){
+    corps += '<div class="meta" style="color:var(--rouge);margin-top:5px;">Aucune recette datée du ' + new Date(iso+'T12:00:00').toLocaleDateString('fr-FR') + '</div>';
+  } else {
+    ['Atelier','Pressing','Boutique','Général'].forEach(function(src){
+      const l = duJour.filter(t=>(t.source||'Général')===src);
+      if(!l.length) return;
+      corps += '<div class="meta">' + src + ' : ' + l.reduce((s,t)=>s+(t.montant||0),0) + ' D · ' + l.length + ' entrée(s)</div>';
+    });
+  }
+  corps += '</div>';
+
+  /* 2. Les encaissements attendus, commande par commande */
+  function aUneRecette(code, source){
+    return tr.some(t=>(t.source===source) && String(t.description||'').indexOf(code)>=0);
+  }
+  const manquants = [];
+
+  (CACHE.commandes_couture||[]).forEach(function(c){
+    const acompte = Number(c.acompte)||0;
+    if(acompte<=0 || !c.code) return;
+    if(!aUneRecette(c.code, 'Atelier')){
+      manquants.push({q:'✂️', nom:c.nom||'—', code:c.code, montant:acompte, date:c.date||'', src:'Atelier'});
+    }
+  });
+  (CACHE.depots_pressing||[]).forEach(function(t){
+    const avance = Number(t.avance)||0;
+    if(avance<=0 || !t.code) return;
+    if(!aUneRecette(t.code, 'Pressing')){
+      manquants.push({q:'👔', nom:t.nom||'—', code:t.code, montant:avance, date:t.date||'', src:'Pressing'});
+    }
+  });
+
+  if(manquants.length){
+    const total = manquants.reduce((s,m)=>s+m.montant,0);
+    corps += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.5);">'
+      + '<div class="nom">⚠️ ' + manquants.length + ' encaissement(s) sans recette — ' + total + ' D</div>'
+      + '<div class="meta" style="margin-top:5px;">Cet argent figure sur la fiche client mais pas dans les Finances.</div></div>'
+      + manquants.slice(0,30).map(function(m){
+          return '<div class="liste-item" style="border-left:3px solid var(--rouge);">'
+            + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+            +   '<span>' + m.q + ' ' + m.nom + ' · ' + m.code + '</span>'
+            +   '<span style="color:var(--rouge);">' + m.montant + ' D</span></div>'
+            + '<div class="meta">' + m.src + (m.date ? ' · ' + m.date : '') + '</div>'
+            + '<div style="margin-top:7px;"><button onclick="rattraperRecette(\'' + m.src + '\',\'' + m.code + '\',' + m.montant + ',\'' + encodeURIComponent(m.nom) + '\')">↩️ Enregistrer cette recette</button></div>'
+            + '</div>';
+        }).join('');
+  } else {
+    corps += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(63,174,92,.13);border:1px solid rgba(63,174,92,.45);">'
+      + '<div class="nom">✅ Chaque encaissement a bien sa recette</div></div>';
+  }
+
+  /* 3. La file hors-ligne */
+  let bloques = 0, detailErreurs = '';
+  ['transactions','depenses','commandes_couture','depots_pressing'].forEach(function(col){
+    const n = listeSecours(col).length;
+    if(!n) return;
+    bloques += n;
+    detailErreurs += '<div class="meta">' + col + ' : ' + n + ' en attente'
+      + (DERNIERES_ERREURS_SECOURS[col] ? ' — ' + DERNIERES_ERREURS_SECOURS[col] : '') + '</div>';
+  });
+  if(bloques){
+    corps += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.15);border:1px solid rgba(201,162,39,.55);">'
+      + '<div class="nom">📡 ' + bloques + ' écriture(s) bloquée(s) hors ligne</div>' + detailErreurs
+      + '<div style="margin-top:8px;"><button onclick="resynchroniserSecours();toast(\'Nouvelle tentative lancée\');">Réessayer maintenant</button></div></div>';
+  }
+
+  ouvrirModale('Diagnostic des recettes', corps);
+}
+
+/* Recree la recette manquante, datee du jour ou l'argent a ete recu. */
+async function rattraperRecette(source, code, montant, nomEncode){
+  const nom = decodeURIComponent(nomEncode);
+  if(!await demanderCodeAdmin('Enregistrer une recette manquante')) return;
+  const saisie = prompt('Montant réellement reçu (D) :', montant);
+  if(saisie === null) return;
+  const m = Number(saisie);
+  if(isNaN(m) || m<=0){ toast('Montant invalide'); return; }
+  const rep = prompt('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
+  if(rep === null) return;
+  const iso = String(rep).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
+  document.querySelectorAll('.modale-cd').forEach(function(x){ x.remove(); });
+  enregistrerTransaction(m, source, nom + ' — ' + code + ' (recette rattrapée)', iso);
+  toast(m + ' D enregistrés en ' + source);
+  setTimeout(function(){ rendreBilanFinances(); rendreApercu(); diagnostiquerRecettes(); }, 600);
+}
+
 function rendreRecettes(){
   const data = CACHE.transactions||[];
   const liste = document.getElementById('recettes-liste');
@@ -5959,7 +6108,7 @@ function ajouterAvanceSalaire(employeId, nomEmploye){
       db.collection('salaires_mensuel').doc(enreg.id).update({
         montantVerse: enreg.montantVerse,
         misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-      }).catch(err=>console.error('Erreur mise à jour avance salaire', err));
+      }).catch(err=>echecEcriture('Mise à jour avance salaire', err));
     }
   } else {
     montantVerseTotal = montant;
@@ -5976,7 +6125,7 @@ function ajouterAvanceSalaire(employeId, nomEmploye){
       salaireMensuel: nouveau.salaireMensuel,
       montantVerse: montant, joursPresents: 0,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(err=>console.error('Erreur ajout salaire mensuel', err));
+    }).catch(err=>echecEcriture('Ajout salaire mensuel', err));
   }
   /* IMPORTANT : l'avance est seulement NOTÉE ici — elle ne touche PAS la
      recette ni les dépenses du jour. Le salaire complet (avances + solde)
@@ -6015,7 +6164,7 @@ function mettreAJourJoursPresents(employeId, nomEmploye, jours){
       db.collection('salaires_mensuel').doc(enreg.id).update({
         joursPresents: joursNum,
         misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-      }).catch(err=>console.error('Erreur mise à jour jours présents', err));
+      }).catch(err=>echecEcriture('Mise à jour jours présents', err));
     }
   } else {
     const employe = CACHE.employes.find(e=>e.id===employeId);
@@ -6031,7 +6180,7 @@ function mettreAJourJoursPresents(employeId, nomEmploye, jours){
       salaireMensuel: nouveau.salaireMensuel,
       montantVerse: 0, joursPresents: joursNum,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(err=>console.error('Erreur ajout salaire mensuel', err));
+    }).catch(err=>echecEcriture('Ajout salaire mensuel', err));
   }
   rendreSalaires();
 }
@@ -6070,7 +6219,7 @@ async function payerSoldeMois(employeId, nomEmploye){
         montantVerse: salaireMensuel,
         paye: true,
         misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-      }).catch(err=>console.error('Erreur paiement solde salaire', err));
+      }).catch(err=>echecEcriture('Paiement solde salaire', err));
     }
   } else {
     const nouveau = {
@@ -6085,7 +6234,7 @@ async function payerSoldeMois(employeId, nomEmploye){
       salaireMensuel,
       montantVerse: salaireMensuel, joursPresents: 0, paye: true,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(err=>console.error('Erreur ajout paiement solde', err));
+    }).catch(err=>echecEcriture('Ajout paiement solde', err));
   }
   rendreSalaires();
   /* C'est ICI, en fin de mois, que le salaire touche les finances : le salaire
