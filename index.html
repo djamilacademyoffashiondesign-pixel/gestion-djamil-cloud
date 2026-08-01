@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Abonnements mensuels","Monthly subscriptions"],["Clients au forfait : ils déposent autant qu'ils veulent et règlent un montant fixe en fin de mois.","Flat-rate clients: they drop off as much as they like and pay a fixed amount at month end."],["Nouvel abonnement","New subscription"],["Encaisser","Collect"],["Montant","Amount"],["ATTENDU (D)","EXPECTED (D)"],["ENCAISSÉ (D)","COLLECTED (D)"],["RESTE (D)","REMAINING (D)"],["Pas encore réglé pour","Not yet paid for"],["abonnement(s) à encaisser","subscription(s) to collect"],["Aucun abonnement. Utilisez « Nouvel abonnement » pour un client au forfait.","No subscription. Use “New subscription” for a flat-rate client."]);
 CHUNKS.push(["En cours","In progress"],["Terminés","Completed"],["Tout","All"],["Rechercher : nom, code, téléphone, vêtement…","Search: name, code, phone, garment…"],["Aucun résultat pour cette recherche.","No result for this search."],["Aucun dossier terminé.","No completed record."]);
 CHUNKS.push(["Non enregistré","Not saved"],["Le serveur n'a pas accepté cette modification.","The server did not accept this change."],["L'ancienne valeur reviendra au prochain rafraîchissement.","The previous value will return on the next refresh."]);
 CHUNKS.push(["Pourquoi une recette n'apparaît pas ?","Why is an income entry missing?"],["Diagnostic des recettes","Income diagnostic"],["Recettes enregistrées aujourd'hui","Income recorded today"],["encaissement(s) sans recette","payment(s) with no income entry"],["Cet argent figure sur la fiche client mais pas dans les Finances.","This money is on the client record but not in Finances."],["Enregistrer cette recette","Record this income"],["Chaque encaissement a bien sa recette","Every payment has its income entry"],["écriture(s) bloquée(s) hors ligne","write(s) stuck offline"],["Réessayer maintenant","Retry now"]);
@@ -470,6 +471,7 @@ function traduireNoeud(node){
       <div id="apercu-planning" style="margin-top:8px;"></div>
       <div id="apercu-echeances"></div>
       <div id="apercu-retards"></div>
+      <div id="apercu-contrats"></div>
       <div class="item-actions" style="margin-top:10px;">
         <button onclick="changerSemaine(-1)">◀ Semaine précédente</button>
         <button onclick="changerSemaine(1)">Semaine suivante ▶</button>
@@ -761,6 +763,16 @@ function traduireNoeud(node){
         <div><label>Reste à payer (D)</label><input id="p-reste" type="text" disabled value="0"></div>
       </div>
       <button class="btn" id="btn-ticket" onclick="ajouterTicket()" style="background:#3fae5c;color:#fff;">🟢 Valider le dépôt &amp; Envoyer le reçu WhatsApp</button>
+    </div>
+
+    <div class="panel">
+      <h2>📄 Abonnements mensuels</h2>
+      <div class="meta" style="color:var(--gris);font-size:0.78rem;">Clients au forfait : ils déposent autant qu'ils veulent et règlent un montant fixe en fin de mois.</div>
+      <div style="margin-top:10px;"><label>Mois</label><input id="contrats-mois" type="month" onchange="rendreContrats()"></div>
+      <div id="contrats-liste" style="margin-top:10px;"></div>
+      <div class="item-actions" style="margin-top:10px;">
+        <button onclick="ajouterContrat()">➕ Nouvel abonnement</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -1626,7 +1638,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 appliquerMode();
 
 /* ================= STOCKAGE LOCAL EN MÉMOIRE (mis à jour par les écouteurs temps réel) ================= */
-let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[], visiteurs:[] };
+let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[], visiteurs:[], contrats:[] };
 
 /* ================= EXPORT CSV ================= */
 function exporterCSV(collection){
@@ -2915,6 +2927,162 @@ function barreFiltre(prefixe, filtreActuel, valeurRech, compteEnCours, compteTer
        + b('termine', '✅ Terminés', compteTermine)
        + b('tout', 'Tout', compteEnCours + compteTermine)
        + '</div>';
+}
+
+/* ================= ABONNEMENTS MENSUELS =================
+   Cas non prevu jusqu'ici : un client au forfait depose du linge tout au long
+   du mois et regle un montant fixe a la fin. Ses depots ne doivent donc PAS
+   etre factures un par un, et la recette doit tomber une seule fois par mois.
+   Le contrat vit dans la collection 'contrats' ; chaque encaissement est une
+   transaction normale portant contratId et moisAbonnement, ce qui suffit a
+   savoir quels mois sont regles — sans deuxieme collection a maintenir. */
+
+function contratsActifs(){
+  return (CACHE.contrats||[]).filter(function(c){ return c.actif !== false; });
+}
+
+function paiementContrat(contratId, mois){
+  return (CACHE.transactions||[]).find(function(t){
+    return t.contratId === contratId && t.moisAbonnement === mois;
+  }) || null;
+}
+
+function moisContratAffiche(){
+  const champ = document.getElementById('contrats-mois');
+  if(champ && champ.value) return champ.value;
+  const m = moisAujourdhui();
+  if(champ) champ.value = m;
+  return m;
+}
+
+async function ajouterContrat(){
+  if(!await demanderCodeAdmin('Créer un abonnement')) return;
+  const nom = prompt('Nom du client sous contrat :');
+  if(nom===null || !nom.trim()){ return; }
+  const tel = prompt('Téléphone (facultatif) :', '');
+  if(tel===null) return;
+  const saisie = prompt('Montant fixe à payer chaque mois (D) :', '12000');
+  if(saisie===null) return;
+  const montant = Number(saisie);
+  if(isNaN(montant) || montant<=0){ toast('Montant invalide'); return; }
+  const activite = confirm('Ce contrat concerne-t-il le PRESSING ?\n\nOK = Pressing · Annuler = Atelier') ? 'Pressing' : 'Atelier';
+  ecrireAvecSecours('contrats', {
+    nom: nom.trim(), tel: String(tel||'').trim(),
+    montantMensuel: montant, activite: activite, actif: true,
+    debut: moisAujourdhui(),
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  }, 'L\'abonnement n\'a pas pu être synchronisé');
+  toast('Abonnement créé : ' + nom.trim() + ' — ' + montant + ' D/mois');
+  setTimeout(rendreContrats, 500);
+}
+
+async function encaisserContrat(id){
+  const c = (CACHE.contrats||[]).find(function(x){ return x.id===id; });
+  if(!c) return;
+  const mois = moisContratAffiche();
+  if(paiementContrat(id, mois)){ toast('Ce mois est déjà réglé'); return; }
+  const saisie = prompt('Montant reçu de ' + c.nom + ' pour ' + moisAffichage(mois) + ' (D) :', c.montantMensuel);
+  if(saisie===null) return;
+  const montant = Number(saisie);
+  if(isNaN(montant) || montant<=0){ toast('Montant invalide'); return; }
+  const rep = prompt('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
+  if(rep===null) return;
+  const iso = String(rep).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
+
+  /* Une transaction ordinaire : elle entre donc dans la caisse du jour, la
+     clôture et le bilan, exactement comme un encaissement classique. */
+  ecrireAvecSecours('transactions', {
+    montant: montant,
+    source: c.activite || 'Pressing',
+    description: 'Abonnement ' + moisAffichage(mois) + ' — ' + c.nom,
+    contratId: id,
+    moisAbonnement: mois,
+    dateISO: iso,
+    date: new Date(iso+'T12:00:00').toLocaleDateString('fr-FR'),
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  }, 'L\'encaissement de l\'abonnement n\'a pas pu être synchronisé');
+
+  toast(montant + ' D encaissés — ' + c.nom);
+  if(c.tel){
+    const msg = texteMsg(
+      'Bonjour ' + c.nom + ', nous confirmons la réception de ' + montant + ' D pour votre abonnement du mois de '
+        + moisAffichage(mois) + '. Merci de votre confiance — '
+        + ((typeof NOM_COMMERCE !== 'undefined' && NOM_COMMERCE) ? NOM_COMMERCE : 'Chez Djamil') + '.',
+      'Hello ' + c.nom + ', we confirm receipt of ' + montant + ' D for your subscription for '
+        + moisAffichage(mois) + '. Thank you for your trust — '
+        + ((typeof NOM_COMMERCE !== 'undefined' && NOM_COMMERCE) ? NOM_COMMERCE : 'Chez Djamil') + '.');
+    ouvrirLienWhatsApp(c.nom, lienWhatsApp(c.tel, msg), 'Reçu d\'abonnement — ' + moisAffichage(mois));
+  }
+  setTimeout(function(){ rendreContrats(); rendreBilanFinances(); rendreApercu(); }, 600);
+}
+
+async function modifierContrat(id){
+  if(!await demanderCodeAdmin('Modifier un abonnement')) return;
+  const c = (CACHE.contrats||[]).find(function(x){ return x.id===id; });
+  if(!c) return;
+  const saisie = prompt('Montant mensuel de ' + c.nom + ' (D) — mettez 0 pour arrêter l\'abonnement :', c.montantMensuel);
+  if(saisie===null) return;
+  const montant = Number(saisie);
+  if(isNaN(montant) || montant<0){ toast('Montant invalide'); return; }
+  const modifs = montant===0 ? {actif:false} : {montantMensuel:montant};
+  Object.assign(c, modifs);
+  rendreContrats();
+  db.collection('contrats').doc(id).update(modifs)
+    .then(function(){ toast(montant===0 ? 'Abonnement arrêté' : 'Montant mis à jour'); })
+    .catch(function(err){ echecEcriture('Abonnement de ' + c.nom, err, function(){ modifierContrat(id); }); });
+}
+
+function rendreContrats(){
+  const zone = document.getElementById('contrats-liste');
+  if(!zone) return;
+  const mois = moisContratAffiche();
+  const liste = contratsActifs();
+  if(!liste.length){
+    zone.innerHTML = '<div class="vide">Aucun abonnement. Utilisez « Nouvel abonnement » pour un client au forfait.</div>';
+    return;
+  }
+  let attendu = 0, encaisse = 0;
+  const cartes = liste.map(function(c){
+    const paie = paiementContrat(c.id, mois);
+    attendu += (c.montantMensuel||0);
+    if(paie) encaisse += (paie.montant||0);
+    return '<div class="liste-item" style="border-left:3px solid ' + (paie ? 'var(--vert)' : 'var(--or)') + ';">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span>' + c.nom + '</span>'
+      +   '<span style="color:' + (paie ? 'var(--vert)' : 'var(--or)') + ';">' + (c.montantMensuel||0) + ' D/mois</span></div>'
+      + '<div class="meta">' + (c.activite||'Pressing') + (c.tel ? ' · ' + c.tel : '') + '</div>'
+      + (paie
+          ? '<div class="meta" style="color:var(--vert);">✅ Réglé le ' + (paie.date||'') + ' — ' + (paie.montant||0) + ' D</div>'
+          : '<div class="meta" style="color:var(--or);">⏳ Pas encore réglé pour ' + moisAffichage(mois) + '</div>')
+      + '<div class="item-actions" style="margin-top:7px;">'
+      +   (paie ? '' : '<button onclick="encaisserContrat(\'' + c.id + '\')" style="color:var(--vert);border-color:rgba(63,174,92,.4);">💰 Encaisser</button>')
+      +   '<button onclick="modifierContrat(\'' + c.id + '\')">✏️ Montant</button>'
+      + '</div></div>';
+  }).join('');
+
+  const reste = attendu - encaisse;
+  zone.innerHTML = '<div class="stats-grid" style="margin-bottom:8px;">'
+    + '<div class="stat"><div class="val">' + attendu + '</div><div class="lab">ATTENDU (D)</div></div>'
+    + '<div class="stat"><div class="val" style="color:var(--vert);">' + encaisse + '</div><div class="lab">ENCAISSÉ (D)</div></div>'
+    + '<div class="stat"><div class="val" style="color:' + (reste>0?'var(--or)':'var(--vert)') + ';">' + reste + '</div><div class="lab">RESTE (D)</div></div>'
+    + '</div>' + cartes;
+}
+
+/* Rappel sur l'Apercu a partir du 25 : les abonnements non regles du mois. */
+function rendreRappelContrats(){
+  const zone = document.getElementById('apercu-contrats');
+  if(!zone) return;
+  if(new Date().getDate() < 25){ zone.innerHTML = ''; return; }
+  const mois = moisAujourdhui();
+  const dus = contratsActifs().filter(function(c){ return !paiementContrat(c.id, mois); });
+  if(!dus.length){ zone.innerHTML = ''; return; }
+  const total = dus.reduce(function(s,c){ return s + (c.montantMensuel||0); }, 0);
+  zone.innerHTML = '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.15);border:1px solid rgba(201,162,39,.55);">'
+    + '<div class="nom">📄 ' + dus.length + ' abonnement(s) à encaisser — ' + total + ' D</div>'
+    + dus.map(function(c){ return '<div class="meta">• ' + c.nom + ' — ' + (c.montantMensuel||0) + ' D</div>'; }).join('')
+    + '<div class="meta" style="margin-top:5px;">Fin de ' + moisAffichage(mois) + ' : à réclamer avant la clôture du mois.</div>'
+    + '</div>';
 }
 
 function rendreAtelier(){
@@ -5047,6 +5215,7 @@ function rendreApercu(){
   rendrePlanningSemaine();
   verifierEcheancesProches();
   rendreRetardsAReprogrammer();
+  rendreRappelContrats();
   rendreImpayes();
   majChargeLivraison();
   afficherStatutCodeTemporaire();
@@ -5302,7 +5471,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-filtres-listes';
+const APP_VERSION = 'v2026-08-01-abonnements';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6662,6 +6831,7 @@ attacherEcouteur('transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); 
 attacherEcouteur('depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); });
 attacherEcouteur('employes', ()=>{ rendreEmployes(); rendreSalaires(); });
 attacherEcouteur('salaires_mensuel', rendreSalaires);
+attacherEcouteur('contrats', ()=>{ rendreContrats(); rendreApercu(); });
 </script>
 
 <!-- === BOUTON INSTALLER L'APPLICATION (PWA) === -->
