@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Vêtement déjà terminé — rien à coudre","Garment already finished — nothing to sew"],["La commande sera enregistrée comme","The order will be saved as"],["et n'occupera aucune place dans le planning.","and will take up no slot in the schedule."],["Vêtement déjà terminé — n'occupe aucune place","Garment already finished — takes up no slot"]);
 CHUNKS.push(["ce sont vos mesures, le paiement la concerne","these are your measurements, the payment is hers"],["Offert par","Gift from"]);
 CHUNKS.push(["les mesures sont à son nom","the measurements are under her name"],["commande(s) offerte(s) — payée(s) par","order(s) received as a gift — paid by"]);
 CHUNKS.push(["Reporté — rendez-vous initial:","Postponed — original appointment:"],["à traiter en priorité","to handle as a priority"],["priorité, promis le","priority, promised on"],["priorité — était prévu le","priority — was due on"],["déjà reporté au","already postponed to"]);
@@ -589,6 +590,13 @@ function traduireNoeud(node){
       <datalist id="liste-clients-existants"></datalist>
       <label>Téléphone</label>
       <input id="a-tel" placeholder="Ex: 7XX XXXX" oninput="tenterResolutionParTelephone('a')">
+      <label style="display:flex;align-items:center;gap:9px;margin-top:12px;cursor:pointer;">
+        <input type="checkbox" id="a-deja-fait" onchange="basculerDejaFait()" style="width:auto;margin:0;">
+        <span>✅ Vêtement déjà terminé — rien à coudre</span>
+      </label>
+      <div id="bloc-deja-fait" class="meta" style="display:none;margin-top:4px;padding:9px 11px;border-radius:9px;border:1px solid rgba(63,174,92,.4);background:rgba(63,174,92,.08);">
+        La commande sera enregistrée comme <strong>prête</strong> et n'occupera aucune place dans le planning.
+      </div>
       <label style="display:flex;align-items:center;gap:9px;margin-top:12px;cursor:pointer;">
         <input type="checkbox" id="a-cadeau" onchange="basculerBlocCadeau()" style="width:auto;margin:0;">
         <span>🎁 C'est un cadeau — le vêtement est pour quelqu'un d'autre</span>
@@ -1697,6 +1705,17 @@ function trouverClientExistant(nom, tel){
    Enregistrer le tout sous un seul nom melangeait les mesures de deux clientes
    dans le carnet d'adresses. La commande porte donc deux identites :
    le nom (celle qui paie) et le beneficiaire (celle qui portera). */
+/* Enregistrement retroactif d'un vetement DEJA COUSU (souvent deja paye).
+   Sans cela, le controle de capacite refusait la saisie sous pretexte que la
+   journee etait pleine — alors que cette commande ne demande aucun travail.
+   Elle est enregistree prete, et n'occupe donc aucune place. */
+function basculerDejaFait(){
+  const coche = document.getElementById('a-deja-fait');
+  const bloc = document.getElementById('bloc-deja-fait');
+  if(bloc) bloc.style.display = (coche && coche.checked) ? 'block' : 'none';
+  majChargeLivraison();
+}
+
 function basculerBlocCadeau(){
   const coche = document.getElementById('a-cadeau');
   const bloc = document.getElementById('bloc-cadeau');
@@ -1962,8 +1981,10 @@ async function ajouterCommande(){
   if(articlesValides.length===0){ toast('Ajoutez au moins un article avec un nom et un prix'); return; }
   /* CAPACITE : l'atelier livre un nombre limite de vêtements par jour (lundi-samedi).
      On previent AVANT toute ecriture, en proposant le premier jour libre. */
+  const dejaFait = !!(document.getElementById('a-deja-fait')||{}).checked;
   const dateLivraisonChoisie = (document.getElementById('a-livraison')||{}).value;
-  if(dateLivraisonChoisie){
+  /* Un vêtement déjà cousu ne consomme aucune capacité : on ne bloque pas. */
+  if(dateLivraisonChoisie && !dejaFait){
     const feuVert = await verifierCapaciteLivraison(dateLivraisonChoisie, articlesValides.length);
     if(!feuVert) return;
   }
@@ -2008,7 +2029,11 @@ async function ajouterCommande(){
       toast('⚠️ Certaines photos n\'ont pas pu être envoyées (réseau faible) — commande créée quand même');
     }
     const desc=document.getElementById('a-desc').value.trim();
-    const articles = articlesValides.map(l=>({nom:l.nom.trim(), prix:Number(l.prix)}));
+    const articles = articlesValides.map(l=>{
+      const a = {nom:l.nom.trim(), prix:Number(l.prix)};
+      if(dejaFait) a.etat = 'pret';   /* déjà cousu : hors capacité, hors plan de travail */
+      return a;
+    });
     const prix = articles.reduce((s,a)=>s+a.prix, 0);
     const acompte=Number(document.getElementById('a-acompte').value)||0;
     const cmd={
@@ -2030,13 +2055,15 @@ async function ajouterCommande(){
       livraison:document.getElementById('a-livraison').value,
       photosTissuURLs,
       photosModeleURLs,
-      statut:'Pris',
+      statut: dejaFait ? 'Prêt' : 'Pris',
       date:new Date().toLocaleDateString('fr-FR'),
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('commandes_couture', cmd, 'La commande n\'a pas pu être synchronisée en ligne');
     const caseCadeau = document.getElementById('a-cadeau');
     if(caseCadeau){ caseCadeau.checked = false; basculerBlocCadeau(); }
+    const caseFait = document.getElementById('a-deja-fait');
+    if(caseFait){ caseFait.checked = false; basculerDejaFait(); }
     /* CORRECTIF : la recette est datée du JOUR OÙ L'ARGENT EST ENCAISSÉ, pas de
        la "Date de dépôt" du vêtement. Avant, passer cmd.depot ici datait l'avance
        au jour du dépôt : si ce n'était pas aujourd'hui, l'argent disparaissait de
@@ -4077,6 +4104,10 @@ function majChargeLivraison(){
     zone.innerHTML = '<span style="color:var(--rouge);">Dimanche — atelier fermé</span>';
     return;
   }
+  if((document.getElementById('a-deja-fait')||{}).checked){
+    zone.innerHTML = '<span style="color:var(--vert);">Vêtement déjà terminé — n\'occupe aucune place</span>';
+    return;
+  }
   const n = chargeDuJour(champ.value).pieces;
   const teinte = n >= cap ? 'var(--rouge)' : (n >= cap-1 ? 'var(--or)' : 'var(--vert)');
   zone.innerHTML = '<span style="color:' + teinte + ';">Ce jour-là : ' + n + '/' + cap + ' vêtement(s) déjà prévus</span>';
@@ -5039,7 +5070,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-historique-cadeau';
+const APP_VERSION = 'v2026-08-01-deja-termine';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
