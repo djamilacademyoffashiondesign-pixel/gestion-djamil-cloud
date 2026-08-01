@@ -40,6 +40,9 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Reporté — rendez-vous initial:","Postponed — original appointment:"],["à traiter en priorité","to handle as a priority"],["priorité, promis le","priority, promised on"],["priorité — était prévu le","priority — was due on"],["déjà reporté au","already postponed to"]);
+CHUNKS.push(["déjà prêt(s) — elle peut les récupérer dès maintenant","already ready — she can collect them now"],["tenue(s) à récupérer dès maintenant","item(s) to collect now"],["à finir pour le","to finish by"]);
+CHUNKS.push(["rendez-vous dépassé(s) — travail non terminé","overdue appointment(s) — work unfinished"],["L'atelier propose une nouvelle date selon les places libres.","The workshop suggests a new date based on free slots."],["Proposition :","Suggestion:"],["Reprogrammer","Reschedule"],["Choisir une autre date","Choose another date"],["Tout reprogrammer automatiquement","Reschedule everything automatically"],["Prévenir la cliente","Notify the customer"],["Prévenir sur WhatsApp","Notify on WhatsApp"],["vêtement(s) encore à coudre sur","garment(s) still to sew out of"],["Promis le","Promised on"],["Atelier saturé sur les 3 prochains mois — augmentez la capacité quotidienne ou allégez le carnet.","Workshop full for the next 3 months — raise daily capacity or lighten the order book."]);
 CHUNKS.push(["Versé selon les fiches de paie :","Paid according to payroll records:"],["Enregistré en dépenses :","Recorded as expenses:"],["Paie et Finances concordent pour","Payroll and Finances match for"],["D versés mais absents des dépenses","D paid but missing from expenses"],["Enregistrer la dépense","Record the expense"]);
 CHUNKS.push(["Vérifier le total","Check the total"],["D'où vient ce total ?","Where does this total come from?"],["D'où vient le total des salaires","Where the salary total comes from"],["en double","duplicate"],["versé enregistré :","recorded as paid:"],["dépasse le salaire","exceeds the salary"],["employé(s) actif(s)","active employee(s)"]);
 CHUNKS.push(["Salaire mensuel :","Monthly salary:"],["Total versé enregistré :","Recorded total paid:"]);
@@ -451,6 +454,7 @@ function traduireNoeud(node){
       <div class="meta" id="planning-titre"></div>
       <div id="apercu-planning" style="margin-top:8px;"></div>
       <div id="apercu-echeances"></div>
+      <div id="apercu-retards"></div>
       <div class="item-actions" style="margin-top:10px;">
         <button onclick="changerSemaine(-1)">◀ Semaine précédente</button>
         <button onclick="changerSemaine(1)">Semaine suivante ▶</button>
@@ -2665,6 +2669,7 @@ function carteCommandeAtelier(c){
     ${(() => { const r = etatArticlesResume(c); return r ? '<div class="meta">🧷 '+r.prets+'/'+r.total+' prêt(s)'+(r.annules?' · '+r.annules+' annulé(s)':'')+(r.aFaire?' · '+r.aFaire+' à faire':'')+'</div>' : ''; })()}
     ${c.depot ? '<div class="meta">Dépôt: '+c.depot+'</div>' : ''}
     ${c.livraison ? '<div class="meta">Livraison prévue: '+c.livraison+'</div>' : ''}
+    ${(c.livraisonPrecedente && c.livraisonPrecedente !== c.livraison) ? '<div class="meta" style="color:var(--or);">🔥 Reporté — rendez-vous initial: '+c.livraisonPrecedente+' · à traiter en priorité</div>' : ''}
     ${(() => {
       const tissu = (c.photosTissuURLs && c.photosTissuURLs.length) ? c.photosTissuURLs : (c.photoTissuURL ? [c.photoTissuURL] : []);
       const modele = (c.photosModeleURLs && c.photosModeleURLs.length) ? c.photosModeleURLs : (c.photoModeleURL ? [c.photoModeleURL] : []);
@@ -3807,9 +3812,201 @@ function chargeDuJour(iso){
     const aCoudre = Math.max(0, n - dejaPrets);
     pieces += aCoudre;
     lignes.push({ nom: c.nom || '—', code: c.code || '', n: n, prets: dejaPrets,
-                  aCoudre: aCoudre, statut: c.statut || '' });
+                  aCoudre: aCoudre, statut: c.statut || '',
+                  reporteDe: (c.livraisonPrecedente && c.livraisonPrecedente !== c.livraison)
+                             ? c.livraisonPrecedente : '' });
   });
   return { pieces: pieces, lignes: lignes };
+}
+
+/* ================= RETARDS A REPROGRAMMER =================
+   Un rendez-vous depasse ne bouge pas tout seul : la commande reste affichee
+   a son ancienne date, "EN RETARD de n jours", et la cliente n'est prevenue de
+   rien. Djamil devait rouvrir chaque fiche et choisir une date a la main.
+   L'atelier connait pourtant sa capacite : il peut proposer lui-meme le premier
+   jour ou le travail restant tient. Rien n'est ecrit sans validation. */
+
+function commandesEnRetard(){
+  const auj = new Date(); auj.setHours(0,0,0,0);
+  const liste = [];
+  (CACHE.commandes_couture||[]).forEach(function(c){
+    if(!c.livraison) return;
+    if(coutureTerminee(c.statut)) return;   /* Prêt, Livré, Annulé : rien à refaire */
+    const d = dateDepuisISO(c.livraison); d.setHours(0,0,0,0);
+    const retard = Math.round((auj - d) / 86400000);
+    if(retard <= 0) return;                 /* pas encore dépassé */
+    const restants = (c.articles && c.articles.length) ? articlesRestants(c).length : 1;
+    if(restants <= 0) return;               /* tout est cousu : c'est un retrait, pas du travail */
+    /* Des vetements peuvent etre finis alors que le reste traine : la cliente
+       doit pouvoir venir les chercher tout de suite, sans attendre le reste. */
+    const prets = (c.articles && c.articles.length)
+      ? c.articles.filter(function(a){ return etatArticle(a) === 'pret'; }).length : 0;
+    liste.push({ id:c.id, nom:c.nom||'—', code:c.code||'', tel:c.tel||'',
+                 livraison:c.livraison, promesse:c.livraisonPrecedente||'',
+                 retard:retard, restants:restants, prets:prets,
+                 total:(c.articles && c.articles.length) ? c.articles.length : 1 });
+  });
+  liste.sort(function(a,b){ return b.retard - a.retard; });
+  return liste;
+}
+
+/* Date proposee : le jour ou le travail restant sera TERMINE.
+   Attention, une grosse commande ne tient pas forcement dans une seule journee
+   (6 vetements pour une capacite de 5) : chercher un jour unique ou tout entre
+   ne renvoyait alors jamais de date. On remplit donc les places libres jour
+   apres jour, et on retient le jour de la derniere piece.
+   On part de demain, pas d'aujourd'hui : promettre une commande le jour meme
+   ou l'on s'apercoit du retard serait irrealiste. */
+function dateProposeePour(nbVetements){
+  const cap = capaciteJour();
+  let reste = Math.max(1, nbVetements);
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  for(let i=0; i<90 && reste>0; i++){
+    if(d.getDay() !== 0){          /* dimanche : atelier ferme */
+      const iso = isoDeDate(d);
+      const libre = cap - chargeDuJour(iso).pieces;
+      if(libre > 0){
+        reste -= Math.min(libre, reste);
+        if(reste <= 0) return iso;  /* la derniere piece tombe ce jour-la */
+      }
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return null;
+}
+
+function rendreRetardsAReprogrammer(){
+  const zone = document.getElementById('apercu-retards');
+  if(!zone) return;
+  const retards = commandesEnRetard();
+  if(!retards.length){ zone.innerHTML = ''; return; }
+
+  const html = '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.5);">'
+    + '<div class="nom">📅 ' + retards.length + ' rendez-vous dépassé(s) — travail non terminé</div>'
+    + '<div class="meta" style="margin-top:5px;">L\'atelier propose une nouvelle date selon les places libres.</div>'
+    + '</div>'
+    + retards.map(function(r){
+        const propose = dateProposeePour(r.restants);
+        const libelle = propose
+          ? dateDepuisISO(propose).toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'})
+          : null;
+        return '<div class="liste-item" style="border-left:3px solid var(--rouge);">'
+          + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+          +   '<span>' + r.nom + (r.code ? ' · ' + r.code : '') + '</span>'
+          +   '<span style="color:var(--rouge);">' + r.retard + ' j</span></div>'
+          + '<div class="meta">Promis le ' + dateDepuisISO(r.promesse || r.livraison).toLocaleDateString('fr-FR')
+          +   (r.promesse && r.promesse !== r.livraison
+                ? ' <span style="color:var(--or);">(déjà reporté au ' + dateDepuisISO(r.livraison).toLocaleDateString('fr-FR') + ')</span>' : '')
+          +   ' · ' + r.restants + ' vêtement(s) encore à coudre sur ' + r.total + '</div>'
+          + (r.prets
+              ? '<div class="meta" style="color:var(--vert);">✅ ' + r.prets + ' déjà prêt(s) — elle peut les récupérer dès maintenant</div>'
+              : '')
+          + (libelle
+              ? '<div class="meta" style="margin-top:5px;color:var(--vert);">Proposition : <strong>' + libelle + '</strong></div>'
+                + '<div class="item-actions" style="margin-top:7px;">'
+                +   '<button onclick="reprogrammerCommande(\'' + r.id + '\',\'' + propose + '\')" style="color:var(--vert);border-color:rgba(63,174,92,.4);">✅ Reprogrammer</button>'
+                +   '<button onclick="reporterRdv(\'Atelier\',\'' + r.id + '\')">📅 Choisir une autre date</button>'
+                + '</div>'
+              : '<div class="meta" style="margin-top:5px;color:var(--rouge);">Atelier saturé sur les 3 prochains mois — augmentez la capacité quotidienne ou allégez le carnet.</div>')
+          + '</div>';
+      }).join('');
+
+  zone.innerHTML = html
+    + (retards.length > 1
+        ? '<div class="item-actions" style="margin-top:8px;"><button onclick="reprogrammerTousLesRetards()">📅 Tout reprogrammer automatiquement</button></div>'
+        : '');
+}
+
+async function reprogrammerCommande(id, iso, silencieux){
+  const c = (CACHE.commandes_couture||[]).find(function(x){ return x.id === id; });
+  if(!c || !iso) return false;
+  const ancienne = c.livraison;
+  c.livraison = iso;
+  try {
+    /* On garde la promesse D'ORIGINE, pas la derniere date en date : c'est elle
+       qui fixe le rang de priorite. Un deuxieme report ne doit pas effacer le
+       fait que la cliente attend depuis le 25. */
+    const promesseOrigine = c.livraisonPrecedente || ancienne || '';
+    await db.collection('commandes_couture').doc(id).update({
+      livraison: iso,
+      livraisonPrecedente: promesseOrigine,
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    c.livraisonPrecedente = promesseOrigine;
+  } catch(err){
+    console.error('Erreur reprogrammation', err);
+    toast('⚠️ Non confirmé en ligne — sera renvoyé au retour du réseau');
+  }
+  rendreAtelier(); rendreApercu();
+  if(!silencieux){
+    toast(c.nom + ' — nouveau rendez-vous le ' + dateDepuisISO(iso).toLocaleDateString('fr-FR'));
+    proposerMessageReport(c, iso);
+  }
+  return true;
+}
+
+/* La cliente attendait ses vetements : elle doit l'apprendre de l'atelier,
+   pas en se deplacant pour rien. */
+function proposerMessageReport(c, iso){
+  if(!c.tel) return;
+  const jour = dateDepuisISO(iso).toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'});
+  const jourEn = dateDepuisISO(iso).toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'long'});
+  const nomCommerce = (typeof NOM_COMMERCE !== 'undefined' && NOM_COMMERCE) ? NOM_COMMERCE : 'Chez Djamil';
+  const prets = (c.articles && c.articles.length)
+    ? c.articles.filter(function(a){ return etatArticle(a) === 'pret'; }).length : 0;
+  const reste = (c.articles && c.articles.length) ? articlesRestants(c).length : 1;
+
+  /* Si une partie est deja cousue, on ne fait pas attendre la cliente pour
+     rien : elle vient chercher ces pieces maintenant, le reste suit. */
+  const msg = prets > 0
+    ? texteMsg(
+        'Bonjour ' + (c.nom||'') + ', concernant votre commande' + (c.code ? ' (Code ' + c.code + ')' : '')
+          + ' : ' + prets + ' tenue(s) sont déjà prêtes, vous pouvez venir les récupérer dès maintenant. '
+          + 'Les ' + reste + ' autre(s) n\'ont pas pu être terminées à temps, nous vous prions de nous en excuser — '
+          + 'elles seront prêtes le ' + jour + '. Merci de votre compréhension — ' + nomCommerce + '.',
+        'Hello ' + (c.nom||'') + ', about your order' + (c.code ? ' (Code ' + c.code + ')' : '')
+          + ': ' + prets + ' item(s) are already finished and you may collect them now. '
+          + 'The remaining ' + reste + ' could not be completed on time, please accept our apologies — '
+          + 'they will be ready on ' + jourEn + '. Thank you for your understanding — ' + nomCommerce + '.')
+    : texteMsg(
+        'Bonjour ' + (c.nom||'') + ', votre commande' + (c.code ? ' (Code ' + c.code + ')' : '')
+          + ' n\'a pas pu être terminée à la date prévue. Nous vous prions de nous en excuser. '
+          + 'Elle sera prête le ' + jour + '. Merci de votre compréhension — ' + nomCommerce + '.',
+        'Hello ' + (c.nom||'') + ', your order' + (c.code ? ' (Code ' + c.code + ')' : '')
+          + ' could not be finished on the planned date. Please accept our apologies. '
+          + 'It will be ready on ' + jourEn + '. Thank you for your understanding — ' + nomCommerce + '.');
+
+  const lien = lienWhatsApp(c.tel, msg);
+  if(!lien) return;
+  ouvrirModale('Prévenir la cliente',
+      '<div class="liste-item"><div class="nom">' + (c.nom||'') + '</div>'
+    + (prets > 0
+        ? '<div class="meta" style="margin-top:5px;color:var(--vert);">✅ ' + prets + ' tenue(s) à récupérer dès maintenant</div>'
+          + '<div class="meta">🧵 ' + reste + ' à finir pour le ' + jour + '</div>'
+        : '<div class="meta" style="margin-top:5px;">Nouveau rendez-vous : ' + jour + '</div>')
+    + '</div>'
+    + '<div class="meta" style="margin-top:10px;">Elle attendait ses vêtements : mieux vaut la prévenir avant qu\'elle se déplace.</div>'
+    + '<div style="margin-top:12px;"><a href="' + lien + '" target="_blank" rel="noopener" '
+    + 'style="display:block;text-align:center;background:#25D366;color:#fff;padding:13px;border-radius:10px;'
+    + 'text-decoration:none;font-weight:700;">💬 Prévenir sur WhatsApp</a></div>');
+}
+
+async function reprogrammerTousLesRetards(){
+  const retards = commandesEnRetard();
+  if(!retards.length) return;
+  /* On recalcule la date apres chaque report : la commande precedente vient
+     d'occuper des places, la suivante doit en tenir compte. */
+  const apercu = retards.map(function(r){ return r.nom; }).join(', ');
+  if(!confirm('Reprogrammer ' + retards.length + ' commande(s) au premier jour libre ?\n\n' + apercu)) return;
+  let faites = 0;
+  for(const r of retards){
+    const propose = dateProposeePour(r.restants);
+    if(!propose) continue;
+    if(await reprogrammerCommande(r.id, propose, true)) faites++;
+  }
+  rendreApercu();
+  toast(faites + ' commande(s) reprogrammée(s) — prévenez les clientes une par une');
 }
 
 /* Premier jour ouvre (lundi-samedi) capable d'accueillir "besoin" pieces. */
@@ -3909,8 +4106,11 @@ function rendrePlanningSemaine(){
           let etat = '';
           if(l.aCoudre === 0) etat = ' <span style="color:var(--vert);">✅ prêt — à récupérer</span>';
           else if(l.prets > 0) etat = ' <span style="color:var(--vert);">(' + l.prets + ' déjà prêt(s))</span>';
-          return '<div class="meta">• ' + l.nom + ' — <strong>' + l.n + '</strong> vêtement(s)'
-               + (l.code ? ' · ' + l.code : '') + etat + '</div>';
+          return '<div class="meta">' + (l.reporteDe ? '🔥 ' : '• ') + l.nom + ' — <strong>' + l.n + '</strong> vêtement(s)'
+               + (l.code ? ' · ' + l.code : '') + etat
+               + (l.reporteDe ? '<br><span style="color:var(--or);">priorité — était prévu le '
+                   + dateDepuisISO(l.reporteDe).toLocaleDateString('fr-FR') + '</span>' : '')
+               + '</div>';
         }).join('')
       : '<div class="meta" style="opacity:.55;">— libre —</div>';
     html += '<div class="liste-item" style="' + (auj ? 'border-left:3px solid var(--or);' : '') + '">'
@@ -4048,17 +4248,24 @@ function planifierProduction(){
       /* Seuls les vêtements encore à coudre entrent dans le plan : ceux déjà
          marqués prêts, et ceux annulés, ne prennent plus de place. */
       const aFaire = (c.articles && c.articles.length) ? articlesRestants(c).length : 1;
+      /* PRIORITE AUX RETARDS : une commande reportee a deja fait attendre la
+         cliente. Si on la classait sur sa NOUVELLE date, elle repasserait
+         derriere des commandes plus recentes et pourrait etre repoussee une
+         deuxieme fois. On la classe donc sur la date promise a l'origine
+         (livraisonPrecedente), qui la garde devant. */
+      const promesse = c.livraisonPrecedente || c.livraison || '';
       return { nom:c.nom||'—', code:c.code||'', livraison:c.livraison||'',
+               promesse:promesse, reporte:!!(c.livraisonPrecedente && c.livraisonPrecedente !== c.livraison),
                total:(c.articles && c.articles.length) ? articlesActifs(c).length : 1,
                reste:aFaire, statut:c.statut||'' };
     })
     .filter(function(o){ return o.reste > 0; })
-    /* Echeance la plus proche d'abord ; les commandes sans date passent en dernier. */
+    /* Promesse la plus ancienne d'abord ; les commandes sans date en dernier. */
     .sort(function(a,b){
-      if(!a.livraison && !b.livraison) return b.total - a.total;
-      if(!a.livraison) return 1;
-      if(!b.livraison) return -1;
-      if(a.livraison !== b.livraison) return a.livraison < b.livraison ? -1 : 1;
+      if(!a.promesse && !b.promesse) return b.total - a.total;
+      if(!a.promesse) return 1;
+      if(!b.promesse) return -1;
+      if(a.promesse !== b.promesse) return a.promesse < b.promesse ? -1 : 1;
       return b.total - a.total;
     });
 
@@ -4090,7 +4297,7 @@ function planifierProduction(){
       }
       taches.push({ nom:o.nom, code:o.code, pris:pris, total:o.total,
                     dejaFait:o.total - o.reste - pris, reste:o.reste,
-                    livraison:o.livraison, tard:tard });
+                    livraison:o.livraison, tard:tard, reporte:o.reporte, promesse:o.promesse });
     }
     if(taches.length) jours.push({ iso:iso, taches:taches, libre:libre });
     d.setDate(d.getDate()+1);
@@ -4141,9 +4348,13 @@ function rendrePlanTravail(){
           const suivi = (t.pris < t.total)
             ? ' <span style="opacity:.7;">(' + (t.dejaFait + t.pris) + '/' + t.total + ')</span>' : '';
           return '<div class="meta" style="margin-top:4px;">'
+            + (t.reporte ? '<span style="color:var(--or);">🔥 </span>' : '')
             + (t.tard ? '<span style="color:var(--rouge);">⚠️ </span>' : '')
             + '<strong>' + t.nom + '</strong> — ' + t.pris + ' vêtement(s)' + suivi
-            + (t.code ? ' · ' + t.code : '') + '</div>';
+            + (t.code ? ' · ' + t.code : '')
+            + (t.reporte ? ' <span style="color:var(--or);">· priorité, promis le '
+                + dateDepuisISO(t.promesse).toLocaleDateString('fr-FR') + '</span>' : '')
+            + '</div>';
         }).join('')
       + '</div>';
   }).join('');
@@ -4558,6 +4769,7 @@ function rendreApercu(){
   verifierRappelCloture();
   rendrePlanningSemaine();
   verifierEcheancesProches();
+  rendreRetardsAReprogrammer();
   rendreImpayes();
   majChargeLivraison();
   afficherStatutCodeTemporaire();
@@ -4790,7 +5002,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-atelier-trois-tableaux';
+const APP_VERSION = 'v2026-08-01-priorite-retards';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
