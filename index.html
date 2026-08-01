@@ -40,6 +40,8 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["ce sont vos mesures, le paiement la concerne","these are your measurements, the payment is hers"],["Offert par","Gift from"]);
+CHUNKS.push(["les mesures sont à son nom","the measurements are under her name"],["commande(s) offerte(s) — payée(s) par","order(s) received as a gift — paid by"]);
 CHUNKS.push(["Reporté — rendez-vous initial:","Postponed — original appointment:"],["à traiter en priorité","to handle as a priority"],["priorité, promis le","priority, promised on"],["priorité — était prévu le","priority — was due on"],["déjà reporté au","already postponed to"]);
 CHUNKS.push(["déjà prêt(s) — elle peut les récupérer dès maintenant","already ready — she can collect them now"],["tenue(s) à récupérer dès maintenant","item(s) to collect now"],["à finir pour le","to finish by"]);
 CHUNKS.push(["rendez-vous dépassé(s) — travail non terminé","overdue appointment(s) — work unfinished"],["L'atelier propose une nouvelle date selon les places libres.","The workshop suggests a new date based on free slots."],["Proposition :","Suggestion:"],["Reprogrammer","Reschedule"],["Choisir une autre date","Choose another date"],["Tout reprogrammer automatiquement","Reschedule everything automatically"],["Prévenir la cliente","Notify the customer"],["Prévenir sur WhatsApp","Notify on WhatsApp"],["vêtement(s) encore à coudre sur","garment(s) still to sew out of"],["Promis le","Promised on"],["Atelier saturé sur les 3 prochains mois — augmentez la capacité quotidienne ou allégez le carnet.","Workshop full for the next 3 months — raise daily capacity or lighten the order book."]);
@@ -4597,12 +4599,19 @@ function rendreRechercheGlobale(){
   const q = (document.getElementById('recherche-globale')?.value||'').trim().toLowerCase();
   if(!q){ zone.innerHTML=''; return; }
   const correspond = (nom, tel, code) => (nom||'').toLowerCase().includes(q) || (tel||'').toLowerCase().includes(q) || (code||'').toLowerCase().includes(q);
+  /* Commande offerte : la cliente qui paie et celle qui porte sont deux
+     personnes differentes. Chercher seulement le nom du payeur rendait la
+     commande introuvable quand on cherchait la porteuse — et inversement. */
+  const correspondCadeau = (c) => correspond(c.beneficiaire, c.beneficiaireTel, '');
   const btnHistorique = (nom, tel) => MODE_DIRECTEUR ? `<div class="item-actions"><button onclick="afficherHistoriqueClient('${encodeURIComponent(nom||'')}','${encodeURIComponent(tel||'')}')">📖 Historique complet</button></div>` : '';
   let resultats = [];
   (CACHE.commandes_couture||[]).forEach(c=>{
-    if(correspond(c.nom, c.tel, c.code)) resultats.push(`<div class="liste-item">
+    const parPayeur = correspond(c.nom, c.tel, c.code);
+    const parPorteuse = correspondCadeau(c);
+    if(parPayeur || parPorteuse) resultats.push(`<div class="liste-item">
       <div class="nom">✂️ ${c.nom} <span class="badge attente">Atelier · ${c.code||''}</span></div>
       <div class="meta">${c.tel||'Sans téléphone'} · Statut: ${c.statut}</div>
+      ${c.beneficiaire ? `<div class="meta" style="color:var(--or-clair);">🎁 Pour ${c.beneficiaire}${c.beneficiaireTel ? ' · '+c.beneficiaireTel : ''} — les mesures sont à son nom</div>` : ''}
       ${btnHistorique(c.nom, c.tel)}
     </div>`);
   });
@@ -4621,11 +4630,18 @@ function rendreRechercheGlobale(){
     </div>`);
   });
   (CACHE.clients_mesures||[]).forEach(f=>{
-    if(correspond(f.nom, f.tel, '')) resultats.push(`<div class="liste-item">
+    if(correspond(f.nom, f.tel, '')){
+      /* Si des vêtements ont été offerts à cette personne, on le dit : sinon
+         Djamil cherche en vain la commande sous le nom de la porteuse. */
+      const offertes = (CACHE.commandes_couture||[]).filter(c=>
+        (c.beneficiaire||'').trim().toLowerCase() === (f.nom||'').trim().toLowerCase());
+      resultats.push(`<div class="liste-item">
       <div class="nom">📏 ${f.nom} <span class="badge attente">Mesures</span></div>
       <div class="meta">${f.tel||'Sans téléphone'}</div>
+      ${offertes.length ? `<div class="meta" style="color:var(--or-clair);">🎁 ${offertes.length} commande(s) offerte(s) — payée(s) par ${offertes.map(c=>c.nom).filter((v,i,a)=>a.indexOf(v)===i).join(', ')}</div>` : ''}
       ${btnHistorique(f.nom, f.tel)}
     </div>`);
+    }
   });
   (CACHE.visiteurs||[]).forEach(v=>{
     if(correspond(v.nom, v.tel, '')) resultats.push(`<div class="liste-item">
@@ -4660,6 +4676,21 @@ function estMemeClientHistorique(nomRef, telRef, nom, tel){
   if(telRefN && telN) return telRefN===telN;
   return (nomRef||'').trim().toLowerCase()!=='' && (nomRef||'').trim().toLowerCase()===(nom||'').trim().toLowerCase();
 }
+
+/* COMMANDE OFFERTE : la commande porte le nom et le telephone de celle qui
+   PAIE, tandis que la fiche de mesures porte ceux de celle qui PORTE. Comme la
+   regle ci-dessus compare les telephones en priorite, l'historique de la
+   porteuse affichait "Atelier: 0" alors que des vetements avaient bien ete
+   cousus pour elle. On teste donc aussi le beneficiaire. */
+function estBeneficiaireHistorique(nomRef, telRef, c){
+  if(!c.beneficiaire) return false;
+  const nomA = (nomRef||'').trim().toLowerCase();
+  const nomB = (c.beneficiaire||'').trim().toLowerCase();
+  if(nomA && nomB && nomA === nomB) return true;
+  const telA = (telRef||'').replace(/[^0-9]/g,'');
+  const telB = (c.beneficiaireTel||'').replace(/[^0-9]/g,'');
+  return !!(telA && telB && telA === telB);
+}
 function fermerHistoriqueClient(){
   const zone = document.getElementById('historique-client');
   if(zone) zone.innerHTML = '';
@@ -4681,17 +4712,23 @@ function afficherHistoriqueClient(nomEnc, telEnc){
   let nbAtelier = 0, nbPressing = 0, nbBoutique = 0, nbVisites = 0;
 
   (CACHE.commandes_couture||[]).forEach(c=>{
-    if(!estMemeClientHistorique(nomRef, telRef, c.nom, c.tel)) return;
+    const estPayeuse = estMemeClientHistorique(nomRef, telRef, c.nom, c.tel);
+    const estPorteuse = estBeneficiaireHistorique(nomRef, telRef, c);
+    if(!estPayeuse && !estPorteuse) return;
     nbAtelier++;
     const prix = Number(c.prix)||0, acompte = Number(c.acompte)||0;
-    totalCommande += prix; totalVerse += acompte;
     const reste = Math.max(prix-acompte, 0);
-    totalResteDu += reste;
     const articles = (c.articles||[]).map(a=>a.nom).join(', ');
+    /* Sur un cadeau, l'argent appartient a la payeuse : on ne le compte pas
+       dans les totaux de la porteuse, sinon elle apparaitrait débitrice d'une
+       somme qu'elle ne doit pas. La commande reste affichée, sans les chiffres. */
+    if(estPayeuse){ totalCommande += prix; totalVerse += acompte; totalResteDu += reste; }
     evenements.push({ d: dateDeTriHistorique(c), html: `<div class="liste-item">
       <div class="nom">✂️ Atelier <span class="badge attente">${c.code||''}</span> <span class="badge attente">${c.statut||''}</span></div>
       <div class="meta">${c.date||''} ${articles ? '· '+articles : ''}${c.desc ? ' · '+c.desc : ''}</div>
-      <div class="meta">Total: ${prix} D · Dépôt/acompte: ${acompte} D ${reste>0 ? '· <strong>Reste dû: '+reste+' D</strong>' : '· Payé en totalité ✓'}</div>
+      ${estPayeuse
+        ? `<div class="meta">Total: ${prix} D · Dépôt/acompte: ${acompte} D ${reste>0 ? '· <strong>Reste dû: '+reste+' D</strong>' : '· Payé en totalité ✓'}</div>`
+        : `<div class="meta" style="color:var(--or-clair);">🎁 Offert par ${c.nom} — ce sont vos mesures, le paiement la concerne</div>`}
     </div>` });
   });
   (CACHE.depots_pressing||[]).forEach(t=>{
@@ -5002,7 +5039,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-priorite-retards';
+const APP_VERSION = 'v2026-08-01-historique-cadeau';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
