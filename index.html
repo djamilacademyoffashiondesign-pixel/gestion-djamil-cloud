@@ -40,6 +40,8 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Ouvrir WhatsApp","Open WhatsApp"],["Aucun numéro enregistré pour ce client","No phone saved for this client"],["Facture de la commande — Code","Order invoice — Code"],["Reçu de dépôt — Code","Drop-off receipt — Code"],["Confirmation de paiement —","Payment confirmation —"],["D reçus","D received"]);
+CHUNKS.push(["Forcer la mise à jour","Force update"],["Version","Version"]);
 CHUNKS.push(["Envoyer la notification","Send the notification"],["Ne pas envoyer","Do not send"],["Nouveau statut :","New status:"],["Statut non enregistré","Status not saved"],["Le changement n'a pas été accepté par le serveur.","The change was not accepted by the server."],["Vérifiez votre connexion, puis réessayez.","Check your connection, then try again."],["Réessayer","Try again"]);
 CHUNKS.push(["À FAIRE","TO DO"],["PRÊT","READY"],["ANNULÉ","CANCELLED"],["Changer l'état :","Change status:"],["Remettre à faire","Set back to do"],["Marquer prêt","Mark as ready"],["Marquer annulé","Mark as cancelled"]);
 CHUNKS.push(["rendez-vous proche(s) — travail à finir","upcoming appointment(s) — work to finish"],["commande(s) prête(s) — la cliente doit passer","order(s) ready — the client needs to come"],["prêt, à récupérer","ready, to collect"],["travail en cours","work in progress"]);
@@ -431,6 +433,10 @@ function traduireNoeud(node){
     </div>
   </div>
   <div><button onclick="deconnexionUtilisateur()" style="margin-top:8px;background:none;border:1px solid #34343a;color:#8a8a8f;padding:4px 12px;border-radius:12px;font-size:0.68rem;font-family:'Helvetica Neue',Arial,sans-serif;">Déconnexion</button></div>
+  <div style="margin-top:6px;font-size:0.62rem;color:#5a5a60;font-family:'Helvetica Neue',Arial,sans-serif;">
+    <span id="etiquette-version"></span>
+    <a href="#" onclick="forcerMiseAJour();return false;" style="color:#5a5a60;text-decoration:underline;margin-left:8px;">🔄 Forcer la mise à jour</a>
+  </div>
 </header>
 
 <nav class="tabs">
@@ -1525,6 +1531,29 @@ async function changerNomCommerce(){
     .catch(function(err){ console.error('Erreur enregistrement nom du commerce', err); toast('Enregistré sur cet appareil — synchronisation dès le retour en ligne'); });
 }
 
+/* ================= POINT UNIQUE D'ENVOI WHATSAPP =================
+   CAUSE GENERALE DES NOTIFICATIONS QUI "NE PARTENT PLUS" :
+   window.open() n'est autorise par le navigateur que s'il decoule directement
+   d'un geste de l'utilisateur. Or ici il etait toujours appele APRES quelque
+   chose : un await (creation du code commande), un confirm(), un .then()
+   Firestore ou un setTimeout. Le navigateur coupait donc l'ouverture en
+   silence — aucune erreur, aucun message, la notification disparaissait
+   simplement. En application installee (PWA) c'est encore plus strict.
+
+   Un vrai lien <a> que Djamil touche lui-meme n'est JAMAIS bloque. Toutes les
+   notifications passent desormais par cette seule fonction. */
+function ouvrirLienWhatsApp(nomClient, lien, contexte){
+  if(!lien){ toast('Aucun numéro enregistré pour ce client'); return; }
+  ouvrirModale('Envoyer à ' + (nomClient || 'ce client'),
+      '<div class="liste-item"><div class="nom">' + (nomClient||'') + '</div>'
+    + (contexte ? '<div class="meta" style="margin-top:5px;">' + contexte + '</div>' : '')
+    + '</div>'
+    + '<div style="margin-top:14px;"><a href="' + lien + '" target="_blank" rel="noopener" '
+    + 'style="display:block;text-align:center;background:#25D366;color:#fff;padding:15px;border-radius:11px;'
+    + 'text-decoration:none;font-weight:700;font-size:1.02rem;">💬 Ouvrir WhatsApp</a></div>',
+    [{ texte:'Ne pas envoyer', style:'secondary' }]);
+}
+
 function lienWhatsApp(tel,message){
   if(!tel) return '';
   message = String(message==null?'':message).split('Chez Djamil').join(NOM_COMMERCE);
@@ -2105,10 +2134,7 @@ async function ajouterCommande(){
       )
         + (photosModeleURLs.length ? texteMsg(`\nModèle(s) choisi(s): ${photosModeleURLs.join(' , ')}`, `\nChosen design(s): ${photosModeleURLs.join(' , ')}`) : '');
       const lien=lienWhatsApp(cmd.tel, msg);
-      if(lien){
-        const ouvrir = confirm('Commande créée (Code '+code+'). Envoyer la facture complète par WhatsApp au client ?');
-        if(ouvrir) window.open(lien, "_blank");
-      }
+      ouvrirLienWhatsApp(nom, lien, 'Facture de la commande — Code ' + code);
     }
   } catch(err){
     toast('Erreur: '+err.message);
@@ -2428,10 +2454,7 @@ async function marquerSoldePayeAtelier(id){
       `Hello ${c.nom}, we confirm receipt of your final payment of ${reste} D for your order (Code ${c.code}).\n✅ Paid in full — thank you for your trust!`
     );
     const lien=lienWhatsApp(c.tel, msg);
-    if(lien){
-      const ouvrir = confirm('Envoyer une confirmation de paiement par WhatsApp à '+c.nom+' ?');
-      if(ouvrir) window.open(lien, "_blank");
-    }
+    ouvrirLienWhatsApp(c.nom, lien, 'Confirmation de paiement — ' + reste + ' D reçus');
   }
 }
 /* Fonction centrale unique pour toutes les notifications WhatsApp dynamiques :
@@ -2512,7 +2535,7 @@ function envoyerNotificationWhatsAppDynamique(nomClient, telephone, typeActivite
   const message = construireMessageNotification(typeActivite, statut, nomClient, detailCommande, total, acompte, code);
   if(message !== ""){
     const urlFinal = lienWhatsApp(telephone, message);
-    if(urlFinal) window.open(urlFinal, "_blank");
+    ouvrirLienWhatsApp(nomClient, urlFinal, statut);
   } else {
     toast(texteMsg('⚠️ Aucun modèle de message pour ce statut', '⚠️ No message template for this status'));
   }
@@ -3115,7 +3138,7 @@ async function ajouterTicket(){
       )
         + (photoURL ? texteMsg(`\nPhoto de vos articles: ${photoURL}`, `\nPhoto of your items: ${photoURL}`) : '');
       const lien=lienWhatsApp(tel, msg);
-      if(lien) window.open(lien, "_blank");
+      ouvrirLienWhatsApp(nom, lien, 'Reçu de dépôt — Code ' + code);
     }
   } catch(err){
     toast('Erreur: '+err.message);
@@ -3335,10 +3358,7 @@ async function marquerSoldePayePressing(id){
       `Hello ${t.nom}, we confirm receipt of your final payment of ${reste} D for your pressing ticket (Code ${t.code}).\n✅ Paid in full — thank you for your trust!`
     );
     const lien=lienWhatsApp(t.tel, msg);
-    if(lien){
-      const ouvrir = confirm('Envoyer une confirmation de paiement par WhatsApp à '+t.nom+' ?');
-      if(ouvrir) window.open(lien, "_blank");
-    }
+    ouvrirLienWhatsApp(t.nom, lien, 'Confirmation de paiement — ' + reste + ' D reçus');
   }
 }
 function notifierLavageEnCours(id){
@@ -3708,17 +3728,9 @@ function cloturerLaJournee(){
       { texte:'Annuler', style:'secondary' },
       { texte:'Confirmer la clôture', action:function(){
           try { localStorage.setItem('cd_cloture_'+aujourdhuiISO, '1'); } catch(e){}
-          const w = window.open(lien, '_blank');
-          if(!w){
-            /* Pop-up bloque : on affiche un lien que le manager peut toucher. */
-            ouvrirModale('Envoyer le résumé',
-              '<div class="meta">Touchez le bouton pour ouvrir WhatsApp :</div>'
-              + '<div style="margin-top:12px;"><a href="'+lien+'" target="_blank" rel="noopener" '
-              + 'style="display:block;text-align:center;background:#25D366;color:#fff;padding:13px;border-radius:10px;'
-              + 'text-decoration:none;font-weight:700;">Ouvrir WhatsApp</a></div>');
-          } else {
-            afficherEcranSucces('Journée clôturée avec succès', 'Total reçu: '+totalRecu+' D — Solde net: '+solde+' D');
-          }
+          /* Plus de window.open ici non plus : on passe par le lien unique. */
+          ouvrirLienWhatsApp('le propriétaire', lien,
+            'Résumé de clôture — Total reçu ' + totalRecu + ' D · Solde net ' + solde + ' D');
           verifierRappelCloture();
         } }
     ]);
@@ -5168,7 +5180,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-notif-statut';
+const APP_VERSION = 'v2026-08-01-whatsapp-unifie';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5178,7 +5190,41 @@ const APP_VERSION = 'v2026-08-01-notif-statut';
       }
     }
   }catch(e){}
+  /* La version doit être VISIBLE : sans elle, impossible de savoir si le
+     téléphone affiche la dernière copie ou une vieille version en cache —
+     on cherche alors des bugs déjà corrigés. */
+  try{
+    const e = document.getElementById('etiquette-version');
+    if(e) e.textContent = 'Version ' + APP_VERSION;
+  }catch(e){}
 })();
+
+/* Purge complète, déclenchée à la main. Utile quand le cache sert encore une
+   ancienne copie : la purge automatique ci-dessus ne peut pas s'exécuter tant
+   que le nouveau fichier n'a pas été chargé — c'est un cercle vicieux. */
+function forcerMiseAJour(){
+  if(!confirm('Recharger l\'application depuis le serveur ?\n\nVos données ne sont pas touchées.')) return;
+  try{
+    if(window.caches && caches.keys){
+      caches.keys().then(cles=>Promise.all(cles.map(c=>caches.delete(c)))).finally(rechargerSansCache);
+      return;
+    }
+  }catch(e){}
+  rechargerSansCache();
+}
+function rechargerSansCache(){
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        regs.forEach(function(r){ try{ r.unregister(); }catch(e){} });
+      }).finally(function(){
+        location.replace(location.pathname + '?maj=' + Date.now());
+      });
+      return;
+    }
+  }catch(e){}
+  location.replace(location.pathname + '?maj=' + Date.now());
+}
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(reg=>{ try{ reg.update(); }catch(e){} }).catch(()=>{ /* fichier absent : les autres rappels fonctionnent quand même */ });
 }
@@ -5947,14 +5993,14 @@ function ajouterAvanceSalaire(employeId, nomEmploye){
         `Hello ${nomEmploye}, your salary for ${moisAffichage(mois)} (${salaireMensuel} D) has been paid in full. Thank you for your work this month! 🙏`
       );
       const lien = lienWhatsApp(employe.tel, msg);
-      if(lien) window.open(lien, '_blank');
+      ouvrirLienWhatsApp(nomEmploye, lien, 'Salaire ' + moisAffichage(mois));
     } else {
       const msg = texteMsg(
         `Bonjour ${nomEmploye}, une avance de ${montant} D a été notée sur votre salaire de ${moisAffichage(mois)}. Total des avances notées: ${montantVerseTotal} D. La déduction se fera en fin de mois — solde prévu: ${soldeRestant} D.`,
         `Hello ${nomEmploye}, an advance of ${montant} D has been noted on your ${moisAffichage(mois)} salary. Total advances noted: ${montantVerseTotal} D. The deduction will be applied at the end of the month — expected balance: ${soldeRestant} D.`
       );
       const lien = lienWhatsApp(employe.tel, msg);
-      if(lien) window.open(lien, '_blank');
+      ouvrirLienWhatsApp(nomEmploye, lien, 'Salaire ' + moisAffichage(mois));
     }
   }
   toast('Versement enregistré');
@@ -6072,7 +6118,7 @@ async function payerSoldeMois(employeId, nomEmploye){
       `Hello ${nomEmploye}, your ${moisAffichage(mois)} salary has been paid in full: ${salaireMensuel} D (including ${avances} D of advances already received, balance paid: ${solde} D). Thank you for your work this month! 🙏`
     );
     const lien = lienWhatsApp(employe.tel, msg);
-    if(lien) window.open(lien, '_blank');
+    ouvrirLienWhatsApp(nomEmploye, lien, 'Salaire ' + moisAffichage(mois) + ' — soldé');
   }
   toast('Solde du mois payé — '+nomEmploye);
 }
