@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Inventaire physique","Physical stock count"],["Démarrer un comptage","Start a count"],["Historique","History"],["Comparer","Compare"],["Valider le comptage","Confirm the count"],["Ne rien changer","Change nothing"],["Écarts constatés","Discrepancies found"],["article(s) manquant(s)","item(s) missing"],["Ces articles sont sortis du rayon sans avoir été vendus.","These items left the shelf without being sold."],["Inventaire conforme","Stock count matches"],["Aucun écart","No discrepancy"],["Valeur du stock en rayon :","Value of stock on the shelf:"],["Dernier comptage :","Last count:"],["Aucun comptage effectué pour l'instant.","No count done yet."],["Historique des comptages","Count history"]);
 CHUNKS.push(["Abonnements mensuels","Monthly subscriptions"],["Clients au forfait : ils déposent autant qu'ils veulent et règlent un montant fixe en fin de mois.","Flat-rate clients: they drop off as much as they like and pay a fixed amount at month end."],["Nouvel abonnement","New subscription"],["Encaisser","Collect"],["Montant","Amount"],["ATTENDU (D)","EXPECTED (D)"],["ENCAISSÉ (D)","COLLECTED (D)"],["RESTE (D)","REMAINING (D)"],["Pas encore réglé pour","Not yet paid for"],["abonnement(s) à encaisser","subscription(s) to collect"],["Aucun abonnement. Utilisez « Nouvel abonnement » pour un client au forfait.","No subscription. Use “New subscription” for a flat-rate client."]);
 CHUNKS.push(["En cours","In progress"],["Terminés","Completed"],["Tout","All"],["Rechercher : nom, code, téléphone, vêtement…","Search: name, code, phone, garment…"],["Aucun résultat pour cette recherche.","No result for this search."],["Aucun dossier terminé.","No completed record."]);
 CHUNKS.push(["Non enregistré","Not saved"],["Le serveur n'a pas accepté cette modification.","The server did not accept this change."],["L'ancienne valeur reviendra au prochain rafraîchissement.","The previous value will return on the next refresh."]);
@@ -812,6 +813,16 @@ function traduireNoeud(node){
       <input id="b-prix" type="number" placeholder="0">
       <button class="btn" id="btn-produit" onclick="ajouterProduit()">Ajouter au stock</button>
     </div>
+    <div class="panel">
+      <h2>🔍 Inventaire physique</h2>
+      <div class="meta" style="color:var(--gris);font-size:0.78rem;">Comptez ce qui est réellement en rayon. L'application compare au stock enregistré et signale les écarts.</div>
+      <div id="inventaire-resume" style="margin-top:8px;"></div>
+      <div class="item-actions" style="margin-top:10px;">
+        <button onclick="ouvrirComptage()">📋 Démarrer un comptage</button>
+        <button onclick="historiqueInventaires()">📅 Historique</button>
+      </div>
+    </div>
+
     <div class="panel">
       <h2>Stock de la boutique</h2>
       <div id="boutique-liste"></div>
@@ -3083,6 +3094,211 @@ function rendreRappelContrats(){
     + dus.map(function(c){ return '<div class="meta">• ' + c.nom + ' — ' + (c.montantMensuel||0) + ' D</div>'; }).join('')
     + '<div class="meta" style="margin-top:5px;">Fin de ' + moisAffichage(mois) + ' : à réclamer avant la clôture du mois.</div>'
     + '</div>';
+}
+
+/* ================= INVENTAIRE PHYSIQUE =================
+   Le suivi automatique du stock ne detecte QUE ce qui passe par une vente.
+   Un article qui disparait sans etre vendu reste compte en rayon indefiniment.
+   Seul un comptage a la main revele ce trou. Ce module confronte le compte
+   reel au stock enregistre, chiffre la perte, corrige le stock et enregistre
+   la difference en depense — pour que le benefice ne soit pas surestime.
+
+   Effet le plus utile : la dissuasion. Un comptage regulier et annonce vaut
+   mieux qu'une enquete apres coup. */
+
+function ouvrirComptage(){
+  const articles = (CACHE.boutique_inventaire||[]).slice()
+    .sort(function(a,b){ return String(a.nom||'').localeCompare(String(b.nom||'')); });
+  if(!articles.length){ ouvrirModale('Inventaire', '<div class="meta">Aucun article en stock.</div>'); return; }
+
+  const corps = '<div class="meta" style="margin-bottom:10px;">Saisissez la quantité que vous avez comptée en rayon pour chaque article.</div>'
+    + articles.map(function(p){
+        return '<div class="liste-item">'
+          + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+          +   '<span>' + (p.nom||'—') + '</span>'
+          +   '<span style="color:var(--gris);font-size:.8rem;white-space:nowrap;">enregistré : ' + (p.qte||0) + '</span></div>'
+          + '<div class="meta">' + (p.prix||0) + ' D l\'unité</div>'
+          + '<input type="number" min="0" inputmode="numeric" data-inv="' + p.id + '" value="' + (p.qte||0) + '" '
+          + 'style="margin-top:6px;width:100%;padding:11px;background:#0e0e10;color:#eee;border:1px solid rgba(255,255,255,.18);border-radius:9px;font-size:1rem;">'
+          + '</div>';
+      }).join('');
+
+  const fond = ouvrirModale('Comptage du ' + new Date().toLocaleDateString('fr-FR'), corps, [
+    { texte:'Annuler', style:'secondary' },
+    { texte:'Comparer', action:function(){} }
+  ]);
+  /* On remplace l'action du bouton pour pouvoir lire les champs AVANT la
+     fermeture automatique de la modale. */
+  const boutons = fond.querySelectorAll('#modale-actions button');
+  const btnComparer = boutons[boutons.length-1];
+  btnComparer.onclick = function(){
+    const comptes = [];
+    fond.querySelectorAll('input[data-inv]').forEach(function(champ){
+      const id = champ.getAttribute('data-inv');
+      const p = (CACHE.boutique_inventaire||[]).find(function(x){ return x.id===id; });
+      if(!p) return;
+      const compte = Number(champ.value);
+      if(isNaN(compte) || compte < 0) return;
+      comptes.push({ id:id, nom:p.nom||'—', prix:Number(p.prix)||0,
+                     enregistre:Number(p.qte)||0, compte:compte });
+    });
+    fond.remove();
+    afficherEcartsInventaire(comptes);
+  };
+}
+
+function afficherEcartsInventaire(comptes){
+  const ecarts = comptes.filter(function(c){ return c.compte !== c.enregistre; });
+  if(!ecarts.length){
+    ouvrirModale('Inventaire conforme',
+      '<div style="padding:11px 12px;border-radius:10px;background:rgba(63,174,92,.13);border:1px solid rgba(63,174,92,.45);">'
+      + '<div class="nom">✅ Aucun écart</div>'
+      + '<div class="meta" style="margin-top:5px;">Le rayon correspond exactement au stock enregistré.</div></div>');
+    enregistrerInventaire(comptes, 0, 0);
+    return;
+  }
+
+  const manquants = ecarts.filter(function(c){ return c.compte < c.enregistre; });
+  const surplus = ecarts.filter(function(c){ return c.compte > c.enregistre; });
+  const valeurManquante = manquants.reduce(function(s,c){ return s + (c.enregistre - c.compte) * c.prix; }, 0);
+  const nbManquants = manquants.reduce(function(s,c){ return s + (c.enregistre - c.compte); }, 0);
+
+  let corps = '';
+  if(manquants.length){
+    corps += '<div style="padding:11px 12px;border-radius:10px;background:rgba(193,71,59,.15);border:1px solid rgba(193,71,59,.5);">'
+      + '<div class="nom">⚠️ ' + nbManquants + ' article(s) manquant(s) — ' + valeurManquante + ' D</div>'
+      + '<div class="meta" style="margin-top:5px;">Ces articles sont sortis du rayon sans avoir été vendus.</div></div>'
+      + manquants.map(function(c){
+          const d = c.enregistre - c.compte;
+          return '<div class="liste-item" style="border-left:3px solid var(--rouge);">'
+            + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+            +   '<span>' + c.nom + '</span><span style="color:var(--rouge);">−' + d + '</span></div>'
+            + '<div class="meta">Enregistré ' + c.enregistre + ' · compté ' + c.compte + ' · valeur ' + (d*c.prix) + ' D</div>'
+            + '</div>';
+        }).join('');
+  }
+  if(surplus.length){
+    corps += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(201,162,39,.15);border:1px solid rgba(201,162,39,.55);">'
+      + '<div class="nom">➕ ' + surplus.length + ' article(s) en surplus</div>'
+      + '<div class="meta" style="margin-top:5px;">Souvent un réassort non saisi, ou une vente enregistrée en double.</div></div>'
+      + surplus.map(function(c){
+          return '<div class="liste-item" style="border-left:3px solid var(--or);">'
+            + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+            +   '<span>' + c.nom + '</span><span style="color:var(--or);">+' + (c.compte - c.enregistre) + '</span></div>'
+            + '<div class="meta">Enregistré ' + c.enregistre + ' · compté ' + c.compte + '</div></div>';
+        }).join('');
+  }
+  corps += '<div class="meta" style="margin-top:12px;">En validant, le stock est aligné sur votre comptage'
+        + (valeurManquante>0 ? ' et une dépense de ' + valeurManquante + ' D est enregistrée en « Perte inventaire », pour que votre bénéfice ne soit pas surestimé.' : '.')
+        + '</div>';
+
+  ouvrirModale('Écarts constatés', corps, [
+    { texte:'Ne rien changer', style:'secondary' },
+    { texte:'Valider le comptage', action:function(){ validerComptage(comptes, nbManquants, valeurManquante); } }
+  ]);
+}
+
+async function validerComptage(comptes, nbManquants, valeurManquante){
+  if(!await demanderCodeAdmin('Valider un inventaire')) return;
+  let echecs = 0;
+  for(const c of comptes){
+    if(c.compte === c.enregistre) continue;
+    const p = (CACHE.boutique_inventaire||[]).find(function(x){ return x.id===c.id; });
+    if(p) p.qte = c.compte;
+    try {
+      await db.collection('boutique_inventaire').doc(c.id).update({
+        qte: c.compte,
+        misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch(err){ echecs++; console.error('Erreur ajustement stock', err); }
+  }
+  rendreBoutique();
+
+  if(valeurManquante > 0){
+    ecrireAvecSecours('depenses', {
+      activite:'Boutique',
+      categorie:'Perte inventaire',
+      montant: valeurManquante,
+      description: nbManquants + ' article(s) manquant(s) au comptage du ' + new Date().toLocaleDateString('fr-FR'),
+      dateISO: dateISOAujourdhui(),
+      date: new Date().toLocaleDateString('fr-FR'),
+      creeLe: firebase.firestore.FieldValue.serverTimestamp()
+    }, 'La perte d\'inventaire n\'a pas pu être synchronisée');
+  }
+
+  enregistrerInventaire(comptes, nbManquants, valeurManquante);
+  toast(echecs ? '⚠️ ' + echecs + ' article(s) non mis à jour — réessayez en ligne'
+               : 'Comptage validé' + (valeurManquante>0 ? ' — perte de ' + valeurManquante + ' D enregistrée' : ''));
+  setTimeout(function(){ rendreResumeInventaire(); rendreBilanFinances(); }, 600);
+}
+
+/* Trace du comptage, pour pouvoir dire "le dernier a eu lieu tel jour". */
+function enregistrerInventaire(comptes, nbManquants, valeurManquante){
+  try { localStorage.setItem('cd_dernier_inventaire', JSON.stringify({
+    date: dateISOAujourdhui(), articles: comptes.length,
+    manquants: nbManquants, valeur: valeurManquante
+  })); } catch(e){}
+  ecrireAvecSecours('inventaires', {
+    dateISO: dateISOAujourdhui(),
+    date: new Date().toLocaleDateString('fr-FR'),
+    articlesComptes: comptes.length,
+    articlesManquants: nbManquants,
+    valeurManquante: valeurManquante,
+    detail: comptes.filter(function(c){ return c.compte !== c.enregistre; })
+                   .map(function(c){ return { nom:c.nom, enregistre:c.enregistre, compte:c.compte }; }),
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  }, 'L\'inventaire n\'a pas pu être synchronisé');
+  rendreResumeInventaire();
+}
+
+function rendreResumeInventaire(){
+  const zone = document.getElementById('inventaire-resume');
+  if(!zone) return;
+  let dernier = null;
+  try { dernier = JSON.parse(localStorage.getItem('cd_dernier_inventaire')||'null'); } catch(e){}
+  const valeurStock = (CACHE.boutique_inventaire||[])
+    .reduce(function(s,p){ return s + (Number(p.qte)||0) * (Number(p.prix)||0); }, 0);
+
+  if(!dernier){
+    zone.innerHTML = '<div class="liste-item"><div class="meta">Valeur du stock en rayon : <strong>' + valeurStock + ' D</strong></div>'
+      + '<div class="meta" style="color:var(--or);margin-top:5px;">Aucun comptage effectué pour l\'instant.</div></div>';
+    return;
+  }
+  const jours = Math.round((new Date() - dateDepuisISO(dernier.date)) / 86400000);
+  const alerte = jours > 14;
+  zone.innerHTML = '<div class="liste-item">'
+    + '<div class="meta">Valeur du stock en rayon : <strong>' + valeurStock + ' D</strong></div>'
+    + '<div class="meta" style="margin-top:5px;">Dernier comptage : ' + dateDepuisISO(dernier.date).toLocaleDateString('fr-FR')
+    +   ' (il y a ' + jours + ' jour(s))</div>'
+    + (dernier.manquants
+        ? '<div class="meta" style="color:var(--rouge);">Il avait révélé ' + dernier.manquants + ' article(s) manquant(s) — ' + dernier.valeur + ' D</div>'
+        : '<div class="meta" style="color:var(--vert);">Aucun écart lors du dernier comptage</div>')
+    + (alerte ? '<div class="meta" style="color:var(--or);margin-top:5px;">⏰ Plus de deux semaines : un nouveau comptage serait utile.</div>' : '')
+    + '</div>';
+}
+
+function historiqueInventaires(){
+  ouvrirModale('Historique des comptages', '<div class="meta">Chargement…</div>');
+  db.collection('inventaires').get().then(function(snap){
+    const docs = snap.docs.map(function(d){ return d.data(); })
+      .sort(function(a,b){ return String(b.dateISO||'').localeCompare(String(a.dateISO||'')); })
+      .slice(0,20);
+    const corps = docs.length
+      ? docs.map(function(d){
+          return '<div class="liste-item" style="border-left:3px solid ' + (d.articlesManquants ? 'var(--rouge)' : 'var(--vert)') + ';">'
+            + '<div class="nom">' + (d.date||d.dateISO||'') + '</div>'
+            + '<div class="meta">' + (d.articlesComptes||0) + ' article(s) comptés</div>'
+            + (d.articlesManquants
+                ? '<div class="meta" style="color:var(--rouge);">' + d.articlesManquants + ' manquant(s) — ' + (d.valeurManquante||0) + ' D</div>'
+                  + (d.detail||[]).map(function(x){ return '<div class="meta">• ' + x.nom + ' : ' + x.enregistre + ' → ' + x.compte + '</div>'; }).join('')
+                : '<div class="meta" style="color:var(--vert);">Aucun écart</div>')
+            + '</div>';
+        }).join('')
+      : '<div class="meta">Aucun comptage enregistré.</div>';
+    ouvrirModale('Historique des comptages', corps);
+  }).catch(function(err){
+    ouvrirModale('Historique des comptages', '<div class="meta" style="color:var(--rouge);">Lecture impossible : ' + (err.message||'') + '</div>');
+  });
 }
 
 function rendreAtelier(){
@@ -5471,7 +5687,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-abonnements';
+const APP_VERSION = 'v2026-08-01-inventaire';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6823,7 +7039,7 @@ function attacherEcouteur(collection, callback){
 }
 attacherEcouteur('commandes_couture', rendreAtelier);
 attacherEcouteur('depots_pressing', rendrePressing);
-attacherEcouteur('boutique_inventaire', rendreBoutique);
+attacherEcouteur('boutique_inventaire', ()=>{ rendreBoutique(); rendreResumeInventaire(); });
 attacherEcouteur('visiteurs', rendreVisiteurs);
 attacherEcouteur('boutique_ventes', ()=>{ rendreVentesAConfirmer(); surveillerNouvellesVentes(); });
 attacherEcouteur('clients_mesures', ()=>{ rendreMesures(); mettreAJourListeClients(); });
