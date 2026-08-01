@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["rendez-vous proche(s) — travail à finir","upcoming appointment(s) — work to finish"],["commande(s) prête(s) — la cliente doit passer","order(s) ready — the client needs to come"],["prêt, à récupérer","ready, to collect"],["travail en cours","work in progress"]);
 CHUNKS.push(["Vêtement déjà terminé — rien à coudre","Garment already finished — nothing to sew"],["La commande sera enregistrée comme","The order will be saved as"],["et n'occupera aucune place dans le planning.","and will take up no slot in the schedule."],["Vêtement déjà terminé — n'occupe aucune place","Garment already finished — takes up no slot"]);
 CHUNKS.push(["ce sont vos mesures, le paiement la concerne","these are your measurements, the payment is hers"],["Offert par","Gift from"]);
 CHUNKS.push(["les mesures sont à son nom","the measurements are under her name"],["commande(s) offerte(s) — payée(s) par","order(s) received as a gift — paid by"]);
@@ -4922,14 +4923,23 @@ function rendreApercu(){
   atelier.forEach(c=>{
     if(c.statut==='Livré' || c.statut==='Annulé' || c.statut==='Annulé (tissu récupéré)') return;
     const j = joursRestants(c.livraison);
-    if(j!==null && j<=3) rdv.push({jours:j, id:c.id, type:'Atelier', nom:c.nom, code:c.code||'',
-                                   texte:c.nom+' — Atelier ('+libelleJours(j,'livraison')+')'});
+    if(j===null || j>3) return;
+    /* DEUX SITUATIONS BIEN DIFFERENTES, qui etaient melangees dans le meme
+       encadre rouge : il reste des vetements a coudre (c'est du travail), ou
+       tout est cousu et la cliente doit seulement passer (c'est un retrait).
+       Une commande prete affichee "a faire aujourd'hui" n'a aucun sens. */
+    const restants = (c.articles && c.articles.length) ? articlesRestants(c).length : (c.statut==='Prêt' ? 0 : 1);
+    const pret = (c.statut==='Prêt') || restants===0;
+    rdv.push({jours:j, id:c.id, type:'Atelier', nom:c.nom, code:c.code||'', pret:pret,
+              texte:c.nom+' — Atelier ('+libelleJours(j,'livraison')+')'});
   });
   pressing.forEach(t=>{
     if(t.statut==='Récupéré' || t.statut==='Annulé') return;
     const j = joursRestants(t.retrait);
-    if(j!==null && j<=3) rdv.push({jours:j, id:t.id, type:'Pressing', nom:t.nom, code:t.code||'',
-                                   texte:t.nom+' — Pressing ('+libelleJours(j,'retrait')+')'});
+    if(j===null || j>3) return;
+    rdv.push({jours:j, id:t.id, type:'Pressing', nom:t.nom, code:t.code||'',
+              pret:(t.statut==='Prêt'||t.statut==='Prête'),
+              texte:t.nom+' — Pressing ('+libelleJours(j,'retrait')+')'});
   });
   RDV_COURANTS = rdv;
   rdv.sort((a,b)=>a.jours-b.jours);
@@ -4953,7 +4963,8 @@ function ouvrirClotureRdv(){
     const action = r.type === 'Atelier' ? 'Livré' : 'Récupéré';
     return '<div class="liste-item">'
       + '<div class="nom">' + (r.type==='Atelier'?'✂️':'👔') + ' ' + r.nom + (r.code ? ' · ' + r.code : '') + '</div>'
-      + '<div class="meta">' + r.type + ' · ' + etat + '</div>'
+      + '<div class="meta">' + r.type + ' · ' + etat
+      +   (r.pret ? ' · <span style="color:var(--vert);">✅ prêt, à récupérer</span>' : ' · <span style="color:var(--or);">🧵 travail en cours</span>') + '</div>'
       + '<div class="item-actions" style="margin-top:7px;">'
       +   '<button onclick="pointerRdv(\'' + r.type + '\',\'' + r.id + '\')" style="color:var(--vert);border-color:rgba(63,174,92,.4);">✅ ' + action + '</button>'
       +   '<button onclick="reporterRdv(\'' + r.type + '\',\'' + r.id + '\')">📅 Reporter</button>'
@@ -5012,11 +5023,24 @@ function afficherBanniereRdv(rdv){
   const zone = document.getElementById('banniere-rdv-proches');
   if(!zone) return;
   if(!rdv.length){ zone.innerHTML=''; return; }
-  zone.innerHTML = '<div class="banniere-rdv">'
-    + '<div class="titre-rdv">⏰ '+rdv.length+' rendez-vous proche(s) !</div>'
-    + '<div class="detail-rdv">'+rdv.map(r=>'• '+r.texte).join('<br>')+'</div>'
-    + '<div style="margin-top:10px;"><button onclick="ouvrirClotureRdv()" style="width:100%;">✔️ Marquer les clients servis</button></div>'
-    + '</div>';
+  const aFaire = rdv.filter(function(r){ return !r.pret; });
+  const aRetirer = rdv.filter(function(r){ return r.pret; });
+  let html = '';
+  if(aFaire.length){
+    html += '<div class="banniere-rdv">'
+      + '<div class="titre-rdv">⏰ '+aFaire.length+' rendez-vous proche(s) — travail à finir</div>'
+      + '<div class="detail-rdv">'+aFaire.map(r=>'• '+r.texte).join('<br>')+'</div>'
+      + '</div>';
+  }
+  if(aRetirer.length){
+    html += '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(63,174,92,.13);border:1px solid rgba(63,174,92,.45);">'
+      + '<div class="nom">✅ '+aRetirer.length+' commande(s) prête(s) — la cliente doit passer</div>'
+      + '<div class="meta" style="margin-top:5px;">'+aRetirer.map(r=>'• '+r.texte).join('<br>')+'</div>'
+      + '</div>';
+  }
+  html += '<div style="margin-top:10px;"><button onclick="ouvrirClotureRdv()" style="width:100%;">✔️ Marquer les clients servis</button></div>';
+  zone.innerHTML = html;
+  if(!aFaire.length) return;   /* rien à finir : pas de vibration */
   /* Vibration une fois par jour et par appareil pour attirer l'attention */
   const cle = 'cd_vibre_'+dateISOAujourdhui();
   if(!localStorage.getItem(cle) && navigator.vibrate){
@@ -5070,7 +5094,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-deja-termine';
+const APP_VERSION = 'v2026-08-01-banniere-separee';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
