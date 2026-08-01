@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["En cours","In progress"],["Terminés","Completed"],["Tout","All"],["Rechercher : nom, code, téléphone, vêtement…","Search: name, code, phone, garment…"],["Aucun résultat pour cette recherche.","No result for this search."],["Aucun dossier terminé.","No completed record."]);
 CHUNKS.push(["Non enregistré","Not saved"],["Le serveur n'a pas accepté cette modification.","The server did not accept this change."],["L'ancienne valeur reviendra au prochain rafraîchissement.","The previous value will return on the next refresh."]);
 CHUNKS.push(["Pourquoi une recette n'apparaît pas ?","Why is an income entry missing?"],["Diagnostic des recettes","Income diagnostic"],["Recettes enregistrées aujourd'hui","Income recorded today"],["encaissement(s) sans recette","payment(s) with no income entry"],["Cet argent figure sur la fiche client mais pas dans les Finances.","This money is on the client record but not in Finances."],["Enregistrer cette recette","Record this income"],["Chaque encaissement a bien sa recette","Every payment has its income entry"],["écriture(s) bloquée(s) hors ligne","write(s) stuck offline"],["Réessayer maintenant","Retry now"]);
 CHUNKS.push(["Ouvrir WhatsApp","Open WhatsApp"],["Aucun numéro enregistré pour ce client","No phone saved for this client"],["Facture de la commande — Code","Order invoice — Code"],["Reçu de dépôt — Code","Drop-off receipt — Code"],["Confirmation de paiement —","Payment confirmation —"],["D reçus","D received"]);
@@ -681,6 +682,7 @@ function traduireNoeud(node){
     <div class="panel">
       <h2>Commandes en cours</h2>
       <div id="atelier-mois" class="meta"></div>
+      <div id="atelier-filtre"></div>
       <div id="atelier-liste"></div>
     </div>
     <div class="panel" style="border-color:var(--or);">
@@ -763,6 +765,7 @@ function traduireNoeud(node){
 
     <div class="panel">
       <h2>Tickets en cours</h2>
+      <div id="pressing-filtre"></div>
       <div id="pressing-liste"></div>
     </div>
   </section>
@@ -2858,17 +2861,83 @@ function resumeMoisAtelier(liste){
     + ' \u00b7 <span style="color:var(--vert);">' + lE + encaisse + ' D</span>'
     + (reste>0 ? ' \u00b7 <span style="color:var(--or-clair);">' + lR + reste + ' D</span>' : '');
 }
+/* ================= FILTRE ET RECHERCHE DES LISTES =================
+   Djamil devait faire defiler toute la liste pour retrouver une commande :
+   les dossiers termines (payes ET recuperes) restaient meles aux affaires en
+   cours. On separe donc "en cours" de "termine", et on ajoute une recherche
+   qui filtre la liste sur place, sans changer d'ecran. */
+let FILTRE_ATELIER = 'encours';
+let FILTRE_PRESSING = 'encours';
+let RECH_ATELIER = '';
+let RECH_PRESSING = '';
+
+function dossierTermine(o, type){
+  const paye = ((Number(o.prix)||0) - (Number(type==='Atelier' ? o.acompte : o.avance)||0)) <= 0;
+  const rendu = (type==='Atelier')
+    ? (o.statut === 'Livré' || o.statut === 'Annulé' || o.statut === 'Annulé (tissu récupéré)')
+    : (o.statut === 'Récupéré' || o.statut === 'Annulé');
+  return paye && rendu;
+}
+
+function texteRecherche(o){
+  return [o.nom, o.code, o.tel, o.beneficiaire, o.resume, o.desc,
+          (o.articles||[]).map(a=>a.nom).join(' ')].join(' ').toLowerCase();
+}
+
+function appliquerFiltre(liste, type, filtre, requete){
+  let r = liste.filter(function(o){
+    const fini = dossierTermine(o, type);
+    if(filtre === 'encours') return !fini;
+    if(filtre === 'termine') return fini;
+    return true;
+  });
+  const q = (requete||'').trim().toLowerCase();
+  if(q) r = r.filter(function(o){ return texteRecherche(o).indexOf(q) >= 0; });
+  return r;
+}
+
+function changerFiltreAtelier(f){ FILTRE_ATELIER = f; rendreAtelier(); }
+function changerFiltrePressing(f){ FILTRE_PRESSING = f; rendrePressing(); }
+function chercherAtelier(v){ RECH_ATELIER = v; rendreAtelier(); }
+function chercherPressing(v){ RECH_PRESSING = v; rendrePressing(); }
+
+function barreFiltre(prefixe, filtreActuel, valeurRech, compteEnCours, compteTermine){
+  const b = function(cle, libelle, n){
+    const actif = (filtreActuel === cle);
+    return '<button onclick="changerFiltre' + prefixe + '(\'' + cle + '\')" style="flex:1;'
+      + (actif ? 'background:var(--or);color:#1a1a1a;border-color:var(--or);font-weight:700;' : '')
+      + '">' + libelle + ' (' + n + ')</button>';
+  };
+  return '<input type="search" placeholder="Rechercher : nom, code, téléphone, vêtement…" value="' + (valeurRech||'').replace(/"/g,'&quot;') + '" '
+       + 'oninput="chercher' + prefixe + '(this.value)" style="margin-bottom:8px;">'
+       + '<div class="item-actions" style="margin-bottom:10px;">'
+       + b('encours', '🧵 En cours', compteEnCours)
+       + b('termine', '✅ Terminés', compteTermine)
+       + b('tout', 'Tout', compteEnCours + compteTermine)
+       + '</div>';
+}
+
 function rendreAtelier(){
   const data=CACHE.commandes_couture;
   /* Trois tableaux distincts : la confection, les retouches et le pret-a-porter.
      Avant, le pret-a-porter tombait dans "Commandes en cours" avec la confection. */
-  const confections = data.filter(c=>c.type!=='Retouche' && c.type!=='Prêt-à-porter');
+  const tousConfections = data.filter(c=>c.type!=='Retouche' && c.type!=='Prêt-à-porter');
   const retouches = data.filter(c=>c.type==='Retouche');
   const pap = data.filter(c=>c.type==='Prêt-à-porter');
+  const confections = appliquerFiltre(tousConfections, 'Atelier', FILTRE_ATELIER, RECH_ATELIER);
+
+  /* Barre de filtre au-dessus des commandes de confection */
+  const zoneF = document.getElementById('atelier-filtre');
+  if(zoneF){
+    const nEnCours = tousConfections.filter(c=>!dossierTermine(c,'Atelier')).length;
+    const nTermine = tousConfections.length - nEnCours;
+    const focus = document.activeElement && document.activeElement.type === 'search';
+    if(!focus) zoneF.innerHTML = barreFiltre('Atelier', FILTRE_ATELIER, RECH_ATELIER, nEnCours, nTermine);
+  }
 
   const liste=document.getElementById('atelier-liste');
   liste.innerHTML = confections.length===0
-    ? '<div class="vide">Aucune commande en cours.</div>'
+    ? '<div class="vide">' + (RECH_ATELIER ? 'Aucun résultat pour cette recherche.' : (FILTRE_ATELIER==='termine' ? 'Aucun dossier terminé.' : 'Aucune commande en cours.')) + '</div>'
     : trierParEcheance(confections).map(carteCommandeAtelier).join('');
 
   const listeRetouches=document.getElementById('retouches-liste');
@@ -3428,10 +3497,18 @@ function notifierRemerciementPressing(id){
 }
 const STATUTS_PRESSING=['Reçu','En lavage','En repassage','Prêt','Récupéré'];
 function rendrePressing(){
-  const data=CACHE.depots_pressing;
+  const tous=CACHE.depots_pressing;
+  const data=appliquerFiltre(tous, 'Pressing', FILTRE_PRESSING, RECH_PRESSING);
+  const zoneFP = document.getElementById('pressing-filtre');
+  if(zoneFP){
+    const nEnCours = tous.filter(t=>!dossierTermine(t,'Pressing')).length;
+    const nTermine = tous.length - nEnCours;
+    const focus = document.activeElement && document.activeElement.type === 'search';
+    if(!focus) zoneFP.innerHTML = barreFiltre('Pressing', FILTRE_PRESSING, RECH_PRESSING, nEnCours, nTermine);
+  }
   const liste=document.getElementById('pressing-liste');
   if(data.length===0){
-    liste.innerHTML='<div class="vide">Aucun ticket en cours.</div>';
+    liste.innerHTML='<div class="vide">' + (RECH_PRESSING ? 'Aucun résultat pour cette recherche.' : (FILTRE_PRESSING==='termine' ? 'Aucun dossier terminé.' : 'Aucun ticket en cours.')) + '</div>';
   } else {
     liste.innerHTML=data.slice().reverse().map(t=>{
       const reste=t.prix-t.avance;
@@ -5225,7 +5302,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-ecritures-visibles';
+const APP_VERSION = 'v2026-08-01-filtres-listes';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
