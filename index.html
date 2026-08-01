@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["À FAIRE","TO DO"],["PRÊT","READY"],["ANNULÉ","CANCELLED"],["Changer l'état :","Change status:"],["Remettre à faire","Set back to do"],["Marquer prêt","Mark as ready"],["Marquer annulé","Mark as cancelled"]);
 CHUNKS.push(["rendez-vous proche(s) — travail à finir","upcoming appointment(s) — work to finish"],["commande(s) prête(s) — la cliente doit passer","order(s) ready — the client needs to come"],["prêt, à récupérer","ready, to collect"],["travail en cours","work in progress"]);
 CHUNKS.push(["Vêtement déjà terminé — rien à coudre","Garment already finished — nothing to sew"],["La commande sera enregistrée comme","The order will be saved as"],["et n'occupera aucune place dans le planning.","and will take up no slot in the schedule."],["Vêtement déjà terminé — n'occupe aucune place","Garment already finished — takes up no slot"]);
 CHUNKS.push(["ce sont vos mesures, le paiement la concerne","these are your measurements, the payment is hers"],["Offert par","Gift from"]);
@@ -2203,7 +2204,7 @@ async function supprimerRecetteDuJour(id){
   const t = (CACHE.transactions||[]).find(function(x){ return x.id === id; });
   if(!t) return;
   if(!confirm('Supprimer ' + t.montant + ' D (' + (t.source||'') + ') des recettes du jour ?')) return;
-  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   await supprimerRecettes([t]);
   ouvrirRecettesDuJour();
 }
@@ -2591,21 +2592,31 @@ function ouvrirSuiviVetements(id){
   const arts = c.articles||[];
   if(!arts.length){ ouvrirModale('Suivi des vêtements', '<div class="meta">Cette commande n\'a pas d\'articles détaillés.</div>'); return; }
 
-  const etiquettes = { a_faire:'À faire', pret:'Prêt', annule:'Annulé' };
-  const couleurs  = { a_faire:'var(--or)', pret:'var(--vert)', annule:'var(--rouge)' };
+  /* PIEGE D'INTERFACE CORRIGE : les boutons portaient les memes mots et les
+     memes couleurs que les etats ("✅ Prêt" en vert). Djamil croyait donc que
+     le vetement etait deja pret alors qu'il regardait un bouton a toucher.
+     Desormais : l'ETAT est une pastille pleine bien visible, et les BOUTONS
+     commencent tous par un verbe ("Marquer prêt"), en gris neutre. */
+  const etiquettes = { a_faire:'⏳ À FAIRE', pret:'✅ PRÊT', annule:'✖ ANNULÉ' };
+  const fonds = { a_faire:'rgba(201,162,39,.22)', pret:'rgba(63,174,92,.25)', annule:'rgba(193,71,59,.22)' };
+  const couleurs = { a_faire:'var(--or)', pret:'var(--vert)', annule:'var(--rouge)' };
 
   const corps = arts.map(function(a, i){
     const e = etatArticle(a);
-    return '<div class="liste-item">'
-      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+    const pastille = '<span style="display:inline-block;padding:4px 11px;border-radius:20px;'
+      + 'background:' + fonds[e] + ';color:' + couleurs[e] + ';font-size:.72rem;font-weight:800;'
+      + 'letter-spacing:.05em;white-space:nowrap;">' + etiquettes[e] + '</span>';
+    return '<div class="liste-item" style="border-left:3px solid ' + couleurs[e] + ';">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;align-items:center;">'
       +   '<span' + (e==='annule' ? ' style="text-decoration:line-through;opacity:.6;"' : '') + '>' + (a.nom||'Article') + '</span>'
-      +   '<span style="color:' + couleurs[e] + ';">' + etiquettes[e] + '</span>'
+      +   pastille
       + '</div>'
       + '<div class="meta">' + (a.prix||0) + ' D</div>'
-      + '<div class="item-actions" style="margin-top:7px;">'
-      +   (e!=='a_faire' ? '<button onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'a_faire\')">À faire</button>' : '')
-      +   (e!=='pret'    ? '<button onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'pret\')" style="color:var(--vert);border-color:rgba(63,174,92,.4);">✅ Prêt</button>' : '')
-      +   (e!=='annule'  ? '<button class="del" onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'annule\')">✖ Annulé</button>' : '')
+      + '<div class="meta" style="margin-top:9px;opacity:.7;font-size:.72rem;">Changer l\'état :</div>'
+      + '<div class="item-actions" style="margin-top:4px;">'
+      +   (e!=='a_faire' ? '<button onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'a_faire\')">↩️ Remettre à faire</button>' : '')
+      +   (e!=='pret'    ? '<button onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'pret\')">Marquer prêt</button>' : '')
+      +   (e!=='annule'  ? '<button onclick="changerEtatArticle(\'' + id + '\',' + i + ',\'annule\')">Marquer annulé</button>' : '')
       + '</div></div>';
   }).join('');
 
@@ -2650,11 +2661,19 @@ async function changerEtatArticle(id, index, etat){
   if(modifs.statut) c.statut = modifs.statut;
   rendreAtelier();
 
+  /* DEUX CORRECTIFS ICI :
+     1. On rafraichit la liste TOUT DE SUITE, sans attendre la confirmation du
+        serveur. Avec un reseau lent, Djamil touchait "Prêt" et la fenetre
+        continuait d'afficher "2 à faire" pendant plusieurs secondes.
+     2. ouvrirSuiviVetements() empilait une nouvelle fenetre PAR-DESSUS
+        l'ancienne au lieu de la remplacer : celle du dessous restait figee sur
+        l'ancien etat, ce qui donnait l'impression que rien ne s'etait passe. */
+  ouvrirSuiviVetements(id);
+
   db.collection('commandes_couture').doc(id).update(modifs)
     .then(function(){
       if(modifs.statut) toast('Tous les vêtements sont prêts — commande marquée « Prêt »');
       else toast('Vêtement mis à jour');
-      ouvrirSuiviVetements(id);
       const acompte = Number(c.acompte)||0;
       if(acompte > nouveauPrix){
         const surplus = acompte - nouveauPrix;
@@ -3751,7 +3770,15 @@ function ouvrirHistoriqueClotures(){
 
 /* Modale generique additive (aucune dependance a une lib) */
 function ouvrirModale(titre, corpsHTML, boutons){
+  /* Une seule fenetre a la fois : sans cela, un rafraichissement empilait une
+     copie par-dessus l'ancienne, restee figee sur l'etat precedent. */
+  document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
+  /* Les tableaux de l'atelier defilent horizontalement ; si la page est
+     decalee vers la droite, une fenetre en position fixe apparait coupee sur
+     le cote (constate sur Android). On ramene l'horizontale a zero. */
+  try { window.scrollTo({ left: 0, top: window.scrollY }); } catch(e){}
   const fond = document.createElement('div');
+  fond.className = 'modale-cd';
   fond.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
   const boite = document.createElement('div');
   boite.style.cssText = 'background:#141416;border:1px solid rgba(201,162,39,.35);border-radius:14px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:18px;';
@@ -4983,7 +5010,7 @@ async function pointerRdv(type, id){
   const reste = (Number(doc.prix)||0) - (Number(type==='Atelier' ? doc.acompte : doc.avance)||0);
   if(reste > 0 && !confirm('Il reste ' + reste + ' D à payer. Marquer quand même comme ' + statut + ' ?')) return;
   doc.statut = statut;
-  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   (type === 'Atelier') ? rendreAtelier() : rendrePressing();
   db.collection(collection).doc(id).update({ statut: statut,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp() })
@@ -5005,7 +5032,7 @@ async function reporterRdv(type, id){
   const modifs = {}; modifs[champ] = iso;
   modifs.misAJourLe = firebase.firestore.FieldValue.serverTimestamp();
   doc[champ] = iso;
-  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   (type === 'Atelier') ? rendreAtelier() : rendrePressing();
   db.collection(collection).doc(id).update(modifs)
     .then(function(){ toast('Rendez-vous reporté au ' + iso); ouvrirClotureRdv(); })
@@ -5094,7 +5121,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-banniere-separee';
+const APP_VERSION = 'v2026-08-01-etats-lisibles';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -5408,7 +5435,7 @@ async function supprimerDoublonsDepense(cle){
   if(!aSupprimer.length){ toast('Rien à supprimer'); return; }
   if(!confirm('Supprimer ' + aSupprimer.length + ' ligne(s) en double ?')) return;
 
-  document.querySelectorAll('div[style*="z-index:100000"]').forEach(function(m){ m.remove(); });
+  document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   let echecs = 0;
   for(const d of aSupprimer){
     try { await db.collection('depenses').doc(d.id).delete(); }
