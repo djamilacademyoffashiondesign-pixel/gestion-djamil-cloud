@@ -40,6 +40,7 @@ CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"]
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
 CHUNKS.push(["Directeur","Director"]);
+CHUNKS.push(["Envoyer la notification","Send the notification"],["Ne pas envoyer","Do not send"],["Nouveau statut :","New status:"],["Statut non enregistré","Status not saved"],["Le changement n'a pas été accepté par le serveur.","The change was not accepted by the server."],["Vérifiez votre connexion, puis réessayez.","Check your connection, then try again."],["Réessayer","Try again"]);
 CHUNKS.push(["À FAIRE","TO DO"],["PRÊT","READY"],["ANNULÉ","CANCELLED"],["Changer l'état :","Change status:"],["Remettre à faire","Set back to do"],["Marquer prêt","Mark as ready"],["Marquer annulé","Mark as cancelled"]);
 CHUNKS.push(["rendez-vous proche(s) — travail à finir","upcoming appointment(s) — work to finish"],["commande(s) prête(s) — la cliente doit passer","order(s) ready — the client needs to come"],["prêt, à récupérer","ready, to collect"],["travail en cours","work in progress"]);
 CHUNKS.push(["Vêtement déjà terminé — rien à coudre","Garment already finished — nothing to sew"],["La commande sera enregistrée comme","The order will be saved as"],["et n'occupera aucune place dans le planning.","and will take up no slot in the schedule."],["Vêtement déjà terminé — n'occupe aucune place","Garment already finished — takes up no slot"]);
@@ -2287,19 +2288,24 @@ function changerStatutAtelier(id,statut){
     }
   }
   const c2 = CACHE.commandes_couture.find(x=>x.id===id);
+  const ancienStatut = c2 ? c2.statut : '';
   if(c2) c2.statut = statut;
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({statut}).then(()=>{
-    toast('Statut mis à jour');
-    if(c2 && c2.tel){
-      const etape = ETAPES_NOTIF_ATELIER[statut];
-      if(etape){
-        const msg = construireMessageNotification('Atelier', statut, c2.nom, resumeArticles(c2), c2.prix, c2.acompte, c2.code);
-        const lien = lienWhatsApp(c2.tel, msg);
-        if(lien) setTimeout(()=>window.open(lien,'_blank'), 500);
-      }
-    }
-  });
+
+  /* La proposition d'envoi s'affiche TOUT DE SUITE, sans attendre le serveur :
+     sur un reseau lent l'ecran restait muet et Djamil croyait la fonction
+     disparue. Elle est de toute facon annulable. */
+  if(c2 && c2.tel && ETAPES_NOTIF_ATELIER[statut]){
+    const msg = construireMessageNotification('Atelier', statut, c2.nom, resumeArticles(c2), c2.prix, c2.acompte, c2.code);
+    proposerNotificationStatut(c2.nom, c2.tel, statut, msg);
+  }
+
+  db.collection('commandes_couture').doc(id).update({statut})
+    .then(()=>{ toast('Statut mis à jour'); })
+    .catch(err=>{
+      console.error('Erreur changement de statut atelier', err);
+      signalerEchecStatut(c2 ? c2.nom : '', ancienStatut, function(){ changerStatutAtelier(id, statut); });
+    });
 }
 /* Corrections rapides, sans jamais supprimer la commande.
    Protégées par le code administrateur pour qu'un manager ne puisse pas
@@ -2692,7 +2698,9 @@ async function changerEtatArticle(id, index, etat){
       }
     })
     .catch(function(err){ console.error('Erreur suivi vêtement', err);
-      toast('⚠️ Modification non confirmée en ligne — elle sera renvoyée au retour du réseau'); });
+      /* Sans avertissement clair, l'article revenait "à faire" au rafraîchissement
+         sans que rien n'explique pourquoi. */
+      signalerEchecStatut(c.nom, 'son état précédent', function(){ changerEtatArticle(id, index, etat); }); });
 }
 
 function carteCommandeAtelier(c){
@@ -3184,21 +3192,60 @@ async function enregistrerClientHistoriquePressing(){
     toast('Erreur: '+err.message);
   }
 }
+/* ================= NOTIFICATION DE CHANGEMENT DE STATUT =================
+   DEUX BUGS CORRIGES ICI, tous deux presents dans changerStatutAtelier et
+   changerStatutPressing :
+
+   1. window.open() etait appele dans un setTimeout, APRES un .then() : le
+      navigateur bloque cette ouverture car elle n'est plus rattachee au geste
+      de l'utilisateur (surtout en application installee). La proposition
+      d'envoyer le message n'apparaissait donc plus du tout. On passe par une
+      fenetre avec un VRAI lien a toucher, jamais bloque.
+
+   2. L'ecriture Firestore n'avait aucun .catch() : quand elle echouait
+      (reseau coupe, refus du serveur), le statut restait affiche a l'ecran
+      mais l'ecouteur temps reel le remettait a son ancienne valeur au
+      rafraichissement — d'ou l'impression que la commande "revenait au
+      depart". On previent maintenant, et on propose de reessayer. */
+function proposerNotificationStatut(nom, tel, statut, msg){
+  const lien = lienWhatsApp(tel, msg);
+  if(!lien) return;
+  ouvrirModale('Prévenir ' + (nom||'le client'),
+      '<div class="liste-item"><div class="nom">' + (nom||'') + '</div>'
+    + '<div class="meta" style="margin-top:5px;">Nouveau statut : <strong>' + statut + '</strong></div></div>'
+    + '<div style="margin-top:12px;"><a href="' + lien + '" target="_blank" rel="noopener" '
+    + 'style="display:block;text-align:center;background:#25D366;color:#fff;padding:14px;border-radius:10px;'
+    + 'text-decoration:none;font-weight:700;font-size:1rem;">💬 Envoyer la notification</a></div>',
+    [{ texte:'Ne pas envoyer', style:'secondary' }]);
+}
+
+function signalerEchecStatut(nom, ancienStatut, reessayer){
+  ouvrirModale('Statut non enregistré',
+      '<div class="liste-item"><div class="nom">' + (nom||'') + '</div>'
+    + '<div class="meta" style="margin-top:6px;color:var(--rouge);">Le changement n\'a pas été accepté par le serveur.</div>'
+    + '<div class="meta" style="margin-top:5px;">La commande reviendra à « ' + (ancienStatut||'son état précédent') + ' » au prochain rafraîchissement.</div></div>'
+    + '<div class="meta" style="margin-top:10px;">Vérifiez votre connexion, puis réessayez.</div>',
+    [ { texte:'Plus tard', style:'secondary' },
+      { texte:'Réessayer', action:reessayer } ]);
+}
+
 function changerStatutPressing(id,statut){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
+  const ancienStatut = t ? t.statut : '';
   if(t) t.statut = statut;
   rendrePressing();
-  db.collection('depots_pressing').doc(id).update({statut}).then(()=>{
-    toast('Statut mis à jour');
-    if(t && t.tel){
-      const etape = ETAPES_NOTIF_PRESSING[statut];
-      if(etape){
-        const msg = construireMessageNotification('Pressing', statut, t.nom, t.resume, t.prix, t.avance, t.code);
-        const lien = lienWhatsApp(t.tel, msg);
-        if(lien) setTimeout(()=>window.open(lien,'_blank'), 500);
-      }
-    }
-  });
+
+  if(t && t.tel && ETAPES_NOTIF_PRESSING[statut]){
+    const msg = construireMessageNotification('Pressing', statut, t.nom, t.resume, t.prix, t.avance, t.code);
+    proposerNotificationStatut(t.nom, t.tel, statut, msg);
+  }
+
+  db.collection('depots_pressing').doc(id).update({statut})
+    .then(()=>{ toast('Statut mis à jour'); })
+    .catch(err=>{
+      console.error('Erreur changement de statut pressing', err);
+      signalerEchecStatut(t ? t.nom : '', ancienStatut, function(){ changerStatutPressing(id, statut); });
+    });
 }
 /* Corrections rapides, sans jamais supprimer le ticket.
    Protégées par le code administrateur pour qu'un manager ne puisse pas
@@ -5121,7 +5168,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-01-etats-lisibles';
+const APP_VERSION = 'v2026-08-01-notif-statut';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
