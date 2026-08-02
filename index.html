@@ -4392,55 +4392,85 @@ function chargerFreesewing(suite){
   document.head.appendChild(s);
 }
 
-/* Estimations : proportions calculees sur les tailles 32 a 46 de
-   FreeSewing (cisMaleAdult / cisFemaleAdult). Tout en millimetres. */
-function estimPatron(femme, poitrine, ceinture, bassin, longPantalon){
+/* Estimations : droites calculees sur les tailles 32 a 46 de FreeSewing
+   (cisMaleAdult / cisFemaleAdult). Tout en millimetres. Toute mesure
+   absente de la fiche est deduite du tour de poitrine ; si la poitrine
+   manque aussi, elle est deduite du bassin, sinon de la taille. */
+var PATRON_NOMS = {
+  neck:'tour de cou', chest:'tour de poitrine', waist:'tour de taille',
+  hips:'tour de bassin', seat:'tour de bassin', biceps:'tour de manche',
+  wrist:'tour de poignet', knee:'tour de genou',
+  shoulderToShoulder:'carrure (epaule a epaule)', shoulderToWrist:'longueur de manche',
+  hpsToWaistBack:'longueur de taille', waistToFloor:'longueur de pantalon',
+  hpsToBust:'epaule a poitrine', shoulderSlope:"tombe d'epaule",
+  waistToArmpit:"taille a l'aisselle", waistToHips:'taille au bassin',
+  waistToSeat:'taille au siege', waistToKnee:'taille au genou',
+  waistToUpperLeg:"taille a l'entrejambe", waistBack:'demi-taille dos',
+  seatBack:'demi-bassin dos', crossSeam:'montant total', crossSeamFront:'montant devant'
+};
+
+function estimPatron(femme, chest){
+  var d = femme
+    ? { neck:[0,0.368], shoulderToShoulder:[144.6,0.2921], biceps:[0,0.292],
+        wrist:[82.1,0.0895], shoulderToWrist:[415,0.1895], hpsToWaistBack:[137.1,0.2789],
+        waistToFloor:[628.4,0.4553], knee:[131.2,0.2684], waist:[112.5,0.6895],
+        hips:[0,0.976], seat:[401,0.6579], chest:[0,1],
+        hpsToBust:[94,0.195], waistToArmpit:[61,0.118], waistToHips:[42,0.0895] }
+    : { neck:[0,0.379], shoulderToShoulder:[157.6,0.2927], biceps:[0,0.35],
+        wrist:[88,0.0867], shoulderToWrist:[440.3,0.1897], hpsToWaistBack:[166.4,0.3035],
+        waistToFloor:[696.8,0.4634], knee:[144.4,0.2656], waist:[121.4,0.6883],
+        hips:[0,0.84], seat:[407.3,0.6125], chest:[0,1],
+        hpsToBust:[98,0.182], waistToArmpit:[72,0.138], waistToHips:[46,0.084] };
   var e = {};
-  e.shoulderSlope  = 13;                                   /* constante */
-  e.hpsToBust      = femme ? 94 + 0.195*poitrine : 98 + 0.182*poitrine;
-  e.waistToArmpit  = femme ? 61 + 0.118*poitrine : 72 + 0.138*poitrine;
-  e.waistToHips    = femme ? 42 + 0.0895*poitrine : 46 + 0.084*poitrine;
-  if (bassin){
-    e.seatBack        = bassin * (femme ? 0.515 : 0.549);
-    e.crossSeam       = bassin * (femme ? 0.733 : 0.853);
-    e.crossSeamFront  = e.crossSeam * (femme ? 0.500 : 0.471);
-    e.waistToSeat     = bassin * (femme ? 0.248 : 0.265);
-    e.waistToUpperLeg = bassin * (femme ? 0.284 : 0.334);
-  }
-  if (ceinture) e.waistBack = ceinture * 0.506;
-  if (longPantalon) e.waistToKnee = longPantalon * (femme ? 0.58 : 0.56);
+  for (var k in d) e[k] = d[k][0] + d[k][1]*chest;
+  e.shoulderSlope = 13;                                    /* constante */
+  /* Mesures du pantalon : proportions du bassin estime. */
+  var bassin = e.seat;
+  e.seatBack        = bassin * (femme ? 0.515 : 0.549);
+  e.crossSeam       = bassin * (femme ? 0.733 : 0.853);
+  e.crossSeamFront  = e.crossSeam * (femme ? 0.500 : 0.471);
+  e.waistToSeat     = bassin * (femme ? 0.248 : 0.265);
+  e.waistToUpperLeg = bassin * (femme ? 0.284 : 0.334);
+  e.waistBack       = e.waist * 0.506;
+  e.waistToKnee     = e.waistToFloor * (femme ? 0.58 : 0.56);
   return e;
 }
 
 /* Traduit une fiche de mesures de l'atelier (en cm) vers les noms
-   FreeSewing (en mm). Renvoie null si une mesure de base manque. */
+   FreeSewing (en mm), et comble les trous par estimation. */
 function mesuresPatron(f, modele){
   var cm = function(v){ var n = parseFloat(v); return (n>0) ? n*10 : 0; };
-  var poitrine = cm(f.poitrine), ceinture = cm(f.ceinture) || cm(f.tourTaille);
-  var bassin = cm(f.bassin), longPantalon = cm(f.longPantalon);
   var femme = (f.genre === 'Femme');
   var m = {
     neck: cm(f.cou),
-    chest: poitrine,
-    waist: cm(f.tourTaille) || ceinture,
-    hips: bassin,
-    seat: bassin,
+    chest: cm(f.poitrine),
+    waist: cm(f.tourTaille) || cm(f.ceinture),
+    hips: cm(f.bassin),
+    seat: cm(f.bassin),
     biceps: cm(f.tourManche),
     wrist: cm(f.poignet),
     knee: cm(f.tourGenou),
     shoulderToShoulder: cm(f.epaule),
     shoulderToWrist: cm(f.longManche),
     hpsToWaistBack: cm(f.longTaille),
-    waistToFloor: longPantalon
+    waistToFloor: cm(f.longPantalon)
   };
-  var e = estimPatron(femme, poitrine, ceinture, bassin, longPantalon);
-  var posees = [];
-  for (var k in e) if (!m[k]) { m[k] = e[k]; posees.push(k); }
+  /* Point de depart des estimations : la poitrine, sinon le bassin,
+     sinon la taille. Sans aucun des trois, on ne peut rien deduire. */
+  var chest = m.chest;
+  if (!chest && m.seat)  chest = femme ? (m.seat-401)/0.6579 : (m.seat-407.3)/0.6125;
+  if (!chest && m.waist) chest = femme ? (m.waist-112.5)/0.6895 : (m.waist-121.4)/0.6883;
   var C = window.FS[PATRON_MODELES[modele].cle];
   var requis = (C.patternConfig && C.patternConfig.measurements) || [];
+  if (!chest || chest < 300){
+    return { mesures:m, manque:['poitrine, bassin ou taille'], estimees:[] };
+  }
+  var e = estimPatron(femme, chest);
+  var posees = [];
+  for (var k in e) if (!m[k]) { m[k] = e[k]; posees.push(k); }
   var manque = requis.filter(function(k){ return !m[k]; });
-  /* On ne compte que les estimations que CE modele utilise reellement. */
-  var estimees = posees.filter(function(k){ return requis.indexOf(k) >= 0; });
+  var estimees = posees.filter(function(k){ return requis.indexOf(k) >= 0; })
+                       .map(function(k){ return PATRON_NOMS[k] || k; });
   return { mesures: m, manque: manque, estimees: estimees };
 }
 
@@ -4467,9 +4497,9 @@ function tracerPatron(id, modele){
       d = mesuresPatron(f, modele);
       if (d.manque.length){
         ouvrirModale('Mesures manquantes',
-          '<p>Impossible de tracer ce patron : il manque <b>' + d.manque.length +
-          '</b> mesure(s) sur la fiche de ' + (f.nom||'') + '.</p>' +
-          '<p style="font-size:.85rem;color:var(--gris);">Ouvre « Modifier » et complete les mesures, puis reessaie.</p>');
+          '<p>Impossible de tracer ce patron pour ' + (f.nom||'') + ' : il manque <b>' +
+          d.manque.map(function(k){ return PATRON_NOMS[k] || k; }).join(', ') + '</b>.</p>' +
+          '<p style="font-size:.85rem;color:var(--gris);">Une seule de ces trois mesures suffit a tout deduire : poitrine, bassin ou taille. Ouvre « Modifier » et ajoute-la.</p>');
         return;
       }
       var C = window.FS[PATRON_MODELES[modele].cle];
@@ -4485,8 +4515,8 @@ function tracerPatron(id, modele){
     var nom = (f.nom||'client').replace(/[^a-zA-Z0-9]/g,'-') + '-' + modele + '.svg';
     ouvrirModale('🧵 Patron de ' + (f.nom||''),
       '<div style="background:#fff;border-radius:10px;padding:6px;overflow:auto;max-height:52vh;">' + svg + '</div>' +
-      '<p style="font-size:.8rem;color:var(--gris);margin-top:10px;">Echelle reelle : imprimer a 100 %, sans « ajuster a la page ». Mesures estimees : ' +
-      d.estimees.length + '.</p>' +
+      '<p style="font-size:.8rem;color:var(--gris);margin-top:10px;">Echelle reelle : imprimer a 100 %, sans « ajuster a la page ».' +
+      (d.estimees.length ? '<br>Estime faute de mesure sur la fiche : ' + d.estimees.join(', ') + '.' : '') + '</p>' +
       '<a class="btn" style="display:block;text-align:center;margin-top:10px;text-decoration:none;" href="' + url + '" download="' + nom + '">⬇️ Telecharger le patron</a>');
     var boite = document.querySelector('.modale-cd svg');
     if (boite){ boite.style.width = '100%'; boite.style.height = 'auto'; }
@@ -5816,7 +5846,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-02-patron';
+const APP_VERSION = 'v2026-08-02-patron-estime';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
