@@ -4407,163 +4407,185 @@ function mesuresCoupe(f){
 /* Chaque modele renvoie le tableau des valeurs a craier sur le tissu PLIE.
    Les formules sont affichees exprès : Djamil doit pouvoir corriger celles
    qui ne sont pas sa methode. */
+/* Chaque ligne affiche le CALCUL AVEC LES CHIFFRES DE LA CLIENTE, pas la
+   formule abstraite : Djamil s'en sert pour enseigner, ses eleves doivent
+   pouvoir suivre "100 + 40 = 140, divise par 4". Tissu PLIE, demi-pieces. */
+function nb(x){ return Math.round(x*10)/10; }
+
 var MODELES_COUPE = {
 
   chemise: { titre:'👔 Chemise', pour:'les deux', calc:function(m,A){
     if(!m.P) return null;
     return titreCoupe('DOS')
-      + ligneCoupe('Largeur du dos', (m.P+A.poitrine)/4, '(poitrine + aisance ' + A.poitrine + ') ÷ 4')
-      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, 'cou ÷ 6 + 2')
+      + ligneCoupe('Largeur du dos', (m.P+A.poitrine)/4, '('+m.P+' + '+A.poitrine+' aisance) ÷ 4')
+      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, m.C+' ÷ 6 + 2')
       + ligneCoupe("Profondeur d'encolure dos", m.C ? 2.5 : null, 'valeur fixe')
-      + ligneCoupe('Demi-carrure', m.E ? m.E/2 : null, 'carrure ÷ 2')
-      + ligneCoupe("Profondeur d'emmanchure", m.P/8+7, 'poitrine ÷ 8 + 7')
-      + ligneCoupe('Ligne de taille', m.LT||null, 'longueur de taille')
-      + ligneCoupe('Longueur totale', m.LH || (m.LT ? m.LT+22 : null), m.LH?'longueur du haut':'longueur de taille + 22')
+      + ligneCoupe('Demi-carrure', m.E ? m.E/2 : null, m.E+' ÷ 2')
+      + ligneCoupe("Profondeur d'emmanchure", m.P/8+7, m.P+' ÷ 8 + 7')
+      + ligneCoupe('Ligne de taille', m.LT||null, 'longueur de taille prise')
+      + ligneCoupe('Longueur totale', m.LH || (m.LT ? m.LT+22 : null), m.LH?'longueur du haut prise':m.LT+' + 22')
       + titreCoupe('DEVANT')
-      + ligneCoupe('Largeur du devant', (m.P+A.poitrine)/4, '(poitrine + aisance) ÷ 4')
-      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, 'cou ÷ 6 + 2')
-      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+2 : null, 'cou ÷ 6 + 2')
-      + ligneCoupe("Profondeur d'emmanchure", m.P/8+7, 'poitrine ÷ 8 + 7')
-      + ligneCoupe('Longueur totale', m.LH ? m.LH+2 : (m.LT ? m.LT+24 : null), 'longueur du dos + 2')
+      + ligneCoupe('Largeur du devant', (m.P+A.poitrine)/4, '('+m.P+' + '+A.poitrine+' aisance) ÷ 4')
+      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, m.C+' ÷ 6 + 2')
+      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+2 : null, m.C+' ÷ 6 + 2')
+      + ligneCoupe("Profondeur d'emmanchure", m.P/8+7, m.P+' ÷ 8 + 7')
+      + ligneCoupe('Longueur totale', m.LH ? m.LH+2 : (m.LT ? m.LT+24 : null), m.LH ? m.LH+' + 2' : m.LT+' + 24')
       + ligneCoupe('Croisure (boutonnage)', 2, 'valeur fixe')
       + titreCoupe('MANCHE ET COL')
       + ligneCoupe('Longueur de manche', m.LM||null, 'mesure prise')
-      + ligneCoupe('Hauteur de tête de manche', m.P/8+3, 'poitrine ÷ 8 + 3')
-      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche)/2 : null, '(tour de manche + aisance) ÷ 2')
-      + ligneCoupe('Largeur au poignet (pliée)', m.Pg ? (m.Pg+A.poignet)/2 : null, '(poignet + aisance) ÷ 2')
-      + ligneCoupe('Longueur du col', m.C ? m.C+2 : null, 'cou + 2');
+      + ligneCoupe('Hauteur de tête de manche', m.P/8+3, m.P+' ÷ 8 + 3')
+      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche)/2 : null, '('+m.TM+' + '+A.manche+' aisance) ÷ 2')
+      + ligneCoupe('Largeur au poignet (pliée)', m.Pg ? (m.Pg+A.poignet)/2 : null, '('+m.Pg+' + '+A.poignet+' aisance) ÷ 2')
+      + ligneCoupe('Longueur du col', m.C ? m.C+2 : null, m.C+' + 2');
   }},
 
   veste: { titre:'🧥 Veste', pour:'les deux', calc:function(m,A){
     if(!m.P) return null;
     var a = A.poitrine + 4;
     return titreCoupe('DOS')
-      + ligneCoupe('Largeur du dos', (m.P+a)/4, '(poitrine + aisance ' + a + ') ÷ 4')
-      + ligneCoupe('Demi-carrure', m.E ? m.E/2+0.5 : null, 'carrure ÷ 2 + 0,5')
-      + ligneCoupe("Profondeur d'emmanchure", m.P/8+8, 'poitrine ÷ 8 + 8')
-      + ligneCoupe('Ligne de taille', m.LT||null, 'longueur de taille')
-      + ligneCoupe('Longueur totale', m.LH ? m.LH+4 : (m.LT ? m.LT+26 : null), 'longueur du haut + 4')
+      + ligneCoupe('Largeur du dos', (m.P+a)/4, '('+m.P+' + '+a+' aisance) ÷ 4')
+      + ligneCoupe('Demi-carrure', m.E ? m.E/2+0.5 : null, m.E+' ÷ 2 + 0,5')
+      + ligneCoupe("Profondeur d'emmanchure", m.P/8+8, m.P+' ÷ 8 + 8')
+      + ligneCoupe('Ligne de taille', m.LT||null, 'longueur de taille prise')
+      + ligneCoupe('Longueur totale', m.LH ? m.LH+4 : (m.LT ? m.LT+26 : null), m.LH ? m.LH+' + 4' : m.LT+' + 26')
       + titreCoupe('DEVANT')
-      + ligneCoupe('Largeur du devant', (m.P+a)/4, '(poitrine + aisance) ÷ 4')
-      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, 'cou ÷ 6 + 2')
-      + ligneCoupe('Cassure du revers', m.LT ? m.LT/2 : null, 'longueur de taille ÷ 2')
+      + ligneCoupe('Largeur du devant', (m.P+a)/4, '('+m.P+' + '+a+' aisance) ÷ 4')
+      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, m.C+' ÷ 6 + 2')
+      + ligneCoupe('Cassure du revers', m.LT ? m.LT/2 : null, m.LT+' ÷ 2')
       + ligneCoupe('Croisure', 2.5, 'valeur fixe')
       + titreCoupe('MANCHE')
       + ligneCoupe('Longueur de manche', m.LM||null, 'mesure prise')
-      + ligneCoupe('Hauteur de tête de manche', m.P/8+4, 'poitrine ÷ 8 + 4')
-      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche+2)/2 : null, '(tour de manche + aisance + 2) ÷ 2');
+      + ligneCoupe('Hauteur de tête de manche', m.P/8+4, m.P+' ÷ 8 + 4')
+      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche+2)/2 : null, '('+m.TM+' + '+(A.manche+2)+') ÷ 2');
   }},
 
   bustier: { titre:'👗 Bustier', pour:'Femme', calc:function(m,A){
     if(!m.P) return null;
     var pince = (m.P && m.T) ? (m.P-m.T)/8 : (m.Pi||null);
     return titreCoupe('DOS')
-      + ligneCoupe('Largeur à la poitrine', (m.P+A.ajuste)/4, '(poitrine + aisance ' + A.ajuste + ') ÷ 4')
-      + ligneCoupe('Largeur à la taille', m.T ? (m.T+A.ajuste)/4-1 : null, '(taille + aisance) ÷ 4 − 1')
-      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, 'cou ÷ 6 + 2')
-      + ligneCoupe("Profondeur d'emmanchure", m.P/8+6, 'poitrine ÷ 8 + 6')
-      + ligneCoupe('Longueur (nuque à la taille)', m.LT||null, 'longueur de taille')
-      + ligneCoupe('Valeur de pince dos', pince, '(poitrine − taille) ÷ 8')
+      + ligneCoupe('Largeur à la poitrine', (m.P+A.ajuste)/4, '('+m.P+' + '+A.ajuste+' aisance) ÷ 4')
+      + ligneCoupe('Largeur à la taille', m.T ? (m.T+A.ajuste)/4-1 : null, '('+m.T+' + '+A.ajuste+') ÷ 4 − 1')
+      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, m.C+' ÷ 6 + 2')
+      + ligneCoupe("Profondeur d'emmanchure", m.P/8+6, m.P+' ÷ 8 + 6')
+      + ligneCoupe('Longueur (nuque à la taille)', m.LT||null, 'longueur de taille prise')
+      + ligneCoupe('Valeur de pince dos', pince, m.T ? '('+m.P+' − '+m.T+') ÷ 8' : 'pince prise')
       + titreCoupe('DEVANT')
-      + ligneCoupe('Largeur à la poitrine', (m.P+A.ajuste)/4+1, '(poitrine + aisance) ÷ 4 + 1')
-      + ligneCoupe('Largeur à la taille', m.T ? (m.T+A.ajuste)/4+1 : null, '(taille + aisance) ÷ 4 + 1')
-      + ligneCoupe('Hauteur de poitrine', m.LT ? m.LT*0.6 : null, 'longueur de taille × 0,6')
-      + ligneCoupe('Écart entre les pointes', m.P ? m.P/10+2 : null, 'poitrine ÷ 10 + 2')
-      + ligneCoupe('Valeur de pince poitrine', m.Pi || pince, m.Pi ? 'longueur de pince prise' : '(poitrine − taille) ÷ 8')
-      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+3 : null, 'cou ÷ 6 + 3');
+      + ligneCoupe('Largeur à la poitrine', (m.P+A.ajuste)/4+1, '('+m.P+' + '+A.ajuste+') ÷ 4 + 1')
+      + ligneCoupe('Largeur à la taille', m.T ? (m.T+A.ajuste)/4+1 : null, '('+m.T+' + '+A.ajuste+') ÷ 4 + 1')
+      + ligneCoupe('Hauteur de poitrine', m.LT ? m.LT*0.6 : null, m.LT+' × 0,6')
+      + ligneCoupe('Écart entre les pointes', m.P ? m.P/10+2 : null, m.P+' ÷ 10 + 2')
+      + ligneCoupe('Valeur de pince poitrine', m.Pi || pince, m.Pi ? 'pince prise' : '('+m.P+' − '+m.T+') ÷ 8')
+      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+3 : null, m.C+' ÷ 6 + 3');
   }},
 
   robe: { titre:'👚 Robe', pour:'Femme', calc:function(m,A){
     if(!m.P) return null;
-    var pince = (m.P && m.T) ? (m.P-m.T)/8 : (m.Pi||null);
+    var a = A.ajuste + 2, pince = (m.P && m.T) ? (m.P-m.T)/8 : (m.Pi||null);
     return titreCoupe('HAUT (dos et devant)')
-      + ligneCoupe('Largeur à la poitrine', (m.P+A.ajuste+2)/4, '(poitrine + aisance ' + (A.ajuste+2) + ') ÷ 4')
-      + ligneCoupe('Largeur à la taille', m.T ? (m.T+A.ajuste+2)/4 : null, '(taille + aisance) ÷ 4')
-      + ligneCoupe("Profondeur d'emmanchure", m.P/8+6.5, 'poitrine ÷ 8 + 6,5')
-      + ligneCoupe('Hauteur de poitrine', m.LT ? m.LT*0.6 : null, 'longueur de taille × 0,6')
-      + ligneCoupe('Valeur de pince', pince, '(poitrine − taille) ÷ 8')
-      + ligneCoupe('Ligne de taille', m.LT||null, 'longueur de taille')
+      + ligneCoupe('Largeur à la poitrine', (m.P+a)/4, '('+m.P+' + '+a+' aisance) ÷ 4')
+      + ligneCoupe('Largeur à la taille', m.T ? (m.T+a)/4 : null, '('+m.T+' + '+a+') ÷ 4')
+      + ligneCoupe("Profondeur d'emmanchure", m.P/8+6.5, m.P+' ÷ 8 + 6,5')
+      + ligneCoupe('Hauteur de poitrine', m.LT ? m.LT*0.6 : null, m.LT+' × 0,6')
+      + ligneCoupe('Valeur de pince', pince, m.T ? '('+m.P+' − '+m.T+') ÷ 8' : 'pince prise')
+      + ligneCoupe('Ligne de taille', m.LT||null, 'longueur de taille prise')
       + titreCoupe('JUPE DE LA ROBE')
-      + ligneCoupe('Largeur au bassin', m.B ? (m.B+A.bassin)/4 : null, '(bassin + aisance) ÷ 4')
-      + ligneCoupe('Hauteur du bassin (sous la taille)', m.B ? m.B/6 : null, 'bassin ÷ 6')
-      + ligneCoupe('Longueur totale', m.LR||null, 'longueur de robe')
-      + ligneCoupe('Longueur jupe seule', (m.LR&&m.LT) ? m.LR-m.LT : null, 'longueur de robe − longueur de taille')
+      + ligneCoupe('Largeur au bassin', m.B ? (m.B+A.bassin)/4 : null, '('+m.B+' + '+A.bassin+' aisance) ÷ 4')
+      + ligneCoupe('Hauteur du bassin (sous la taille)', m.B ? m.B/6 : null, m.B+' ÷ 6')
+      + ligneCoupe('Longueur totale', m.LR||null, 'longueur de robe prise')
+      + ligneCoupe('Longueur jupe seule', (m.LR&&m.LT) ? m.LR-m.LT : null, m.LR+' − '+m.LT)
       + titreCoupe('MANCHE')
       + ligneCoupe('Longueur de manche', m.LM||null, 'mesure prise')
-      + ligneCoupe('Hauteur de tête de manche', m.P/8+3, 'poitrine ÷ 8 + 3')
-      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche)/2 : null, '(tour de manche + aisance) ÷ 2');
+      + ligneCoupe('Hauteur de tête de manche', m.P/8+3, m.P+' ÷ 8 + 3')
+      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche)/2 : null, '('+m.TM+' + '+A.manche+' aisance) ÷ 2');
   }},
 
   jupe: { titre:'👗 Jupe', pour:'Femme', calc:function(m,A){
     if(!m.B) return null;
+    var Bb = m.B + A.bassin, Cc = m.Ce ? m.Ce + 2 : 0;
     return titreCoupe('DEVANT')
-      + ligneCoupe('Largeur au bassin', (m.B+A.bassin)/4, '(bassin + aisance ' + A.bassin + ') ÷ 4')
-      + ligneCoupe('Largeur à la ceinture', m.Ce ? (m.Ce+2)/4 : null, '(ceinture + 2) ÷ 4')
-      + ligneCoupe('Valeur de pince', m.Ce ? ((m.B+A.bassin)-(m.Ce+2))/8 : null, '(bassin − ceinture) ÷ 8')
+      + ligneCoupe('Largeur au bassin', Bb/4, '('+m.B+' + '+A.bassin+' aisance) ÷ 4')
+      + ligneCoupe('Largeur à la ceinture', Cc ? Cc/4 : null, '('+m.Ce+' + 2) ÷ 4')
+      + ligneCoupe('Valeur de pince', Cc ? (Bb-Cc)/8 : null, '('+nb(Bb)+' − '+nb(Cc)+') ÷ 8')
       + titreCoupe('DOS')
-      + ligneCoupe('Largeur au bassin', (m.B+A.bassin)/4, '(bassin + aisance) ÷ 4')
-      + ligneCoupe('Largeur à la ceinture', m.Ce ? (m.Ce+2)/4 : null, '(ceinture + 2) ÷ 4')
-      + ligneCoupe('Valeur de pince', m.Ce ? ((m.B+A.bassin)-(m.Ce+2))/8 : null, '(bassin − ceinture) ÷ 8')
+      + ligneCoupe('Largeur au bassin', Bb/4, '('+m.B+' + '+A.bassin+' aisance) ÷ 4')
+      + ligneCoupe('Largeur à la ceinture', Cc ? Cc/4 : null, '('+m.Ce+' + 2) ÷ 4')
+      + ligneCoupe('Valeur de pince', Cc ? (Bb-Cc)/8 : null, '('+nb(Bb)+' − '+nb(Cc)+') ÷ 8')
       + titreCoupe('COMMUN')
-      + ligneCoupe('Hauteur du bassin', m.B/6, 'bassin ÷ 6')
-      + ligneCoupe('Longueur totale', m.LJ||null, 'longueur de jupe')
+      + ligneCoupe('Hauteur du bassin', m.B/6, m.B+' ÷ 6')
+      + ligneCoupe('Longueur totale', m.LJ||null, 'longueur de jupe prise')
       + ligneCoupe('Hauteur de ceinture', 4, 'valeur fixe')
-      + ligneCoupe('Longueur de la ceinture', m.Ce ? m.Ce+4 : null, 'ceinture + 4 (croisure)');
+      + ligneCoupe('Longueur de la ceinture', m.Ce ? m.Ce+4 : null, m.Ce+' + 4 (croisure)');
   }},
 
   tunique: { titre:'👘 Tunique', pour:'les deux', calc:function(m,A){
     if(!m.P) return null;
     var a = A.poitrine + 6;
     return titreCoupe('DOS ET DEVANT')
-      + ligneCoupe('Largeur à la poitrine', (m.P+a)/4, '(poitrine + aisance ' + a + ') ÷ 4')
-      + ligneCoupe('Largeur en bas (évasement)', (m.P+a)/4+6, 'largeur poitrine + 6')
-      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, 'cou ÷ 6 + 2')
-      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+4 : null, 'cou ÷ 6 + 4')
-      + ligneCoupe("Profondeur d'emmanchure", m.P/8+8, 'poitrine ÷ 8 + 8')
-      + ligneCoupe('Longueur totale', m.LR ? m.LR*0.7 : (m.LH ? m.LH+18 : null), m.LR?'longueur de robe × 0,7':'longueur du haut + 18')
+      + ligneCoupe('Largeur à la poitrine', (m.P+a)/4, '('+m.P+' + '+a+' aisance) ÷ 4')
+      + ligneCoupe('Largeur en bas (évasement)', (m.P+a)/4+6, nb((m.P+a)/4)+' + 6')
+      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, m.C+' ÷ 6 + 2')
+      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+4 : null, m.C+' ÷ 6 + 4')
+      + ligneCoupe("Profondeur d'emmanchure", m.P/8+8, m.P+' ÷ 8 + 8')
+      + ligneCoupe('Longueur totale', m.LR ? m.LR*0.7 : (m.LH ? m.LH+18 : null), m.LR ? m.LR+' × 0,7' : m.LH+' + 18')
       + ligneCoupe('Fente latérale', 20, 'valeur fixe')
       + titreCoupe('MANCHE')
       + ligneCoupe('Longueur de manche', m.LM||null, 'mesure prise')
-      + ligneCoupe('Hauteur de tête de manche', m.P/8+2, 'poitrine ÷ 8 + 2')
-      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche+4)/2 : null, '(tour de manche + aisance + 4) ÷ 2');
+      + ligneCoupe('Hauteur de tête de manche', m.P/8+2, m.P+' ÷ 8 + 2')
+      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+A.manche+4)/2 : null, '('+m.TM+' + '+(A.manche+4)+') ÷ 2');
   }},
 
   boubou: { titre:'🥻 Boubou / Grand boubou', pour:'les deux', calc:function(m,A){
     if(!m.P) return null;
-    var larg = (m.P+A.boubou)/4;
     return titreCoupe('CORPS (dos et devant identiques)')
-      + ligneCoupe('Largeur (pliée)', larg, '(poitrine + aisance ' + A.boubou + ') ÷ 4')
-      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, 'cou ÷ 6 + 2')
+      + ligneCoupe('Largeur (pliée)', (m.P+A.boubou)/4, '('+m.P+' + '+A.boubou+' ampleur) ÷ 4')
+      + ligneCoupe("Largeur d'encolure", m.C ? m.C/6+2 : null, m.C+' ÷ 6 + 2')
       + ligneCoupe("Profondeur d'encolure dos", 3, 'valeur fixe')
-      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+4 : null, 'cou ÷ 6 + 4')
+      + ligneCoupe("Profondeur d'encolure devant", m.C ? m.C/6+4 : null, m.C+' ÷ 6 + 4')
       + ligneCoupe('Fente devant', 25, 'valeur fixe')
-      + ligneCoupe('Longueur totale', m.LR || (m.LP ? m.LP+8 : null), m.LR?'longueur de robe':'longueur de pantalon + 8')
+      + ligneCoupe('Longueur totale', m.LR || (m.LP ? m.LP+8 : null), m.LR ? 'longueur de robe prise' : m.LP+' + 8')
       + titreCoupe('MANCHE (ample, coupée droite)')
-      + ligneCoupe('Longueur de manche', m.LM ? m.LM+10 : null, 'longueur de manche + 10')
-      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+20)/2 : null, '(tour de manche + 20) ÷ 2')
-      + ligneCoupe('Ouverture au poignet (pliée)', m.Pg ? (m.Pg+14)/2 : null, '(poignet + 14) ÷ 2');
+      + ligneCoupe('Longueur de manche', m.LM ? m.LM+10 : null, m.LM+' + 10')
+      + ligneCoupe('Largeur de manche (pliée)', m.TM ? (m.TM+20)/2 : null, '('+m.TM+' + 20) ÷ 2')
+      + ligneCoupe('Ouverture au poignet (pliée)', m.Pg ? (m.Pg+14)/2 : null, '('+m.Pg+' + 14) ÷ 2');
   }},
 
   pantalon: { titre:'👖 Pantalon', pour:'les deux', calc:function(m,A){
     if(!m.B) return null;
     var Bb = m.B + A.bassin;
     return titreCoupe('DEVANT')
-      + ligneCoupe('Largeur au bassin', Bb/4-1, '(bassin + aisance ' + A.bassin + ') ÷ 4 − 1')
-      + ligneCoupe('Largeur à la ceinture', m.Ce ? (m.Ce+A.bassin)/4-1 : null, '(ceinture + aisance) ÷ 4 − 1')
-      + ligneCoupe('Petite fourche', m.B/16, 'bassin ÷ 16')
+      + ligneCoupe('Largeur au bassin', Bb/4-1, '('+m.B+' + '+A.bassin+' aisance) ÷ 4 − 1')
+      + ligneCoupe('Largeur à la ceinture', m.Ce ? (m.Ce+A.bassin)/4-1 : null, '('+m.Ce+' + '+A.bassin+') ÷ 4 − 1')
+      + ligneCoupe('Petite fourche', m.B/16, m.B+' ÷ 16')
       + titreCoupe('DOS')
-      + ligneCoupe('Largeur au bassin', Bb/4+1, '(bassin + aisance) ÷ 4 + 1')
-      + ligneCoupe('Largeur à la ceinture', m.Ce ? (m.Ce+A.bassin)/4+1 : null, '(ceinture + aisance) ÷ 4 + 1')
-      + ligneCoupe('Grande fourche', m.B/8, 'bassin ÷ 8')
+      + ligneCoupe('Largeur au bassin', Bb/4+1, '('+m.B+' + '+A.bassin+' aisance) ÷ 4 + 1')
+      + ligneCoupe('Largeur à la ceinture', m.Ce ? (m.Ce+A.bassin)/4+1 : null, '('+m.Ce+' + '+A.bassin+') ÷ 4 + 1')
+      + ligneCoupe('Grande fourche', m.B/8, m.B+' ÷ 8')
       + titreCoupe('COMMUN AUX DEUX')
-      + ligneCoupe('Montant (hauteur de fourche)', m.B/4+2.5, 'bassin ÷ 4 + 2,5')
-      + ligneCoupe('Longueur totale', m.LP||null, 'longueur de pantalon')
-      + ligneCoupe('Hauteur du genou', m.LP ? m.LP*0.55 : null, 'longueur × 0,55')
-      + ligneCoupe('Largeur à la cuisse (pliée)', m.Cu ? (m.Cu+6)/2 : null, '(cuisse + 6) ÷ 2')
-      + ligneCoupe('Largeur au genou (pliée)', m.G ? (m.G+A.manche)/2 : null, '(genou + aisance) ÷ 2')
-      + ligneCoupe('Largeur en bas (pliée)', m.Bp ? m.Bp/2 : null, 'bas du pantalon ÷ 2');
+      + ligneCoupe('Montant (hauteur de fourche)', m.B/4+2.5, m.B+' ÷ 4 + 2,5')
+      + ligneCoupe('Longueur totale', m.LP||null, 'longueur de pantalon prise')
+      + ligneCoupe('Hauteur du genou', m.LP ? m.LP*0.55 : null, m.LP+' × 0,55')
+      + ligneCoupe('Largeur à la cuisse (pliée)', m.Cu ? (m.Cu+6)/2 : null, '('+m.Cu+' + 6) ÷ 2')
+      + ligneCoupe('Largeur au genou (pliée)', m.G ? (m.G+A.manche)/2 : null, '('+m.G+' + '+A.manche+') ÷ 2')
+      + ligneCoupe('Largeur en bas (pliée)', m.Bp ? m.Bp/2 : null, m.Bp+' ÷ 2');
   }}
 };
+
+/* Taille commerciale (S, M, L...) deduite du tour de poitrine, sinon du
+   bassin. Djamil la veut a cote du nom : il raisonne en tailles quand il
+   parle a une cliente ou a un eleve, pas en centimetres. */
+function tailleClient(f){
+  var P = parseFloat(f.poitrine)||0, B = parseFloat(f.bassin)||0;
+  var femme = (f.genre === 'Femme');
+  var base = P, source = 'poitrine';
+  if (!base && B){ base = femme ? B - 8 : B + 8; source = 'bassin'; }
+  if (!base) return null;
+  var bornes = femme
+    ? [[86,'XS'],[94,'S'],[102,'M'],[110,'L'],[118,'XL'],[126,'XXL']]
+    : [[88,'XS'],[96,'S'],[104,'M'],[112,'L'],[120,'XL'],[128,'XXL']];
+  var taille = '3XL';
+  for (var i=0;i<bornes.length;i++){ if (base < bornes[i][0]){ taille = bornes[i][1]; break; } }
+  return { taille: taille, source: source, valeur: Math.round(base) };
+}
 
 function modelesPourGenre(genre){
   var out = [];
@@ -4624,7 +4646,10 @@ function ouvrirFicheCoupe(id, modele){
       return '<button type="button" class="' + (k===modele?'actif':'') +
              '" onclick="ouvrirFicheCoupe(\'' + id + '\',\'' + k + '\')">' + MODELES_COUPE[k].titre + '</button>';
     }).join('') + '</div>';
-  ouvrirModale('✂️ Coupe — ' + (f.nom||''),
+  var t = tailleClient(f);
+  ouvrirModale('✂️ Coupe — ' + (f.nom||'') + (t ? ' · taille ' + t.taille : ''),
+    (t ? '<p style="font-size:.8rem;margin:0 0 8px;">Taille <b style="color:var(--or,#C9A227);">' + t.taille +
+         '</b> <span style="color:var(--gris);">(' + t.source + ' ' + t.valeur + ' cm)</span></p>' : '') +
     pastilles +
     '<p style="font-size:.78rem;color:var(--gris);margin:0 0 8px;">Valeurs à craier sur le tissu PLIÉ (demi-pièces). Chaque ligne montre sa formule : si l\'une ne correspond pas à ta méthode, dis-le-moi et je la change.</p>' +
     calculerCoupe(f, modele),
@@ -6119,7 +6144,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-02-modeles-coupe';
+const APP_VERSION = 'v2026-08-02-taille-calculs';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6311,7 +6336,7 @@ function rendreMesures(){
   const comptageNoms = {};
   CACHE.clients_mesures.forEach(f=>{ comptageNoms[f.nom] = (comptageNoms[f.nom]||0)+1; });
   liste.innerHTML=data.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'', 'fr', {sensitivity:'base'})).map(f=>`<div class="liste-item">
-    <div class="nom" onclick="basculerDetailMesure('${f.id}')" style="cursor:pointer;">👁️ ${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${f.genre||''})</span> ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
+    <div class="nom" onclick="basculerDetailMesure('${f.id}')" style="cursor:pointer;">👁️ ${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${f.genre||''})</span>${(function(t){ return t ? ' <span class="badge" style="background:rgba(201,162,39,.18);color:var(--or);border:1px solid rgba(201,162,39,.5);">'+t.taille+'</span>' : ''; })(tailleClient(f))} ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
     <div class="meta">${f.tel||'<span style="color:var(--rouge);">Aucun téléphone — risque de confusion</span>'}</div>
     <div class="meta">Cou ${f.cou||'-'} · Poitrine ${f.poitrine||'-'} · Taille ${f.tourTaille||'-'} · Ceinture ${f.ceinture||'-'} · Bassin ${f.bassin||'-'}</div>
     <div id="detail-mesure-${f.id}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.8rem;line-height:1.7;">
