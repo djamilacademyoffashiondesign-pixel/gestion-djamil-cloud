@@ -2649,14 +2649,35 @@ async function marquerSoldePayeAtelier(id){
       '<p>'+c.nom+' a payé le solde restant de <b>'+reste+' D</b> ?</p>' +
       '<p style="font-size:.85rem;color:var(--gris);">Le total reçu passera à '+c.prix+' D.</p>',
       'Oui, encaissé')) return;
+  /* 03/08 : les deux ecritures etaient lancees sans etre ATTENDUES, et le
+     message de reussite s'affichait avant meme de savoir si la base avait
+     accepte. On attend desormais chaque etape et on rapporte precisement
+     laquelle a echoue — plus jamais de "rien ne se passe". */
+  const ancienAcompte = c.acompte;
   c.acompte = c.prix; // mise à jour immédiate à l'écran
   rendreAtelier();
-  db.collection('commandes_couture').doc(id).update({acompte:c.prix}).catch(err=>echecEcriture('Mise à jour solde', err));
-  enregistrerTransaction(reste, 'Atelier', c.nom+' — '+c.code+' (solde final)');
-  /* Trace visible : un toast disparait trop vite pour servir de preuve. */
-  afficherInfo(reste + " D enregistrés pour " + c.nom + ".\n\n"
-    + "Commande : " + c.prix + " D reçus sur " + c.prix + " D.\n"
-    + "Recette datée du " + new Date().toLocaleDateString('fr-FR') + " — visible dans Finances et dans l'Aperçu du jour.",
+
+  let etapeCommande = '', etapeRecette = '';
+  try {
+    await db.collection('commandes_couture').doc(id).update({acompte: c.prix});
+    etapeCommande = '✅ Commande mise à jour : ' + c.prix + ' D reçus sur ' + c.prix + ' D';
+  } catch(err){
+    c.acompte = ancienAcompte; rendreAtelier();
+    afficherInfo("La commande n'a pas pu être mise à jour.\n\nErreur : "
+      + ((err && err.code) ? err.code : '') + ' ' + ((err && err.message) ? err.message : ''),
+      '❌ Encaissement non enregistré');
+    return;
+  }
+  try {
+    await enregistrerTransaction(reste, 'Atelier', c.nom+' — '+c.code+' (solde final)');
+    etapeRecette = '✅ Recette de ' + reste + ' D enregistrée le ' + new Date().toLocaleDateString('fr-FR');
+  } catch(err){
+    etapeRecette = "⚠️ La commande est à jour mais la recette n'a pas pu être écrite : "
+      + ((err && err.code) ? err.code : '') + ' ' + ((err && err.message) ? err.message : '');
+  }
+  rendreBilanFinances(); rendreRecettes(); rendreApercu();
+  afficherInfo(etapeCommande + "\n" + etapeRecette
+    + "\n\nSi la recette n'apparaît pas dans Finances, ferme et rouvre l'onglet.",
     '✅ Encaissement enregistré');
   if(c.tel){
     const msg = texteMsg(
@@ -6563,7 +6584,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-03-controle-general';
+const APP_VERSION = 'v2026-08-03-encaissement-trace';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
