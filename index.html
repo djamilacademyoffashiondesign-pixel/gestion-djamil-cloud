@@ -1349,10 +1349,22 @@ async function changerCodeAdminPrincipal(){
   }
 }
 const REF_CODE_TEMP = () => db.collection('parametres').doc('codeTemporaire');
-async function demanderCodeAdmin(actionLabel){
-  const saisie = prompt('Code Administrateur requis pour : '+actionLabel);
-  if(saisie === null) return false;
-  const saisieTrim = saisie.trim();
+/* Confirmation par fenêtre de l'application : confirm() peut être bloqué
+   par le navigateur (case « empêcher cette page de créer des boîtes de
+   dialogue »), auquel cas il renvoie false en silence. */
+function confirmerModale(titre, texteHTML, texteBouton){
+  return new Promise(function(resoudre){
+    let repondu = false;
+    const finir = function(v){ if(!repondu){ repondu = true; resoudre(v); } };
+    const fond = ouvrirModale(titre, texteHTML, [
+      { texte: texteBouton || 'Confirmer', action:function(){ finir(true); } },
+      { texte:'Annuler', style:'secondary', action:function(){ finir(false); } }
+    ]);
+    if(fond) fond.addEventListener('click', function(e){ if(e.target === fond) finir(false); });
+  });
+}
+
+async function verifierCodeAdmin(saisieTrim){
   if(saisieTrim === CODE_ADMIN) return true;
   if(!saisieTrim){ toast('Code incorrect — action annulée'); return false; }
   // Vérifie s'il existe un code à usage unique (donné à distance par le propriétaire)
@@ -1377,6 +1389,34 @@ async function demanderCodeAdmin(actionLabel){
   toast('Code incorrect — action annulée');
   return false;
 }
+
+/* Demande le code dans une fenêtre de l'application (jamais prompt()). */
+function demanderCodeAdmin(actionLabel){
+  return new Promise(function(resoudre){
+    let repondu = false;
+    const finir = function(v){ if(!repondu){ repondu = true; resoudre(v); } };
+    const fond = ouvrirModale('🔑 Code administrateur',
+      '<p style="font-size:.88rem;">Action : <b>'+actionLabel+'</b></p>' +
+      '<input id="saisie-code-admin" type="text" inputmode="numeric" autocomplete="off" placeholder="Code" ' +
+      'style="width:100%;font-size:1.3rem;letter-spacing:.25em;text-align:center;padding:12px;">',
+      [
+        { texte:'Valider', action:function(){
+            const el = document.getElementById('saisie-code-admin');
+            const v = el ? String(el.value||'').trim() : '';
+            verifierCodeAdmin(v).then(finir);
+          } },
+        { texte:'Annuler', style:'secondary', action:function(){ finir(false); } }
+      ]);
+    /* Fermeture en touchant le fond : on refuse l'action, sinon la promesse
+       resterait en attente pour toujours. */
+    if(fond) fond.addEventListener('click', function(e){ if(e.target === fond) finir(false); });
+    setTimeout(function(){
+      const el = document.getElementById('saisie-code-admin');
+      if(el) el.focus();
+    }, 100);
+  });
+}
+
 /* Panneau (Aperçu) permettant au propriétaire de générer, à distance,
    un code valable UNE seule fois pour un manager, sans jamais communiquer
    le code permanent. Le code est automatiquement désactivé après usage.
@@ -2534,7 +2574,10 @@ async function marquerSoldePayeAtelier(id){
   const reste = c.prix-c.acompte;
   if(reste<=0){ toast('Cette commande est déjà payée en totalité'); return; }
   if(!await demanderCodeAdmin('Encaisser le solde de '+c.nom)) return;
-  if(!confirm(c.nom+' a payé le solde restant de '+reste+' D ?\nLe total passera à '+c.prix+' D reçu.')) return;
+  if(!await confirmerModale('💰 Encaisser le solde',
+      '<p>'+c.nom+' a payé le solde restant de <b>'+reste+' D</b> ?</p>' +
+      '<p style="font-size:.85rem;color:var(--gris);">Le total reçu passera à '+c.prix+' D.</p>',
+      'Oui, encaissé')) return;
   c.acompte = c.prix; // mise à jour immédiate à l'écran
   rendreAtelier();
   db.collection('commandes_couture').doc(id).update({acompte:c.prix}).catch(err=>echecEcriture('Mise à jour solde', err));
@@ -3871,7 +3914,10 @@ async function marquerSoldePayePressing(id){
   const reste = t.prix-t.avance;
   if(reste<=0){ toast('Ce ticket est déjà payé en totalité'); return; }
   if(!await demanderCodeAdmin('Encaisser le solde de '+t.nom)) return;
-  if(!confirm(t.nom+' a payé le solde restant de '+reste+' D ?\nLe total passera à '+t.prix+' D reçu.')) return;
+  if(!await confirmerModale('💰 Encaisser le solde',
+      '<p>'+t.nom+' a payé le solde restant de <b>'+reste+' D</b> ?</p>' +
+      '<p style="font-size:.85rem;color:var(--gris);">Le total reçu passera à '+t.prix+' D.</p>',
+      'Oui, encaissé')) return;
   t.avance = t.prix;
   rendrePressing();
   if(document.getElementById('p-recherche-code')) rechercherCodePressing();
@@ -6169,7 +6215,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-03-coupe-grand-ecran';
+const APP_VERSION = 'v2026-08-03-code-sans-prompt';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
