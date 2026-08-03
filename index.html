@@ -2645,10 +2645,11 @@ async function marquerSoldePayeAtelier(id){
      code n'etait pas visible. Encaisser de l'argent deja recu n'est pas une
      action destructrice : une seule confirmation suffit. Les suppressions et
      les corrections de montant restent protegees par le code. */
-  if(!await confirmerModale('💰 Encaisser le solde',
-      '<p>'+c.nom+' a payé le solde restant de <b>'+reste+' D</b> ?</p>' +
-      '<p style="font-size:.85rem;color:var(--gris);">Le total reçu passera à '+c.prix+' D.</p>',
-      'Oui, encaissé')) return;
+  /* 03/08, dernier obstacle retire : plus AUCUNE fenetre avant l'ecriture.
+     Une seule pression encaisse, comme Djamil le decrivait ("avant, il
+     fallait seulement appuyer sur le bouton payer"). S'il se trompe, le
+     bouton "Avance" corrige le montant. Toute etape interactive placee avant
+     l'ecriture est une occasion de plus que rien ne se passe. */
   /* 03/08 : les deux ecritures etaient lancees sans etre ATTENDUES, et le
      message de reussite s'affichait avant meme de savoir si la base avait
      accepte. On attend desormais chaque etape et on rapporte precisement
@@ -6584,7 +6585,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-03-encaissement-trace';
+const APP_VERSION = 'v2026-08-03-une-pression';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
