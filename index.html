@@ -494,6 +494,7 @@ function traduireNoeud(node){
       <div class="meta">Le manager enregistre ici tout paiement reçu, sans code. Le directeur valide ensuite : l'argent n'entre dans la caisse qu'à la validation.</div>
       <div class="item-actions" style="margin-top:10px;">
         <button onclick="ouvrirSaisiePaiement()" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">💵 Enregistrer un paiement reçu</button>
+        <button onclick="controleGeneral()">🩺 Contrôle général</button>
       </div>
       <div id="paiements-attente" style="margin-top:10px;"></div>
     </div>
@@ -5382,6 +5383,83 @@ function ventesAConfirmer(){
 }
 
 /* ====================================================================
+   CONTROLE GENERAL — ajoute le 03/08/2026
+   Constat qui a tout change : des commandes LIVREES affichent "Paye 0", les
+   changements d'etat ne tiennent pas, aucune recette du jour n'existe. Ce
+   n'est donc pas un bouton qui est casse, c'est probablement TOUTE ecriture
+   vers Firestore qui est refusee, pendant que la LECTURE continue de marcher
+   depuis le cache local. Les regles Firestore ecrites en "mode test" portent
+   une DATE D'EXPIRATION : passee cette date, l'ecriture est refusee et la
+   lecture peut rester autorisee. L'app n'avait aucun moyen de le montrer.
+   Ce controle ecrit reellement un document temoin et affiche le code
+   d'erreur Firestore exact, puis le supprime.
+   ==================================================================== */
+async function controleGeneral(){
+  ouvrirModale('🩺 Contrôle général', '<p>Test en cours…</p>');
+  var lignes = [];
+  var ok = function(t){ lignes.push('<div style="color:var(--vert);">✅ ' + t + '</div>'); };
+  var ko = function(t){ lignes.push('<div style="color:var(--rouge);">❌ ' + t + '</div>'); };
+  var info = function(t){ lignes.push('<div class="meta">' + t + '</div>'); };
+
+  /* 1. Reseau */
+  if(navigator.onLine) ok('Téléphone connecté à Internet');
+  else ko('Téléphone hors ligne');
+
+  /* 2. Lecture */
+  info('Données lues : ' + (CACHE.commandes_couture||[]).length + ' commandes, '
+     + (CACHE.transactions||[]).length + ' recettes, ' + (CACHE.depenses||[]).length + ' dépenses');
+
+  /* 3. ECRITURE REELLE — le test qui compte */
+  var refTest = db.collection('diagnostic').doc('test_ecriture');
+  var erreurEcriture = null;
+  try {
+    await refTest.set({ quand: Date.now(), depuis: 'controle general' });
+    ok('ÉCRITURE AUTORISÉE — la base accepte les enregistrements');
+    try { await refTest.delete(); } catch(e){}
+  } catch(err){
+    erreurEcriture = err;
+    ko('ÉCRITURE REFUSÉE par la base');
+    info('Code d\'erreur : <b>' + (err && err.code ? err.code : 'inconnu') + '</b>');
+    info((err && err.message ? err.message : '').slice(0, 200));
+  }
+
+  /* 4. File d'attente hors ligne */
+  var enAttente = 0;
+  try {
+    for(var i=0;i<localStorage.length;i++){
+      var cle = localStorage.key(i);
+      if(cle && cle.indexOf('secours_') === 0){
+        var liste = JSON.parse(localStorage.getItem(cle) || '[]');
+        enAttente += liste.length;
+      }
+    }
+  } catch(e){}
+  if(enAttente > 0) ko(enAttente + ' écriture(s) bloquées en attente sur ce téléphone');
+  else ok('Aucune écriture bloquée en attente');
+
+  /* 5. Verdict */
+  var verdict = '';
+  if(erreurEcriture && String(erreurEcriture.code||'').indexOf('permission') >= 0){
+    verdict = '<div style="border:1px solid var(--rouge);border-radius:10px;padding:10px;margin-top:12px;">'
+      + '<b style="color:var(--rouge);">Cause trouvée : les règles de sécurité de la base refusent toute écriture.</b>'
+      + '<div class="meta" style="margin-top:6px;">C\'est presque toujours une règle en « mode test » dont la DATE D\'EXPIRATION est dépassée. '
+      + 'La lecture continue de fonctionner, donc l\'app paraît normale, mais plus rien ne s\'enregistre — '
+      + 'ni les paiements, ni les changements d\'état, ni les nouvelles commandes.</div>'
+      + '<div class="meta" style="margin-top:6px;">À corriger dans la console Firebase → Firestore Database → Règles. '
+      + 'Aucun correctif dans l\'application ne peut contourner cela.</div></div>';
+  } else if(erreurEcriture){
+    verdict = '<div class="meta" style="margin-top:12px;">L\'écriture échoue pour une autre raison que les permissions — '
+      + 'envoie le code d\'erreur ci-dessus.</div>';
+  } else {
+    verdict = '<div style="border:1px solid var(--vert);border-radius:10px;padding:10px;margin-top:12px;">'
+      + '<b style="color:var(--vert);">La base accepte les écritures.</b>'
+      + '<div class="meta" style="margin-top:6px;">Le blocage n\'est donc pas côté base : c\'est l\'action elle-même qu\'il faut examiner.</div></div>';
+  }
+
+  ouvrirModale('🩺 Contrôle général', lignes.join('') + verdict);
+}
+
+/* ====================================================================
    ARGENT REÇU EN L'ABSENCE DU DIRECTEUR — ajouté le 03/08/2026
    Demande de Djamil : le manager encaisse toute la journée (atelier,
    pressing, laverie, boutique) mais n'a pas le code administrateur. Il
@@ -6485,7 +6563,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-03-encaisser-direct';
+const APP_VERSION = 'v2026-08-03-controle-general';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
