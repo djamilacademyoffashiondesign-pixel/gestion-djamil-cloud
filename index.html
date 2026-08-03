@@ -402,6 +402,29 @@ function traduireNoeud(node){
   .alerte-livraison.semaine{border-left:4px solid var(--or);}
   .badge.semaine{background:rgba(201,162,39,0.12);color:var(--or-clair);}
 </style>
+<style>
+/* --- Fiche de coupe : lisible de loin sur un ecran d'ordinateur ---------
+   Djamil consulte la coupe debout, a distance de sa table : la fenetre de
+   520 px etait illisible sur son 24 pouces. Sur grand ecran elle occupe
+   presque tout, avec des caracteres plus grands. Le telephone ne change
+   pas. Les regles portent !important car ouvrirModale pose ses tailles en
+   style inline. */
+.modale-coupe > div { max-width: 520px; }
+@media (min-width: 900px){
+  .modale-coupe > div { max-width: 1200px !important; width: 94vw !important; max-height: 94vh !important; padding: 26px !important; }
+  .modale-coupe h2 { font-size: 1.5rem !important; }
+  .coupe-table { font-size: 1.05rem !important; }
+  .coupe-table td { padding: 9px 12px !important; }
+  .coupe-table .val { font-size: 1.3rem !important; }
+  .coupe-modeles button { font-size: 1rem !important; padding: 10px 14px !important; }
+}
+/* Chaque ligne est nettement separee et le chiffre est cale en haut, sur la
+   meme ligne que le nom de la mesure : sans cela le chiffre flottait au
+   milieu de deux lignes et paraissait appartenir a la ligne du dessus. */
+.coupe-table td { vertical-align: top; border-bottom: 1px solid rgba(255,255,255,.07); }
+.coupe-table .val { font-variant-numeric: tabular-nums; }
+.coupe-table .section td { border-bottom: none; }
+</style>
 </head>
 <body class="notranslate">
 
@@ -4348,7 +4371,8 @@ function ouvrirModale(titre, corpsHTML, boutons){
      le cote (constate sur Android). On ramene l'horizontale a zero. */
   try { window.scrollTo({ left: 0, top: window.scrollY }); } catch(e){}
   const fond = document.createElement('div');
-  fond.className = 'modale-cd';
+  fond.className = 'modale-cd' + (window._modaleClasse ? ' ' + window._modaleClasse : '');
+  window._modaleClasse = '';
   fond.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
   const boite = document.createElement('div');
   boite.style.cssText = 'background:#141416;border:1px solid rgba(201,162,39,.35);border-radius:14px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:18px;';
@@ -4390,11 +4414,11 @@ function ligneCoupe(nom, valeur, formule){
   if (valeur === null || valeur === undefined || isNaN(valeur)) return '';
   return '<tr><td style="padding:5px 6px;">' + nom +
          '<div style="font-size:.68rem;color:var(--gris);">' + formule + '</div></td>' +
-         '<td style="padding:5px 6px;text-align:right;font-weight:700;color:var(--or,#C9A227);white-space:nowrap;">' +
+         '<td class="val" style="padding:5px 6px;text-align:right;font-weight:700;color:var(--or,#C9A227);white-space:nowrap;">' +
          (Math.round(valeur*10)/10) + ' cm</td></tr>';
 }
 function titreCoupe(t){
-  return '<tr><td colspan="2" style="padding:6px;background:rgba(255,255,255,.04);font-weight:700;">' + t + '</td></tr>';
+  return '<tr class="section"><td colspan="2" style="padding:6px;background:rgba(255,255,255,.04);font-weight:700;">' + t + '</td></tr>';
 }
 function mesuresCoupe(f){
   var n = function(v){ var x = parseFloat(v); return (x>0) ? x : 0; };
@@ -4602,7 +4626,7 @@ function calculerCoupe(f, modele){
   if (!M) return '<p>Modèle inconnu.</p>';
   var corps = M.calc(m, COUPE_AISANCES);
   if (!corps) return '<p>Il manque la mesure de base de ce modèle (tour de poitrine, ou tour de bassin pour le bas). Ouvre « Modifier » et complète la fiche.</p>';
-  return '<table style="width:100%;border-collapse:collapse;font-size:.82rem;">' + corps + '</table>';
+  return '<table class="coupe-table" style="width:100%;border-collapse:collapse;font-size:.82rem;">' + corps + '</table>';
 }
 
 function reglagesCoupe(id, modele){
@@ -4642,11 +4666,12 @@ function ouvrirFicheCoupe(id, modele){
   if (!modele || dispo.indexOf(modele) < 0) modele = dispo[0];
   /* Choix du modele : des pastilles, pas un menu deroulant — plus rapide au
      pouce, et Djamil voit d'un coup ce que l'app sait couper. */
-  var pastilles = '<div class="toggle-genre" style="margin:0 0 10px;">' + dispo.map(function(k){
+  var pastilles = '<div class="toggle-genre coupe-modeles" style="margin:0 0 10px;">' + dispo.map(function(k){
       return '<button type="button" class="' + (k===modele?'actif':'') +
              '" onclick="ouvrirFicheCoupe(\'' + id + '\',\'' + k + '\')">' + MODELES_COUPE[k].titre + '</button>';
     }).join('') + '</div>';
   var t = tailleClient(f);
+  window._modaleClasse = 'modale-coupe';
   ouvrirModale('✂️ Coupe — ' + (f.nom||'') + (t ? ' · taille ' + t.taille : ''),
     (t ? '<p style="font-size:.8rem;margin:0 0 8px;">Taille <b style="color:var(--or,#C9A227);">' + t.taille +
          '</b> <span style="color:var(--gris);">(' + t.source + ' ' + t.valeur + ' cm)</span></p>' : '') +
@@ -6144,7 +6169,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-02-taille-calculs';
+const APP_VERSION = 'v2026-08-03-coupe-grand-ecran';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
