@@ -35,7 +35,7 @@
   var CHUNKS = [["Fermeture","Closing"],["encaissement(s)","payment(s)"]];
  CHUNKS.push(["TOTAL REÇU AUJOURD'HUI","TOTAL RECEIVED TODAY"],["Total reçu aujourd'hui","Total received today"],["Total reçu","Total received"],["Clôturer la journée & Notifier le propriétaire","Close the day & Notify the owner"],["Changer le numéro du propriétaire","Change owner's number"],["À faire aujourd'hui","To do today"],["rendez-vous proche(s)","upcoming appointment(s)"],["livraison EN RETARD de","delivery LATE by"],["jour(s)","day(s)"],["Atelier","Workshop"],["Pressing","Dry cleaning"]); var PH = [["Nom, téléphone ou code (ex : Fatima, 003, 7...)","Name, phone or code (e.g. Fatima, 003, 7...)"]];
 CHUNKS.push(["GESTION ATELIER · PRESSING · BOUTIQUE","WORKSHOP · DRY CLEANING · BOUTIQUE"],["MESSAGES CLIENTS","CLIENT MESSAGES"],["PRÊTES","READY"],["LIVRÉES","DELIVERED"],["Dépense rapide","Quick expense"],["Catégorie (ex: Fil, boutons)","Category (e.g. Thread, buttons)"],["Montant (D)","Amount (D)"],["Description (optionnel)","Description (optional)"],["Enregistrer la dépense","Save expense"],["Client historique (dépôt avant l'application)","Historical client (deposit before the app)"],["Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer. Enregistré directement comme \"Livré\", sans passer par tout le formulaire de commande.","For a client who dropped off a garment long ago (before the app) and is collecting it today. Saved directly as \"Delivered\", without the full order form."],["Nom du client","Client name"],["Téléphone","Phone"],["Montant total payé (D)","Total amount paid (D)"],["Ce client doit-il encore de l'argent ?","Does this client still owe money?"],["Quand cet argent a-t-il été reçu ? (laisser aujourd'hui si le paiement se fait maintenant)","When was this money received? (leave today if paying now)"],["Enregistrer et marquer livré","Save and mark delivered"],["Enregistrer et marquer récupéré","Save and mark collected"],["Nouvelle commande","New order"],["Type de commande (choisir avant de remplir)","Order type (choose before filling)"],["Confection","Tailoring"],["Retouche","Alteration"],["Prêt-à-porter","Ready-to-wear"],["Genre du client","Client gender"],["Homme","Man"],["Femme","Woman"],["Notes / précisions (tissu, style, instructions...)","Notes / details (fabric, style, instructions...)"],["Photo(s) du/des tissu(s) déposé(s)","Photo(s) of deposited fabric(s)"],["Photo(s) du/des modèle(s) / style(s) souhaité(s)","Photo(s) of desired model(s) / style(s)"],["MESURES (CM)","MEASUREMENTS (CM)"],["Épaule","Shoulder"],["Poitrine","Chest"],["Long. poitrine","Bust length"],["Long. taille","Waist length"],["Tour taille","Waist"],["Tour de taille","Waist"],["Ceinture","Waistband"],["Tour bassin","Hips"],["Tour de bassin","Hips"],["Tour de cuisse","Thigh"],["Tour de genou","Knee"],["Bas du pantalon","Trouser hem"],["Long. haut","Top length"],["Long. pantalon","Trouser length"],["Long. manche","Sleeve length"],["Tour de manche","Sleeve width"],["Long. robe","Dress length"],["Long. chemise","Shirt length"],["Long. veste","Jacket length"],["Longueur de frappe","Crotch"],["Long. frappe","Crotch"],["Cou","Neck"],["Cuisse","Thigh"],["Bassin","Hips"],["ARTICLES DE LA COMMANDE (FACTURE DÉTAILLÉE)","ORDER ITEMS (DETAILED INVOICE)"],["Article 1 (ex: Robe africaine)","Item 1 (e.g. African dress)"],["Article","Item"],["Prix (D)","Price (D)"],["+ Ajouter un article","+ Add an item"],["Total commande","Order total"],["Avance payée (D)","Advance paid (D)"],["Avance reçue (D)","Advance received (D)"],["Reste à payer (D)","Balance due (D)"],["Date de dépôt","Deposit date"],["Date de livraison prévue","Expected delivery date"],["Date de retrait prévue","Expected pickup date"],["Créer la commande","Create order"],["Commandes en cours","Orders in progress"],["Tickets en cours","Tickets in progress"],["PAYÉ","PAID"],["Payé en totalité","Paid in full"],["Acompte","Deposit"],["Avance","Advance"],["Livré","Delivered"],["Récupéré","Collected"],["Prête","Ready"],["En production","In production"],["En attente","Pending"],["Remerciement","Thank you"],["Tél.","Phone"],["Date livraison","Delivery date"],["Date retrait","Pickup date"],["Nom","Name"],["Dépôt:","Deposit:"],["Livraison prévue:","Expected delivery:"],["/ unité","/ unit"],["Valider le dépôt & Envoyer le reçu WhatsApp","Confirm deposit & Send WhatsApp receipt"],["Rechercher un Code Reçu","Search a Receipt Code"],["Code du ticket (ex: 001)","Ticket code (e.g. 001)"],["Rechercher","Search"],["Nouveau ticket","New ticket"],["Photo des vêtements déposés","Photo of deposited garments"],["Ex: Mme Diallo","e.g. Mrs Diallo"],["Ex: M. Sanneh","e.g. Mr Sanneh"],["Ex: 7XX XXXX","e.g. 7XX XXXX"],["Ex: Robe de soirée, tissu bazin","e.g. Evening dress, bazin fabric"],["Ex: Pantalon, Boubou","e.g. Trousers, Boubou"],["Ex: 5000","e.g. 5000"],["Ex: 500","e.g. 500"],["Genre","Gender"]);CHUNKS.push(["\ud83d\udecd\ufe0f Pr\u00eat-\u00e0-porter en cours","\ud83d\udecd\ufe0f Ready-to-wear in progress"],["Aucun pr\u00eat-\u00e0-porter en cours.","No ready-to-wear order in progress."],["Aucune retouche en cours.","No alteration in progress."],["Aucune commande en cours.","No order in progress."]);  var LANG = localStorage.getItem('appLang') || 'fr';
-CHUNKS.push(["Bustier","Bodice"],["Robe","Dress"],["Jupe","Skirt"],["Tunique","Tunic"],["Veste","Jacket"],["Boubou / Grand boubou","Boubou"],["Tout","All"],["✂️ Coupe","✂️ Cutting"],["Fiche de coupe","Cutting sheet"],["Aisances","Ease"],["Devant","Front"],["Dos","Back"],["Manche","Sleeve"],["Ceinture","Waistband"],["🧵 Patron","🧵 Pattern"],["Tracer un patron pour","Draft a pattern for"],["Chemise","Shirt"],["Pantalon","Trousers"],["Bloc de base","Basic block"],["Télécharger le patron","Download the pattern"],["Patron de","Pattern for"],["Chargement du moteur de patrons","Loading the pattern engine"],["Tour de cou","Neck"],["Tour poitrine","Chest"],["Tour manche","Sleeve width"],["Poignet","Wrist"],["Longueur de taille","Waist length"],["Longueur de","Length of"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"],["ITEMS DE LA COMMANDE (FACTURE DÉTAILLÉE)","ORDER ITEMS (DETAILED INVOICE)"],["DE LA COMMANDE (FACTURE DÉTAILLÉE)","— ORDER (DETAILED INVOICE)"]); var PHX=[["Ex: Robe de soirée, tissu bazin","e.g. Evening dress, bazin fabric"],["Ex: Pantalon, Boubou","e.g. Trousers, Boubou"],["Ex: Mme Diallo","e.g. Mrs Diallo"],["Ex: M. Sanneh","e.g. Mr Sanneh"],["Ex: 7XX XXXX","e.g. 7XX XXXX"],["Ex: 5000","e.g. 5000"],["Ex: 500","e.g. 500"],["Catégorie (ex: Fil, boutons)","Category (e.g. Thread, buttons)"],["Montant (D)","Amount (D)"],["Description (optionnel)","Description (optional)"],["Nom, téléphone ou code","Name, phone or code"]]; setInterval(function(){ if((localStorage.getItem('appLang')||'fr')!=='en') return; document.querySelectorAll('input,textarea').forEach(function(el){ var p=el.getAttribute('placeholder')||''; PHX.forEach(function(s){ if(p.indexOf(s[0])>=0){ p=p.split(s[0]).join(s[1]); } }); if(p!==el.getAttribute('placeholder')) el.setAttribute('placeholder',p); }); }, 700);  var busy = false, timer = null;
+CHUNKS.push(["💵 Argent reçu","💵 Money received"],["💵 Enregistrer un paiement reçu","💵 Record a payment received"],["Aucun paiement en attente.","No payment awaiting validation."],["Numéro de reçu","Receipt number"],["Montant reçu (D)","Amount received (D)"],["✅ Valider","✅ Approve"],["✖ Refuser","✖ Reject"],["Bustier","Bodice"],["Robe","Dress"],["Jupe","Skirt"],["Tunique","Tunic"],["Veste","Jacket"],["Boubou / Grand boubou","Boubou"],["Tout","All"],["✂️ Coupe","✂️ Cutting"],["Fiche de coupe","Cutting sheet"],["Aisances","Ease"],["Devant","Front"],["Dos","Back"],["Manche","Sleeve"],["Ceinture","Waistband"],["🧵 Patron","🧵 Pattern"],["Tracer un patron pour","Draft a pattern for"],["Chemise","Shirt"],["Pantalon","Trousers"],["Bloc de base","Basic block"],["Télécharger le patron","Download the pattern"],["Patron de","Pattern for"],["Chargement du moteur de patrons","Loading the pattern engine"],["Tour de cou","Neck"],["Tour poitrine","Chest"],["Tour manche","Sleeve width"],["Poignet","Wrist"],["Longueur de taille","Waist length"],["Longueur de","Length of"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"],["ITEMS DE LA COMMANDE (FACTURE DÉTAILLÉE)","ORDER ITEMS (DETAILED INVOICE)"],["DE LA COMMANDE (FACTURE DÉTAILLÉE)","— ORDER (DETAILED INVOICE)"]); var PHX=[["Ex: Robe de soirée, tissu bazin","e.g. Evening dress, bazin fabric"],["Ex: Pantalon, Boubou","e.g. Trousers, Boubou"],["Ex: Mme Diallo","e.g. Mrs Diallo"],["Ex: M. Sanneh","e.g. Mr Sanneh"],["Ex: 7XX XXXX","e.g. 7XX XXXX"],["Ex: 5000","e.g. 5000"],["Ex: 500","e.g. 500"],["Catégorie (ex: Fil, boutons)","Category (e.g. Thread, buttons)"],["Montant (D)","Amount (D)"],["Description (optionnel)","Description (optional)"],["Nom, téléphone ou code","Name, phone or code"]]; setInterval(function(){ if((localStorage.getItem('appLang')||'fr')!=='en') return; document.querySelectorAll('input,textarea').forEach(function(el){ var p=el.getAttribute('placeholder')||''; PHX.forEach(function(s){ if(p.indexOf(s[0])>=0){ p=p.split(s[0]).join(s[1]); } }); if(p!==el.getAttribute('placeholder')) el.setAttribute('placeholder',p); }); }, 700);  var busy = false, timer = null;
 CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"],["Détail jour par jour (mois en cours)","Day-by-day detail (current month)"],["Chaque journée du mois, activité par activité — l'historique complet jusqu'à la fin du mois.","Each day of the month, activity by activity — the complete history until the end of the month."]);CHUNKS.push(["Aujourd\u2019hui","Today"],["Aujourd'hui","Today"],["Hier","Yesterday"]);CHUNKS.push(["Bilan annuel — mois par mois","Annual summary — month by month"],["Chaque mois de l'année, activité par activité. Au 31","Each month of the year, activity by activity. On 31"],["cette liste est votre bilan de l'année","this list is your full-year summary"],["complète. Le 1er","complete. On 1"],["une nouvelle année","a new year"],["démarre — les années passées restent conservées","starts — past years remain stored"],["dans la base.","in the database."],["Ajouter une dépense","Add an expense"],["Activité concernée","Activity concerned"],["Catégorie","Category"],["Date de la dépense","Expense date"],["Dépenses récentes","Recent expenses"],["Enregistrer la fiche","Save sheet"],["Ajoutez un employé pour commencer le suivi des salaires.","Add an employee to start tracking salaries."],["Employés","Employees"],["Fiche permanente — les noms, téléphones et salaires restent affichés en permanence, mois après mois.","Permanent record — names, phones and salaries stay displayed permanently, month after month."],["Aucun employé enregistré.","No employee recorded."],["Aujourd'hui","Today"],["Hier","Yesterday"],["Janvier","January"],["Février","February"],["Mars","March"],["Avril","April"],["Mai","May"],["Juin","June"],["Juillet","July"],["Août","August"],["Septembre","September"],["Octobre","October"],["Novembre","November"],["Décembre","December"],["janvier","January"],["février","February"],["mars","March"],["avril","April"],["mai","May"],["juin","June"],["juillet","July"],["août","August"],["septembre","September"],["octobre","October"],["novembre","November"],["décembre","December"]); PHX.push(["Ex: Électricité, Fournitures, Transport","e.g. Electricity, Supplies, Transport"],["Détail de la dépense","Expense details"],["Rechercher un client","Search a client"]);CHUNKS.push(["Neckturière","Seamstress"],["Neckturier","Tailor"],["Couturière","Seamstress"],["Couturier","Tailor"],["Fiche mesures client","Client measurement sheet"],["ARTICLES","ITEMS"],["EN STOCK","IN STOCK"],["RECETTE D","REVENUE D"],["Nouvel article","New item"],["Name de l'article","Item name"],["Nom de l'article","Item name"],["Quantité en stock","Stock quantity"],["Prix de vente unitaire (D)","Unit sale price (D)"],["Ajouter au stock","Add to stock"],["Tissu","Fabric"],["Type","Type"],["Bilan — Recettes, Dépenses, Solde","Summary — Revenue, Expenses, Balance"],["Aujourd'hui","Today"],["Semaine","Week"],["Mois en cours","Current month"],["Recettes:","Revenue:"],["Dépenses:","Expenses:"],["Solde:","Balance:"],["TOTAL —","TOTAL —"],["janvier","January"],["février","February"],["mars","March"],["avril","April"],["mai","May"],["juin","June"],["juillet","July"],["août","August"],["septembre","September"],["octobre","October"],["novembre","November"],["décembre","December"],["Salaires","Payroll"],["Visiteurs","Visitors"],["Ajouter un employé","Add an employee"],["Ajouter l'employé","Add employee"],["Poste — touchez pour choisir","Position — tap to choose"],["Presseur","Presser"],["Ménagère","Cleaner"],["Vendeuse","Saleswoman"],["Apprenti(e)","Apprentice"],["Salaire mensuel (D)","Monthly salary (D)"],["Récapitulatif mensuel","Monthly summary"],["Mois","Month"],["Enregistrer un passage","Record a visit"],["Enregistrer le passage","Save visit"],["Recherche","Search"],["Passages enregistrés","Recorded visits"],["Supprimer","Delete"],["Note","Note"]); PHX.push(["Catégorie (ex: Réapprovisionnement)","Category (e.g. Restocking)"],["Ex: Bazin riche 6 yards / Robe taille M","e.g. Rich bazin 6 yards / Dress size M"],["Ex: Awa Ndiaye","e.g. Awa Ndiaye"],["Ex: Amadou","e.g. Amadou"],["Ou écrivez un autre poste ici","Or type another position here"],["Rechercher un visiteur","Search a visitor"],["Ex: veut voir Djamil, demande un devis","e.g. wants to see Djamil, asks for a quote"]);CHUNKS.push(["PRÊTS","READY"],["RÉCUPÉRÉS","COLLECTED"],["Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer et payer. Enregistré directement comme \"Collected\", sans passer par tout le formulaire de ticket.","For a client who dropped off a garment long ago (before the app) and is collecting and paying today. Saved directly as \"Collected\", without the full ticket form."]); PHX.push(["Catégorie (ex: Détergent, électricité)","Category (e.g. Detergent, electricity)"],["Nom du client","Client name"],["Téléphone","Phone"],["Description (ex: 2 boubous déposés il y a 3 mois)","Description (e.g. 2 boubous dropped off 3 months ago)"],["Description (ex: Robe boubou déposée il y a","Description (e.g. Boubou dress dropped off"],["Description (ex:","Description (e.g."]);  CHUNKS.push(["Length of pince","Shoulder to bust / underbust"],["Longueur de pince","Shoulder to bust / underbust"],["Long. de pince","Shoulder to bust / underbust"],["Long. pince","Shoulder to bust / underbust"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"]);
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
@@ -489,6 +489,14 @@ function traduireNoeud(node){
       <div id="historique-client"></div>
     </div>
     <div class="stats-grid" id="apercu-stats"></div>
+    <div class="panel">
+      <h2>💵 Argent reçu</h2>
+      <div class="meta">Le manager enregistre ici tout paiement reçu, sans code. Le directeur valide ensuite : l'argent n'entre dans la caisse qu'à la validation.</div>
+      <div class="item-actions" style="margin-top:10px;">
+        <button onclick="ouvrirSaisiePaiement()" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">💵 Enregistrer un paiement reçu</button>
+      </div>
+      <div id="paiements-attente" style="margin-top:10px;"></div>
+    </div>
     <div class="panel">
       <h2>📅 Planning de l'atelier</h2>
       <div class="meta" id="planning-titre"></div>
@@ -1172,7 +1180,7 @@ function afficherDetailSecours(){
     texte += '\n';
   });
   if(!texte) texte = 'Tout est synchronisé.';
-  alert('SYNCHRONISATION EN ATTENTE\n\n'+texte+'L\'app réessaie automatiquement toutes les 30 secondes. Rien n\'est perdu, même hors-ligne.');
+  afficherInfo('SYNCHRONISATION EN ATTENTE\n\n'+texte+'L\'app réessaie automatiquement toutes les 30 secondes. Rien n\'est perdu, même hors-ligne.');
 }
 function sauvegarderListeSecours(nomCollection, liste){
   localStorage.setItem('secours_'+nomCollection, JSON.stringify(liste));
@@ -1327,14 +1335,14 @@ REF_CODE_ADMIN_PRINCIPAL().get().then(doc=>{
   if(doc.exists && doc.data().code) CODE_ADMIN = doc.data().code;
 }).catch(err=>console.error('Chargement code admin', err));
 async function changerCodeAdminPrincipal(){
-  const ancien = prompt('Code administrateur ACTUEL (pour confirmer que c\'est bien vous) :');
+  const ancien = await demanderTexte('Code administrateur ACTUEL (pour confirmer que c\'est bien vous) :');
   if(ancien === null) return;
   if(ancien.trim() !== CODE_ADMIN){ toast('Code actuel incorrect — changement annulé'); return; }
-  const nouveau = prompt('Nouveau code administrateur (4 à 6 chiffres, à retenir précieusement) :');
+  const nouveau = await demanderTexte('Nouveau code administrateur (4 à 6 chiffres, à retenir précieusement) :');
   if(nouveau === null) return;
   const nouveauTrim = nouveau.trim();
   if(nouveauTrim.length<4){ toast('Le nouveau code doit faire au moins 4 caractères'); return; }
-  const confirmation = prompt('Retapez le nouveau code pour confirmer :');
+  const confirmation = await demanderTexte('Retapez le nouveau code pour confirmer :');
   if(confirmation === null) return;
   if(confirmation.trim() !== nouveauTrim){ toast('Les deux codes ne correspondent pas — rien n\'a été changé'); return; }
   try{
@@ -1349,10 +1357,49 @@ async function changerCodeAdminPrincipal(){
   }
 }
 const REF_CODE_TEMP = () => db.collection('parametres').doc('codeTemporaire');
+/* afficherInfo() est bloquable au meme titre que prompt() et confirm() : le code a
+   usage unique genere pour le manager pouvait donc ne jamais s'afficher. */
+function afficherInfo(texte, titre){
+  ouvrirModale(titre || 'ℹ️ Information',
+    '<p style="white-space:pre-line;font-size:.95rem;">' + String(texte==null?'':texte).replace(/</g,'&lt;') + '</p>');
+}
+
+/* Saisie de texte par fenetre de l'application, en remplacement de prompt().
+   Meme contrat que prompt : renvoie la chaine saisie, ou null si on annule.
+   Motif du remplacement (03/08) : Chrome peut bloquer prompt() et confirm(),
+   qui renvoient alors null/false EN SILENCE — 45 fonctions de cette app en
+   dependaient, dont toutes les corrections de montants et les suppressions. */
+function demanderTexte(message, valeurDefaut){
+  return new Promise(function(resoudre){
+    let repondu = false;
+    const finir = function(v){ if(!repondu){ repondu = true; resoudre(v); } };
+    const fond = ouvrirModale('✏️ Saisie',
+      '<p style="font-size:.9rem;white-space:pre-line;">' + String(message==null?'':message).replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</p>' +
+      '<input id="saisie-texte-modale" type="text" autocomplete="off" style="width:100%;font-size:1.1rem;padding:12px;">',
+      [
+        { texte:'Valider', action:function(){ finir(champ ? String(champ.value) : ''); } },
+        { texte:'Annuler', style:'secondary', action:function(){ finir(null); } }
+      ]);
+    /* Reference gardee : ouvrirModale retire la fenetre AVANT d'executer
+       l'action, document.getElementById ne trouverait plus le champ. */
+    const champ = fond ? fond.querySelector('#saisie-texte-modale') : null;
+    if(champ && valeurDefaut !== undefined && valeurDefaut !== null) champ.value = String(valeurDefaut);
+    if(fond) fond.addEventListener('click', function(e){ if(e.target === fond) finir(null); });
+    if(champ) champ.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ const v = String(champ.value); if(fond) fond.remove(); finir(v); }
+    });
+    setTimeout(function(){ if(champ) champ.focus(); }, 100);
+  });
+}
+
 /* Confirmation par fenêtre de l'application : confirm() peut être bloqué
    par le navigateur (case « empêcher cette page de créer des boîtes de
    dialogue »), auquel cas il renvoie false en silence. */
 function confirmerModale(titre, texteHTML, texteBouton){
+  /* Les messages repris des anciens confirm() contiennent des \n : on les
+     rend visibles en HTML. */
+  if(typeof texteHTML === 'string' && texteHTML.indexOf('<') < 0)
+    texteHTML = '<p style="white-space:pre-line;">' + texteHTML.replace(/\n/g,'<br>') + '</p>';
   return new Promise(function(resoudre){
     let repondu = false;
     const finir = function(v){ if(!repondu){ repondu = true; resoudre(v); } };
@@ -1366,7 +1413,13 @@ function confirmerModale(titre, texteHTML, texteBouton){
 
 async function verifierCodeAdmin(saisieTrim){
   if(saisieTrim === CODE_ADMIN) return true;
-  if(!saisieTrim){ toast('Code incorrect — action annulée'); return false; }
+  /* 03/08 : les refus passaient par toast(), un message fugace en bas de
+     l'ecran que Djamil ne voyait pas — il croyait que rien ne se passait.
+     Un refus doit etre AUSSI visible que la demande : on le dit en fenetre. */
+  if(!saisieTrim){
+    afficherInfo("Aucun code n'a été saisi, l'action est annulée.", '❌ Code manquant');
+    return false;
+  }
   // Vérifie s'il existe un code à usage unique (donné à distance par le propriétaire)
   try{
     const ref = REF_CODE_TEMP();
@@ -1386,7 +1439,10 @@ async function verifierCodeAdmin(saisieTrim){
   } catch(err){
     console.error('Erreur vérification code temporaire', err);
   }
-  toast('Code incorrect — action annulée');
+  afficherInfo("Le code saisi (" + saisieTrim + ") ne correspond pas au code administrateur.\n\n"
+    + "Si tu l'as changé un jour dans l'app, c'est le NOUVEAU code qu'il faut taper. "
+    + "Le code de secours d'origine reste 1234 tant qu'aucun changement n'a été enregistré.",
+    '❌ Code incorrect');
   return false;
 }
 
@@ -1433,7 +1489,7 @@ function demanderCodeAdmin(actionLabel){
    Protégé par le code permanent (1234) pour que SEUL le propriétaire
    puisse créer ou annuler un code — le manager ne peut pas se l'auto-délivrer. */
 async function genererCodeTemporaire(){
-  const saisie = prompt('Code Administrateur (permanent) requis pour générer un nouveau code :');
+  const saisie = await demanderTexte('Code Administrateur (permanent) requis pour générer un nouveau code :');
   if(saisie === null) return;
   if(saisie.trim() !== CODE_ADMIN){ toast('Code incorrect — seul le propriétaire peut générer un code'); return; }
   const code = String(Math.floor(10000+Math.random()*90000)); // 5 chiffres, facile à dicter au téléphone
@@ -1444,16 +1500,16 @@ async function genererCodeTemporaire(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     });
     afficherStatutCodeTemporaire();
-    alert('✅ Nouveau code à usage unique :\n\n'+code+'\n\nDictez-le au manager par téléphone. Il ne fonctionnera qu\'une seule fois.');
+    afficherInfo('✅ Nouveau code à usage unique :\n\n'+code+'\n\nDictez-le au manager par téléphone. Il ne fonctionnera qu\'une seule fois.');
   } catch(err){
     toast('Erreur: '+err.message);
   }
 }
 async function revoquerCodeTemporaire(){
-  const saisie = prompt('Code Administrateur (permanent) requis pour désactiver le code :');
+  const saisie = await demanderTexte('Code Administrateur (permanent) requis pour désactiver le code :');
   if(saisie === null) return;
   if(saisie.trim() !== CODE_ADMIN){ toast('Code incorrect — action annulée'); return; }
-  if(!confirm('Désactiver le code à usage unique en cours (s\'il n\'a pas encore servi) ?')) return;
+  if(!await confirmerModale('Confirmation', 'Désactiver le code à usage unique en cours (s\'il n\'a pas encore servi) ?')) return;
   try{
     await REF_CODE_TEMP().delete();
     toast('Code à usage unique désactivé');
@@ -1514,7 +1570,7 @@ async function basculerModeDirecteur(){
     appliquerMode();
     return;
   }
-  const saisie = prompt('Code administrateur PERMANENT requis pour le mode directeur\n(les codes à usage unique ne fonctionnent pas ici) :');
+  const saisie = await demanderTexte('Code administrateur PERMANENT requis pour le mode directeur\n(les codes à usage unique ne fonctionnent pas ici) :');
   if(saisie === null) return;
   if(saisie.trim() !== CODE_ADMIN){ toast('Code incorrect — mode directeur refusé'); return; }
   MODE_DIRECTEUR = true;
@@ -1631,7 +1687,7 @@ function ecouterNomCommerce(){
 async function changerNomCommerce(){
   if(!await demanderCodeAdmin('Modifier le nom du commerce')) return;
   const actuel = (NOM_COMMERCE===NOM_COMMERCE_DEFAUT) ? NOM_COMMERCE_DEFAUT : NOM_COMMERCE;
-  const saisie = prompt("Nom de votre commerce (il apparaîtra dans les messages WhatsApp et le titre de l'app) :", actuel);
+  const saisie = await demanderTexte("Nom de votre commerce (il apparaîtra dans les messages WhatsApp et le titre de l'app) :", actuel);
   if(saisie === null) return;
   const nom = String(saisie).trim() || NOM_COMMERCE_DEFAUT;
   appliquerNomCommerce(nom);
@@ -1644,7 +1700,7 @@ async function changerNomCommerce(){
    CAUSE GENERALE DES NOTIFICATIONS QUI "NE PARTENT PLUS" :
    window.open() n'est autorise par le navigateur que s'il decoule directement
    d'un geste de l'utilisateur. Or ici il etait toujours appele APRES quelque
-   chose : un await (creation du code commande), un confirm(), un .then()
+   chose : un await (creation du code commande), un await confirmerModale('Confirmation', ), un .then()
    Firestore ou un setTimeout. Le navigateur coupait donc l'ouverture en
    silence — aucune erreur, aucun message, la notification disparaissait
    simplement. En application installee (PWA) c'est encore plus strict.
@@ -1727,7 +1783,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 appliquerMode();
 
 /* ================= STOCKAGE LOCAL EN MÉMOIRE (mis à jour par les écouteurs temps réel) ================= */
-let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[], visiteurs:[], contrats:[] };
+let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[], visiteurs:[], contrats:[], paiements_attente:[] };
 
 /* ================= EXPORT CSV ================= */
 function exporterCSV(collection){
@@ -2362,7 +2418,7 @@ async function supprimerRecetteDuJour(id){
   if(!await demanderCodeAdmin('Supprimer une recette')) return;
   const t = (CACHE.transactions||[]).find(function(x){ return x.id === id; });
   if(!t) return;
-  if(!confirm('Supprimer ' + t.montant + ' D (' + (t.source||'') + ') des recettes du jour ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer ' + t.montant + ' D (' + (t.source||'') + ') des recettes du jour ?')) return;
   document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   await supprimerRecettes([t]);
   ouvrirRecettesDuJour();
@@ -2370,7 +2426,7 @@ async function supprimerRecetteDuJour(id){
 
 async function supprimerCommande(id){
   if(!await demanderCodeAdmin('Supprimer une commande')) return;
-  if(!confirm('Supprimer cette commande ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer cette commande ?')) return;
   const c = (CACHE.commandes_couture||[]).find(function(x){ return x.id === id; }) || {};
   supprimerAvecOptimisme('commandes_couture', id, 'commandes_couture', rendreAtelier, 'Commande supprimée');
   proposerSuppressionRecettesLiees(c.code, 'Atelier', c.nom);
@@ -2425,11 +2481,11 @@ async function enregistrerClientHistoriqueAtelier(){
     toast('Erreur: '+err.message);
   }
 }
-function changerStatutAtelier(id,statut){
+async function changerStatutAtelier(id,statut){
   if(statut === 'Annulé (tissu récupéré)'){
     const c = CACHE.commandes_couture.find(x=>x.id===id);
     if(c && c.acompte>0){
-      const rembourse = confirm(c.nom+' avait versé un acompte de '+c.acompte+' D.\nLui avez-vous rendu cet argent en reprenant son tissu ?\n\nOK = Oui, j\'ai remboursé (sera noté en dépense pour que les Finances restent exactes)\nAnnuler = Non, l\'acompte reste acquis à l\'atelier');
+      const rembourse = await confirmerModale('Confirmation', c.nom+' avait versé un acompte de '+c.acompte+' D.\nLui avez-vous rendu cet argent en reprenant son tissu ?\n\nOK = Oui, j\'ai remboursé (sera noté en dépense pour que les Finances restent exactes)\nAnnuler = Non, l\'acompte reste acquis à l\'atelier');
       if(rembourse){
         const depense = {
           activite:'Atelier',
@@ -2472,7 +2528,7 @@ async function corrigerTelephoneAtelier(id){
   if(!await demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
-  const nouveau = prompt('Corriger le téléphone de '+c.nom+' :', c.tel||'');
+  const nouveau = await demanderTexte('Corriger le téléphone de '+c.nom+' :', c.tel||'');
   if(nouveau===null) return;
   c.tel = nouveau.trim();
   rendreAtelier();
@@ -2483,11 +2539,11 @@ async function corrigerAvanceAtelier(id){
   if(!await demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
-  const saisie = prompt('Corriger le montant de l\'avance reçue pour '+c.nom+' (actuellement '+c.acompte+' D) :', c.acompte);
+  const saisie = await demanderTexte('Corriger le montant de l\'avance reçue pour '+c.nom+' (actuellement '+c.acompte+' D) :', c.acompte);
   if(saisie===null) return;
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
-  const dateSaisie = prompt('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
+  const dateSaisie = await demanderTexte('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
   if(dateSaisie===null) return;
   const difference = nouveauMontant - c.acompte;
   c.acompte = nouveauMontant;
@@ -2512,7 +2568,7 @@ async function corrigerAvanceAtelier(id){
 async function corrigerLivraisonAtelier(id){
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
-  const nouvelleDate = prompt('Nouvelle date de livraison pour '+c.nom+' (AAAA-MM-JJ) :', c.livraison||dateISOAujourdhui());
+  const nouvelleDate = await demanderTexte('Nouvelle date de livraison pour '+c.nom+' (AAAA-MM-JJ) :', c.livraison||dateISOAujourdhui());
   if(nouvelleDate===null) return;
   c.livraison = nouvelleDate.trim();
   rendreAtelier();
@@ -2524,7 +2580,7 @@ async function corrigerLivraisonAtelier(id){
 async function corrigerNomAtelier(id){
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
-  const nouveau = prompt('Corriger le nom de la commande '+(c.code||'')+' :', c.nom||'');
+  const nouveau = await demanderTexte('Corriger le nom de la commande '+(c.code||'')+' :', c.nom||'');
   if(nouveau===null || !nouveau.trim()) return;
   c.nom = nouveau.trim();
   rendreAtelier();
@@ -2540,7 +2596,7 @@ async function corrigerPrixAtelier(id){
   if(!await demanderCodeAdmin('Corriger le prix / accorder une réduction')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
-  const saisie = prompt('Nouveau prix total pour '+c.nom+' (actuellement '+c.prix+' D) :', c.prix);
+  const saisie = await demanderTexte('Nouveau prix total pour '+c.nom+' (actuellement '+c.prix+' D) :', c.prix);
   if(saisie===null) return;
   const nouveauPrix = Number(saisie);
   if(isNaN(nouveauPrix) || nouveauPrix<0){ toast('Montant invalide'); return; }
@@ -3049,15 +3105,15 @@ function moisContratAffiche(){
 
 async function ajouterContrat(){
   if(!await demanderCodeAdmin('Créer un abonnement')) return;
-  const nom = prompt('Nom du client sous contrat :');
+  const nom = await demanderTexte('Nom du client sous contrat :');
   if(nom===null || !nom.trim()){ return; }
-  const tel = prompt('Téléphone (facultatif) :', '');
+  const tel = await demanderTexte('Téléphone (facultatif) :', '');
   if(tel===null) return;
-  const saisie = prompt('Montant fixe à payer chaque mois (D) :', '12000');
+  const saisie = await demanderTexte('Montant fixe à payer chaque mois (D) :', '12000');
   if(saisie===null) return;
   const montant = Number(saisie);
   if(isNaN(montant) || montant<=0){ toast('Montant invalide'); return; }
-  const activite = confirm('Ce contrat concerne-t-il le PRESSING ?\n\nOK = Pressing · Annuler = Atelier') ? 'Pressing' : 'Atelier';
+  const activite = await confirmerModale('Confirmation', 'Ce contrat concerne-t-il le PRESSING ?\n\nOK = Pressing · Annuler = Atelier') ? 'Pressing' : 'Atelier';
   ecrireAvecSecours('contrats', {
     nom: nom.trim(), tel: String(tel||'').trim(),
     montantMensuel: montant, activite: activite, actif: true,
@@ -3073,11 +3129,11 @@ async function encaisserContrat(id){
   if(!c) return;
   const mois = moisContratAffiche();
   if(paiementContrat(id, mois)){ toast('Ce mois est déjà réglé'); return; }
-  const saisie = prompt('Montant reçu de ' + c.nom + ' pour ' + moisAffichage(mois) + ' (D) :', c.montantMensuel);
+  const saisie = await demanderTexte('Montant reçu de ' + c.nom + ' pour ' + moisAffichage(mois) + ' (D) :', c.montantMensuel);
   if(saisie===null) return;
   const montant = Number(saisie);
   if(isNaN(montant) || montant<=0){ toast('Montant invalide'); return; }
-  const rep = prompt('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
+  const rep = await demanderTexte('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
   if(rep===null) return;
   const iso = String(rep).trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
@@ -3113,7 +3169,7 @@ async function modifierContrat(id){
   if(!await demanderCodeAdmin('Modifier un abonnement')) return;
   const c = (CACHE.contrats||[]).find(function(x){ return x.id===id; });
   if(!c) return;
-  const saisie = prompt('Montant mensuel de ' + c.nom + ' (D) — mettez 0 pour arrêter l\'abonnement :', c.montantMensuel);
+  const saisie = await demanderTexte('Montant mensuel de ' + c.nom + ' (D) — mettez 0 pour arrêter l\'abonnement :', c.montantMensuel);
   if(saisie===null) return;
   const montant = Number(saisie);
   if(isNaN(montant) || montant<0){ toast('Montant invalide'); return; }
@@ -3625,8 +3681,8 @@ function supprimerItemTarif(ci, ii){ if(brouillonTarifsPressing[ci]){ brouillonT
 function ajouterCategorieTarif(){ brouillonTarifsPressing.push({cat:'Nouvelle catégorie', items:[{nom:'', prix:0}]}); rendreEditeurTarifsPressing(); }
 function supprimerCategorieTarif(ci){ brouillonTarifsPressing.splice(ci,1); rendreEditeurTarifsPressing(); }
 
-function reinitialiserTarifsPressing(){
-  if(!confirm('Remettre tous les tarifs du pressing aux valeurs par défaut ? Vos modifications non enregistrées seront perdues.')) return;
+async function reinitialiserTarifsPressing(){
+  if(!await confirmerModale('Confirmation', 'Remettre tous les tarifs du pressing aux valeurs par défaut ? Vos modifications non enregistrées seront perdues.')) return;
   brouillonTarifsPressing = JSON.parse(JSON.stringify(TARIFS_PRESSING_DEFAUT));
   rendreEditeurTarifsPressing();
 }
@@ -3748,7 +3804,7 @@ function validerRetrait(id){
 }
 async function supprimerTicket(id){
   if(!await demanderCodeAdmin('Supprimer un ticket')) return;
-  if(!confirm('Supprimer ce ticket ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer ce ticket ?')) return;
   const t = (CACHE.depots_pressing||[]).find(function(x){ return x.id === id; }) || {};
   supprimerAvecOptimisme('depots_pressing', id, 'depots_pressing', rendrePressing, 'Ticket supprimé');
   proposerSuppressionRecettesLiees(t.code, 'Pressing', t.nom);
@@ -3851,7 +3907,7 @@ async function corrigerTelephonePressing(id){
   if(!await demanderCodeAdmin('Corriger le téléphone d\'un client')) return;
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
-  const nouveau = prompt('Corriger le téléphone de '+t.nom+' :', t.tel||'');
+  const nouveau = await demanderTexte('Corriger le téléphone de '+t.nom+' :', t.tel||'');
   if(nouveau===null) return;
   t.tel = nouveau.trim();
   rendrePressing();
@@ -3862,11 +3918,11 @@ async function corrigerAvancePressing(id){
   if(!await demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
-  const saisie = prompt('Corriger le montant de l\'avance reçue pour '+t.nom+' (actuellement '+t.avance+' D) :', t.avance);
+  const saisie = await demanderTexte('Corriger le montant de l\'avance reçue pour '+t.nom+' (actuellement '+t.avance+' D) :', t.avance);
   if(saisie===null) return;
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
-  const dateSaisie = prompt('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
+  const dateSaisie = await demanderTexte('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
   if(dateSaisie===null) return;
   const difference = nouveauMontant - t.avance;
   t.avance = nouveauMontant;
@@ -3885,7 +3941,7 @@ async function corrigerAvancePressing(id){
 async function corrigerRetraitPressing(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
-  const nouvelleDate = prompt('Nouvelle date de retrait pour '+t.nom+' (AAAA-MM-JJ) :', t.retrait||dateISOAujourdhui());
+  const nouvelleDate = await demanderTexte('Nouvelle date de retrait pour '+t.nom+' (AAAA-MM-JJ) :', t.retrait||dateISOAujourdhui());
   if(nouvelleDate===null) return;
   t.retrait = nouvelleDate.trim();
   rendrePressing();
@@ -3895,7 +3951,7 @@ async function corrigerRetraitPressing(id){
 async function corrigerNomPressing(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
-  const nouveau = prompt('Corriger le nom du ticket '+(t.code||'')+' :', t.nom||'');
+  const nouveau = await demanderTexte('Corriger le nom du ticket '+(t.code||'')+' :', t.nom||'');
   if(nouveau===null || !nouveau.trim()) return;
   t.nom = nouveau.trim();
   rendrePressing();
@@ -3908,7 +3964,7 @@ async function corrigerPrixPressing(id){
   if(!await demanderCodeAdmin('Corriger le prix / accorder une réduction')) return;
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
-  const saisie = prompt('Nouveau prix total pour '+t.nom+' (actuellement '+t.prix+' D) :', t.prix);
+  const saisie = await demanderTexte('Nouveau prix total pour '+t.nom+' (actuellement '+t.prix+' D) :', t.prix);
   if(saisie===null) return;
   const nouveauPrix = Number(saisie);
   if(isNaN(nouveauPrix) || nouveauPrix<0){ toast('Montant invalide'); return; }
@@ -4057,16 +4113,16 @@ async function modifierProduit(id){
   const p = (CACHE.boutique_inventaire||[]).find(x=>x.id===id);
   if(!p){ toast('Article introuvable'); return; }
 
-  const nom = prompt("Nom de l'article :", p.nom || '');
+  const nom = await demanderTexte("Nom de l'article :", p.nom || '');
   if(nom === null) return;
   if(!String(nom).trim()){ toast("Le nom ne peut pas être vide"); return; }
 
-  const saisiePrix = prompt('Prix de vente (D) :', p.prix != null ? p.prix : 0);
+  const saisiePrix = await demanderTexte('Prix de vente (D) :', p.prix != null ? p.prix : 0);
   if(saisiePrix === null) return;
   const prix = Number(saisiePrix);
   if(isNaN(prix) || prix < 0){ toast('Prix invalide'); return; }
 
-  const saisieQte = prompt('Quantité en stock :', p.qte != null ? p.qte : 0);
+  const saisieQte = await demanderTexte('Quantité en stock :', p.qte != null ? p.qte : 0);
   if(saisieQte === null) return;
   const qte = Number(saisieQte);
   if(isNaN(qte) || qte < 0){ toast('Quantité invalide'); return; }
@@ -4083,7 +4139,7 @@ async function modifierProduit(id){
 }
 async function supprimerProduit(id){
   if(!await demanderCodeAdmin('Supprimer un article')) return;
-  if(!confirm('Supprimer cet article ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer cet article ?')) return;
   supprimerAvecOptimisme('boutique_inventaire', id, 'boutique_inventaire', rendreBoutique, 'Article supprimé');
 }
 /* ================= VENTE BOUTIQUE =================
@@ -4236,9 +4292,9 @@ function numeroProprietaire(){
   }
   return n;
 }
-function changerNumeroProprietaire(){
+async function changerNumeroProprietaire(){
   const actuel = localStorage.getItem('numero_proprietaire') || '';
-  const n = prompt('Numéro WhatsApp du propriétaire :', actuel);
+  const n = await demanderTexte('Numéro WhatsApp du propriétaire :', actuel);
   if(n===null) return;
   localStorage.setItem('numero_proprietaire', n.trim());
   toast('Numéro du propriétaire mis à jour');
@@ -4934,9 +4990,9 @@ function capaciteJour(){
   const v = parseInt(localStorage.getItem('cd_capacite_jour'), 10);
   return (v && v > 0) ? v : CAPACITE_DEFAUT;
 }
-function changerCapaciteJour(){
+async function changerCapaciteJour(){
   const actuel = capaciteJour();
-  const rep = prompt("Combien de vêtements l'atelier peut-il livrer par jour ?", actuel);
+  const rep = await demanderTexte("Combien de vêtements l'atelier peut-il livrer par jour ?", actuel);
   if(rep === null) return;
   const n = parseInt(rep, 10);
   if(!n || n < 1 || n > 50){ toast('Entrez un nombre entre 1 et 50'); return; }
@@ -5162,7 +5218,7 @@ async function reprogrammerTousLesRetards(){
   /* On recalcule la date apres chaque report : la commande precedente vient
      d'occuper des places, la suivante doit en tenir compte. */
   const apercu = retards.map(function(r){ return r.nom; }).join(', ');
-  if(!confirm('Reprogrammer ' + retards.length + ' commande(s) au premier jour libre ?\n\n' + apercu)) return;
+  if(!await confirmerModale('Confirmation', 'Reprogrammer ' + retards.length + ' commande(s) au premier jour libre ?\n\n' + apercu)) return;
   let faites = 0;
   for(const r of retards){
     const propose = dateProposeePour(r.restants);
@@ -5315,6 +5371,198 @@ function ventesAConfirmer(){
       const tb = b.creeLe && b.creeLe.seconds ? b.creeLe.seconds : 0;
       return tb - ta;
     });
+}
+
+/* ====================================================================
+   ARGENT REÇU EN L'ABSENCE DU DIRECTEUR — ajouté le 03/08/2026
+   Demande de Djamil : le manager encaisse toute la journée (atelier,
+   pressing, laverie, boutique) mais n'a pas le code administrateur. Il
+   doit pouvoir NOTER le paiement ; le directeur le valide ensuite.
+   Règle anti double comptage : un paiement en attente n'est PAS une
+   recette. Rien n'entre dans les Finances tant que la validation n'a pas
+   eu lieu, et la validation marque le document AVANT d'écrire la recette,
+   puis refuse tout document qui n'est plus au statut 'attente'. Deux
+   pressions sur Valider ne peuvent donc pas compter l'argent deux fois.
+   Même principe que les ventes boutique à confirmer, déjà en place.
+   ==================================================================== */
+var PAIEMENT_ACTIVITES = ['Atelier','Pressing','Boutique','Général'];
+
+/* Commandes et tickets où il reste de l'argent à recevoir : le manager
+   choisit dans cette liste pour que la validation mette aussi à jour
+   l'acompte de la commande, et pas seulement la caisse. */
+function dossiersAEncaisser(){
+  var out = [];
+  (CACHE.commandes_couture||[]).forEach(function(c){
+    var reste = (Number(c.prix)||0) - (Number(c.acompte)||0);
+    if(reste > 0 && c.statut !== 'Annulé')
+      out.push({ cle:'atelier|'+c.id, libelle:'🧵 '+(c.nom||'')+' — '+(c.code||'')+' — reste '+reste+' D', montant:reste, activite:'Atelier' });
+  });
+  (CACHE.depots_pressing||[]).forEach(function(t){
+    var reste = (Number(t.prix)||0) - (Number(t.avance)||0);
+    if(reste > 0 && t.statut !== 'Annulé')
+      out.push({ cle:'pressing|'+t.id, libelle:'👔 '+(t.nom||'')+' — '+(t.code||'')+' — reste '+reste+' D', montant:reste, activite:'Pressing' });
+  });
+  return out;
+}
+
+function ouvrirSaisiePaiement(){
+  var dossiers = dossiersAEncaisser();
+  var champStyle = 'width:100%;padding:11px;font-size:1rem;margin-top:4px;';
+  var corps = '<div style="display:flex;flex-direction:column;gap:10px;">'
+    + '<div><label class="meta">Dossier concerné (facultatif)</label>'
+    + '<select id="pa-dossier" style="'+champStyle+'"><option value="">— Aucun / autre encaissement —</option>'
+    + dossiers.map(function(d){ return '<option value="'+d.cle+'">'+d.libelle+'</option>'; }).join('')
+    + '</select></div>'
+    + '<div><label class="meta">Activité</label><select id="pa-activite" style="'+champStyle+'">'
+    + PAIEMENT_ACTIVITES.map(function(a){ return '<option value="'+a+'">'+a+'</option>'; }).join('')
+    + '</select></div>'
+    + '<div><label class="meta">Nom du client</label><input id="pa-nom" type="text" placeholder="Ex: Madame Diop" style="'+champStyle+'"></div>'
+    + '<div><label class="meta">Montant reçu (D)</label><input id="pa-montant" type="number" inputmode="numeric" placeholder="Ex: 15000" style="'+champStyle+'"></div>'
+    + '<div><label class="meta">Numéro de reçu</label><input id="pa-recu" type="text" placeholder="Ex: 031" style="'+champStyle+'"></div>'
+    + '<div><label class="meta">Note (facultatif)</label><input id="pa-note" type="text" placeholder="Ex: solde payé en espèces" style="'+champStyle+'"></div>'
+    + '</div>';
+
+  var fond = ouvrirModale('💵 Paiement reçu', corps, [
+    { texte:'Enregistrer', action:function(){
+        var lire = function(id){ var e = refs[id]; return e ? String(e.value||'').trim() : ''; };
+        var montant = Number(lire('pa-montant'));
+        if(!montant || montant <= 0){ toast('Montant invalide'); return; }
+        var dossier = lire('pa-dossier'), type = '', dossierId = '';
+        if(dossier){ var p = dossier.split('|'); type = p[0]; dossierId = p[1]; }
+        var donnees = {
+          activite: lire('pa-activite') || 'Général',
+          nom: lire('pa-nom'),
+          montant: montant,
+          recu: lire('pa-recu'),
+          note: lire('pa-note'),
+          dossierType: type,
+          dossierId: dossierId,
+          statut: 'attente',
+          creeLeMs: Date.now(),
+          date: new Date().toLocaleDateString('fr-FR'),
+          creeLe: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        ecrireAvecSecours('paiements_attente', donnees, 'Le paiement en attente n\'a pas pu être synchronisé');
+        toast('Paiement noté — en attente de validation du directeur');
+      } },
+    { texte:'Annuler', style:'secondary' }
+  ]);
+
+  /* Références gardées : ouvrirModale retire la fenêtre avant d'exécuter
+     l'action, un getElementById ne trouverait plus rien. */
+  var refs = {};
+  ['pa-dossier','pa-activite','pa-nom','pa-montant','pa-recu','pa-note'].forEach(function(id){
+    refs[id] = fond ? fond.querySelector('#'+id) : null;
+  });
+  /* Choisir un dossier remplit le nom, le montant restant et l'activité. */
+  if(refs['pa-dossier']) refs['pa-dossier'].addEventListener('change', function(){
+    var d = dossiers.find(function(x){ return x.cle === refs['pa-dossier'].value; });
+    if(!d) return;
+    if(refs['pa-montant']) refs['pa-montant'].value = d.montant;
+    if(refs['pa-activite']) refs['pa-activite'].value = d.activite;
+    if(refs['pa-nom']){
+      var lib = d.libelle.split(' — ');
+      refs['pa-nom'].value = lib[0].replace(/^[^ ]+ /,'');
+    }
+  });
+}
+
+function paiementsEnAttente(){
+  return (CACHE.paiements_attente||[]).filter(function(p){ return p.statut === 'attente'; })
+    .sort(function(a,b){ return (b.creeLeMs||0) - (a.creeLeMs||0); });
+}
+
+function rendrePaiementsAttente(){
+  var zone = document.getElementById('paiements-attente');
+  if(!zone) return;
+  var liste = paiementsEnAttente();
+  if(liste.length === 0){ zone.innerHTML = '<div class="meta">Aucun paiement en attente.</div>'; return; }
+  var total = liste.reduce(function(s,p){ return s + (Number(p.montant)||0); }, 0);
+  zone.innerHTML = '<div style="border:1px solid rgba(201,162,39,.5);border-radius:10px;padding:10px;">'
+    + '<div style="font-weight:700;color:var(--or);">💵 ' + liste.length + ' paiement(s) à valider — ' + total + ' D</div>'
+    + liste.map(function(p){
+        return '<div class="liste-item" style="margin-top:8px;">'
+          + '<div class="nom">' + (p.nom||'(sans nom)') + ' — <span style="color:var(--vert);">' + p.montant + ' D</span></div>'
+          + '<div class="meta">' + (p.activite||'') + (p.recu ? ' · reçu n° ' + p.recu : '') + ' · noté le ' + (p.date||'') + '</div>'
+          + (p.note ? '<div class="meta">' + p.note + '</div>' : '')
+          + (p.dossierId ? '<div class="meta">Rattaché à un dossier — l\'acompte sera mis à jour</div>' : '<div class="meta">Encaissement libre — aucun dossier rattaché</div>')
+          + '<div class="item-actions">'
+          + '<button onclick="validerPaiementAttente(\'' + p.id + '\')" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">✅ Valider</button>'
+          + '<button class="del" onclick="refuserPaiementAttente(\'' + p.id + '\')">✖ Refuser</button>'
+          + '</div></div>';
+      }).join('')
+    + '</div>';
+}
+
+/* Bip discret quand un nouveau paiement arrive, comme pour les ventes. */
+var _dernierNbPaiements = null;
+function surveillerNouveauxPaiements(){
+  var n = paiementsEnAttente().length;
+  if(_dernierNbPaiements !== null && n > _dernierNbPaiements){
+    try { if(navigator.vibrate) navigator.vibrate(120); } catch(e){}
+    toast('💵 Nouveau paiement à valider');
+  }
+  _dernierNbPaiements = n;
+}
+
+async function validerPaiementAttente(id){
+  var p = (CACHE.paiements_attente||[]).find(function(x){ return x.id === id; });
+  if(!p) return;
+  if(p.statut !== 'attente'){ toast('Ce paiement a déjà été traité'); return; }
+  if(!await demanderCodeAdmin('Valider un paiement de ' + p.montant + ' D')) return;
+  if(!await confirmerModale('✅ Valider ce paiement',
+      '<p><b>' + (p.nom||'') + '</b> — <b>' + p.montant + ' D</b>' + (p.recu ? ' · reçu n° ' + p.recu : '') + '</p>' +
+      '<p style="font-size:.85rem;color:var(--gris);">L\'argent entrera dans la caisse du jour' +
+      (p.dossierId ? ' et l\'acompte du dossier sera mis à jour.' : '.') + '</p>',
+      'Oui, valider')) return;
+
+  /* On marque D'ABORD, on encaisse ENSUITE : si le marquage échoue, aucune
+     recette n'est créée, donc jamais de double comptage. */
+  try {
+    await db.collection('paiements_attente').doc(id).update({ statut:'valide', valideLeMs: Date.now() });
+  } catch(err){
+    echecEcriture('Validation du paiement', err, function(){ validerPaiementAttente(id); });
+    return;
+  }
+
+  var desc = (p.nom||'') + (p.recu ? ' — reçu ' + p.recu : '') + ' (validé par le directeur)';
+  enregistrerTransaction(Number(p.montant)||0, p.activite || 'Général', desc);
+
+  if(p.dossierType === 'atelier' && p.dossierId){
+    var c = CACHE.commandes_couture.find(function(x){ return x.id === p.dossierId; });
+    if(c){
+      var nouveau = (Number(c.acompte)||0) + (Number(p.montant)||0);
+      c.acompte = nouveau;
+      rendreAtelier();
+      db.collection('commandes_couture').doc(c.id).update({acompte:nouveau})
+        .catch(function(err){ echecEcriture('Mise à jour de l\'acompte', err); });
+    }
+  }
+  if(p.dossierType === 'pressing' && p.dossierId){
+    var t = CACHE.depots_pressing.find(function(x){ return x.id === p.dossierId; });
+    if(t){
+      var nv = (Number(t.avance)||0) + (Number(p.montant)||0);
+      t.avance = nv;
+      rendrePressing();
+      db.collection('depots_pressing').doc(t.id).update({avance:nv})
+        .catch(function(err){ echecEcriture('Mise à jour de l\'avance', err); });
+    }
+  }
+  toast('Paiement validé — ' + p.montant + ' D entrés en caisse');
+  rendrePaiementsAttente();
+}
+
+async function refuserPaiementAttente(id){
+  var p = (CACHE.paiements_attente||[]).find(function(x){ return x.id === id; });
+  if(!p) return;
+  if(!await demanderCodeAdmin('Refuser un paiement noté')) return;
+  if(!await confirmerModale('✖ Refuser ce paiement',
+      '<p>' + (p.nom||'') + ' — ' + p.montant + ' D</p>' +
+      '<p style="font-size:.85rem;color:var(--gris);">Il sera retiré de la liste et aucun argent ne sera compté.</p>',
+      'Oui, refuser')) return;
+  db.collection('paiements_attente').doc(id).update({ statut:'refuse', refuseLeMs: Date.now() })
+    .catch(function(err){ echecEcriture('Refus du paiement', err); });
+  toast('Paiement refusé');
 }
 
 function rendreVentesAConfirmer(){
@@ -6116,7 +6364,7 @@ async function pointerRdv(type, id){
   const doc = (src||[]).find(function(x){ return x.id === id; });
   if(!doc) return;
   const reste = (Number(doc.prix)||0) - (Number(type==='Atelier' ? doc.acompte : doc.avance)||0);
-  if(reste > 0 && !confirm('Il reste ' + reste + ' D à payer. Marquer quand même comme ' + statut + ' ?')) return;
+  if(reste > 0 && !await confirmerModale('Confirmation', 'Il reste ' + reste + ' D à payer. Marquer quand même comme ' + statut + ' ?')) return;
   doc.statut = statut;
   document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   (type === 'Atelier') ? rendreAtelier() : rendrePressing();
@@ -6133,7 +6381,7 @@ async function reporterRdv(type, id){
   const src = (type === 'Atelier') ? CACHE.commandes_couture : CACHE.depots_pressing;
   const doc = (src||[]).find(function(x){ return x.id === id; });
   if(!doc) return;
-  const rep = prompt('Nouvelle date (AAAA-MM-JJ) :', doc[champ] || '');
+  const rep = await demanderTexte('Nouvelle date (AAAA-MM-JJ) :', doc[champ] || '');
   if(rep === null) return;
   const iso = String(rep).trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
@@ -6229,7 +6477,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-03-code-lu';
+const APP_VERSION = 'v2026-08-03-code-visible';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6251,8 +6499,8 @@ const APP_VERSION = 'v2026-08-03-code-lu';
 /* Purge complète, déclenchée à la main. Utile quand le cache sert encore une
    ancienne copie : la purge automatique ci-dessus ne peut pas s'exécuter tant
    que le nouveau fichier n'a pas été chargé — c'est un cercle vicieux. */
-function forcerMiseAJour(){
-  if(!confirm('Recharger l\'application depuis le serveur ?\n\nVos données ne sont pas touchées.')) return;
+async function forcerMiseAJour(){
+  if(!await confirmerModale('Confirmation', 'Recharger l\'application depuis le serveur ?\n\nVos données ne sont pas touchées.')) return;
   try{
     if(window.caches && caches.keys){
       caches.keys().then(cles=>Promise.all(cles.map(c=>caches.delete(c)))).finally(rechargerSansCache);
@@ -6394,7 +6642,7 @@ async function modifierMesure(id){
 }
 async function supprimerMesure(id){
   if(!await demanderCodeAdmin('Supprimer une fiche mesures')) return;
-  if(!confirm('Supprimer cette fiche de mesures ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer cette fiche de mesures ?')) return;
   supprimerAvecOptimisme('clients_mesures', id, 'clients_mesures', ()=>{ rendreMesures(); mettreAJourListeClients(); }, 'Fiche supprimée');
 }
 function filtrerFichesGenre(g){
@@ -6494,7 +6742,7 @@ function rendreVisiteurs(){
     </div>`).join('');
 }
 async function supprimerVisiteur(id){
-  if(!confirm('Supprimer ce passage enregistré ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer ce passage enregistré ?')) return;
   supprimerAvecOptimisme('visiteurs', id, 'visiteurs', rendreVisiteurs, 'Passage supprimé');
 }
 
@@ -6541,13 +6789,13 @@ async function modifierDepense(id){
   const d = (CACHE.depenses||[]).find(x=>x.id===id);
   if(!d){ toast('Dépense introuvable'); return; }
 
-  const categorie = prompt('Catégorie :', d.categorie || '');
+  const categorie = await demanderTexte('Catégorie :', d.categorie || '');
   if(categorie === null) return;
-  const saisieMontant = prompt('Montant (D) :', d.montant != null ? d.montant : 0);
+  const saisieMontant = await demanderTexte('Montant (D) :', d.montant != null ? d.montant : 0);
   if(saisieMontant === null) return;
   const montant = Number(saisieMontant);
   if(isNaN(montant) || montant < 0){ toast('Montant invalide'); return; }
-  const description = prompt('Description (facultatif) :', d.description || '');
+  const description = await demanderTexte('Description (facultatif) :', d.description || '');
   if(description === null) return;
 
   const modifs = { categorie:String(categorie).trim() || 'Dépense', montant:montant,
@@ -6590,7 +6838,7 @@ async function supprimerDoublonsDepense(cle){
     return ((d.dateISO||'?') + '|' + (d.categorie||'') + '|' + (d.montant||0)) === cle;
   }).slice(1);   /* on garde la premiere ligne */
   if(!aSupprimer.length){ toast('Rien à supprimer'); return; }
-  if(!confirm('Supprimer ' + aSupprimer.length + ' ligne(s) en double ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer ' + aSupprimer.length + ' ligne(s) en double ?')) return;
 
   document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   let echecs = 0;
@@ -6606,14 +6854,14 @@ async function supprimerDoublonsDepense(cle){
 
 async function supprimerDepense(id){
   if(!await demanderCodeAdmin('Supprimer une dépense')) return;
-  if(!confirm('Supprimer cette dépense ?')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer cette dépense ?')) return;
   supprimerAvecOptimisme('depenses', id, 'depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); }, 'Dépense supprimée');
 }
 
 /* ================= RECETTES (Transactions) ================= */
 async function supprimerTransaction(id){
   if(!await demanderCodeAdmin('Supprimer une recette')) return;
-  if(!confirm('Supprimer cette recette ? (utile pour retirer une entrée de test)')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer cette recette ? (utile pour retirer une entrée de test)')) return;
   supprimerAvecOptimisme('transactions', id, 'transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); }, 'Recette supprimée');
 }
 /* ================= DIAGNOSTIC DES RECETTES =================
@@ -6706,11 +6954,11 @@ function diagnostiquerRecettes(){
 async function rattraperRecette(source, code, montant, nomEncode){
   const nom = decodeURIComponent(nomEncode);
   if(!await demanderCodeAdmin('Enregistrer une recette manquante')) return;
-  const saisie = prompt('Montant réellement reçu (D) :', montant);
+  const saisie = await demanderTexte('Montant réellement reçu (D) :', montant);
   if(saisie === null) return;
   const m = Number(saisie);
   if(isNaN(m) || m<=0){ toast('Montant invalide'); return; }
-  const rep = prompt('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
+  const rep = await demanderTexte('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
   if(rep === null) return;
   const iso = String(rep).trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
@@ -6808,7 +7056,7 @@ function ajouterEmploye(){
 }
 async function supprimerEmploye(id){
   if(!await demanderCodeAdmin('Supprimer un employé')) return;
-  if(!confirm('Supprimer cet employé ? Son historique de salaires restera visible dans les mois passés.')) return;
+  if(!await confirmerModale('Confirmation', 'Supprimer cet employé ? Son historique de salaires restera visible dans les mois passés.')) return;
   supprimerAvecOptimisme('employes', id, 'employes', ()=>{ rendreEmployes(); rendreSalaires(); }, 'Employé supprimé');
 }
 function rendreEmployes(){
@@ -7059,13 +7307,13 @@ async function reenregistrerDepenseSalaire(nomEncode, mois, montant){
   /* Le montant proposé vient de la fiche de paie, mais il peut être faux
      (avances comptées plusieurs fois) : Djamil doit pouvoir le corriger ici,
      c'est cette somme qui entrera dans les dépenses du mois. */
-  const saisieMontant = prompt('Montant réellement versé à ' + nom + ' (D) :', montant);
+  const saisieMontant = await demanderTexte('Montant réellement versé à ' + nom + ' (D) :', montant);
   if(saisieMontant === null) return;
   const montantFinal = Number(saisieMontant);
   if(isNaN(montantFinal) || montantFinal <= 0){ toast('Montant invalide'); return; }
   montant = montantFinal;
   const defaut = dateISOAujourdhui();
-  const rep = prompt('Date à laquelle l\'argent est réellement sorti (AAAA-MM-JJ) :', defaut);
+  const rep = await demanderTexte('Date à laquelle l\'argent est réellement sorti (AAAA-MM-JJ) :', defaut);
   if(rep === null) return;
   const iso = String(rep).trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)){ toast('Format attendu : AAAA-MM-JJ'); return; }
@@ -7091,7 +7339,7 @@ async function annulerPaiementSalaire(nomEncode, mois){
   if(!await demanderCodeAdmin('Annuler un paiement de salaire')) return;
   const sm = (CACHE.salaires_mensuel||[]).find(function(x){ return x.employeNom===nom && x.mois===mois; });
   if(!sm){ toast('Fiche de paie introuvable'); return; }
-  if(!confirm('Marquer le salaire de ' + nom + ' pour ' + moisAffichage(mois) + ' comme NON payé ?\n\nÀ faire seulement si l\'argent n\'est pas réellement sorti.')) return;
+  if(!await confirmerModale('Confirmation', 'Marquer le salaire de ' + nom + ' pour ' + moisAffichage(mois) + ' comme NON payé ?\n\nÀ faire seulement si l\'argent n\'est pas réellement sorti.')) return;
   sm.paye = false;
   sm.montantVerse = 0;
   rendreSalaires();
@@ -7109,8 +7357,8 @@ async function annulerPaiementSalaire(nomEncode, mois){
 function trouverSalaireMensuel(employeId, mois){
   return CACHE.salaires_mensuel.find(s=>s.employeId===employeId && s.mois===mois) || null;
 }
-function ajouterAvanceSalaire(employeId, nomEmploye){
-  const saisie = prompt('Montant de l\'avance/versement pour '+nomEmploye+' (D) :');
+async function ajouterAvanceSalaire(employeId, nomEmploye){
+  const saisie = await demanderTexte('Montant de l\'avance/versement pour '+nomEmploye+' (D) :');
   if(saisie===null) return;
   const montant = parseFloat(saisie);
   if(isNaN(montant) || montant<=0){ toast('Montant invalide'); return; }
@@ -7228,7 +7476,7 @@ async function payerSoldeMois(employeId, nomEmploye){
   const avances = enreg ? (enreg.montantVerse||0) : 0;
   const solde = salaireMensuel - avances;
   if(solde<=0){ toast('Le salaire de '+nomEmploye+' est déjà payé en totalité pour '+moisAffichage(mois)); return; }
-  if(!confirm('Payer le solde de '+nomEmploye+' pour '+moisAffichage(mois)+' ?\n\nSalaire mensuel: '+salaireMensuel+' D\nAvances déduites: '+avances+' D\nSolde à verser maintenant: '+solde+' D\n\nLe salaire complet ('+salaireMensuel+' D) sera enregistré dans les dépenses du mois.')) return;
+  if(!await confirmerModale('Confirmation', 'Payer le solde de '+nomEmploye+' pour '+moisAffichage(mois)+' ?\n\nSalaire mensuel: '+salaireMensuel+' D\nAvances déduites: '+avances+' D\nSolde à verser maintenant: '+solde+' D\n\nLe salaire complet ('+salaireMensuel+' D) sera enregistré dans les dépenses du mois.')) return;
 
   if(enreg){
     enreg.montantVerse = salaireMensuel;
@@ -7605,6 +7853,7 @@ attacherEcouteur('depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rend
 attacherEcouteur('employes', ()=>{ rendreEmployes(); rendreSalaires(); });
 attacherEcouteur('salaires_mensuel', rendreSalaires);
 attacherEcouteur('contrats', ()=>{ rendreContrats(); rendreApercu(); });
+attacherEcouteur('paiements_attente', ()=>{ rendrePaiementsAttente(); surveillerNouveauxPaiements(); });
 </script>
 
 <!-- === BOUTON INSTALLER L'APPLICATION (PWA) === -->
@@ -7681,7 +7930,7 @@ attacherEcouteur('contrats', ()=>{ rendreContrats(); rendreApercu(); });
       var nouveau = estDirecteur() ? 'manager' : 'directeur';
       localStorage.setItem('cd_wa_role', nouveau);
       var en = langue() === 'en';
-      alert(nouveau === 'directeur'
+      afficherInfo(nouveau === 'directeur'
         ? (en ? "This device is now the DIRECTOR's. The button will contact the manager."
               : "Cet appareil est maintenant celui du DIRECTEUR. Le bouton contactera le manager.")
         : (en ? "This device is now the MANAGER's. The button will contact the director."
