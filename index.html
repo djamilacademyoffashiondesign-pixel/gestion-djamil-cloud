@@ -2697,6 +2697,26 @@ async function marquerSoldePayeAtelier(id){
   enregistrerTransaction(reste, 'Atelier', c.nom + ' — ' + c.code + ' (solde final)');
   noter('→ recette de ' + reste + ' D envoyée');
   rendreApercu();
+  /* 04/08 : Djamil voit le paiement s'afficher puis revenir a l'ancien montant
+     apres rafraichissement. On RELIT donc le document quelques secondes plus
+     tard et on le previent si la base n'a pas garde la valeur, au lieu de le
+     laisser decouvrir le probleme le lendemain. */
+  setTimeout(function(){
+    db.collection('commandes_couture').doc(id).get().then(function(doc){
+      if(!doc.exists) return;
+      var enBase = Number(doc.data().acompte)||0;
+      if(enBase < Number(c.prix)){
+        noter('❌ La base a gardé acompte=' + enBase + ' au lieu de ' + c.prix);
+        afficherInfo("L'écran affichait le paiement, mais la base a gardé l'ancien montant ("
+          + enBase + " D au lieu de " + c.prix + " D).\n\n"
+          + "L'enregistrement a donc été refusé. Ouvre « 🩺 Contrôle général » dans l'Aperçu "
+          + "et envoie-moi la capture : le code d'erreur exact y sera affiché.",
+          '⚠️ Paiement non conservé');
+      } else {
+        noter('✅ Base confirmée : acompte=' + enBase);
+      }
+    }).catch(function(e){ noter('Vérification impossible : ' + (e.message||'')); });
+  }, 4000);
   afficherInfo(reste + " D encaissés pour " + c.nom + ".\n\n"
     + "Commande : " + c.prix + " D reçus sur " + c.prix + " D.\n"
     + "Recette du " + new Date().toLocaleDateString('fr-FR') + " — visible dans Finances.\n\n"
@@ -5485,6 +5505,26 @@ async function controleGeneral(){
     info((err && err.message ? err.message : '').slice(0, 200));
   }
 
+  /* 3 bis. MODIFIER un document existant — c'est ce que fait l'encaissement.
+     Une regle Firestore peut tres bien autoriser la CREATION et refuser la
+     MODIFICATION : le test precedent (creation d'un document neuf) passait
+     donc alors que l'encaissement echouait. Constat du 04/08 : le montant
+     revient apres rafraichissement, preuve que la base refuse la mise a jour. */
+  var cible = (CACHE.commandes_couture||[])[0];
+  if(cible){
+    try {
+      await db.collection('commandes_couture').doc(cible.id).update({ verifEcriture: Date.now() });
+      ok('MODIFICATION AUTORISÉE — les commandes peuvent être mises à jour');
+    } catch(err2){
+      erreurEcriture = erreurEcriture || err2;
+      ko('MODIFICATION REFUSÉE — c\'est la cause de l\'encaissement qui ne tient pas');
+      info('Code : <b>' + ((err2 && err2.code) ? err2.code : 'inconnu') + '</b>');
+      info((err2 && err2.message ? err2.message : '').slice(0,200));
+    }
+  } else {
+    info('Aucune commande disponible pour tester une modification');
+  }
+
   /* 4. File d'attente hors ligne */
   var enAttente = 0;
   try {
@@ -5731,6 +5771,13 @@ async function refuserPaiementAttente(id){
   toast('Paiement refusé');
 }
 
+/* Aiguille vers l'encaissement du bon rayon depuis le panneau des impayes. */
+function encaisserDepuisImpayes(rayon, id){
+  noter('Encaisser depuis Impayés — ' + rayon + ' id=' + id);
+  if(rayon === 'Atelier') marquerSoldePayeAtelier(id);
+  else marquerSoldePayePressing(id);
+}
+
 function rendreVentesAConfirmer(){
   const zone = document.getElementById('apercu-ventes');
   if(!zone) return;
@@ -5971,7 +6018,7 @@ function listerImpayes(){
       const d = dateDepuisISO(c.livraison); d.setHours(0,0,0,0);
       retard = Math.round((auj - d) / 86400000);
     }
-    liste.push({ rayon:'Atelier', icone:'✂️', nom:c.nom||'—', tel:c.tel||'', code:c.code||'',
+    liste.push({ rayon:'Atelier', icone:'✂️', nom:c.nom||'—', tel:c.tel||'', code:c.code||'', id:c.id,
                  reste:reste, prix:Number(c.prix)||0, statut:c.statut||'', date:c.livraison||'', retard:retard });
   });
 
@@ -5984,7 +6031,7 @@ function listerImpayes(){
       const d = dateDepuisISO(t.retrait); d.setHours(0,0,0,0);
       retard = Math.round((auj - d) / 86400000);
     }
-    liste.push({ rayon:'Pressing', icone:'👔', nom:t.nom||'—', tel:t.tel||'', code:t.code||'',
+    liste.push({ rayon:'Pressing', icone:'👔', nom:t.nom||'—', tel:t.tel||'', code:t.code||'', id:t.id,
                  reste:reste, prix:Number(t.prix)||0, statut:t.statut||'', date:t.retrait||'', retard:retard });
   });
 
@@ -6056,9 +6103,16 @@ function rendreImpayes(){
         + '<div class="meta">' + x.rayon + (x.code ? ' · ' + x.code : '') + (x.statut ? ' · ' + x.statut : '') + '</div>'
         + '<div class="meta">' + badge + (x.date ? ' · prévu le ' + dateDepuisISO(x.date).toLocaleDateString('fr-FR') : '') + '</div>'
         + '<div class="meta">Payé ' + (x.prix - x.reste) + ' / ' + x.prix + ' D</div>'
-        + (lien
-            ? '<div style="margin-top:8px;"><a href="' + lien + '" target="_blank" rel="noopener" style="display:inline-block;background:#25D366;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700;">💬 Relancer</a></div>'
-            : '<div class="meta" style="color:var(--gris);">Pas de téléphone enregistré</div>')
+        /* 04/08 : c'est CET ecran que Djamil utilise pour suivre les impayes,
+           et il n'y avait aucun moyen d'encaisser depuis ici — il fallait
+           retrouver la commande dans l'onglet Atelier. Le bouton est donc
+           ajoute la ou l'argent est reclame. */
+        + '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
+        +   (x.id ? '<button onclick="encaisserDepuisImpayes(\'' + x.rayon + '\',\'' + x.id + '\')" style="background:transparent;border:1px solid rgba(63,174,92,0.6);color:var(--vert);padding:8px 14px;border-radius:8px;font-size:.8rem;font-weight:700;">💰 Encaisser ' + x.reste + ' D</button>' : '')
+        +   (lien
+              ? '<a href="' + lien + '" target="_blank" rel="noopener" style="display:inline-block;background:#25D366;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700;">💬 Relancer</a>'
+              : '<span class="meta" style="color:var(--gris);">Pas de téléphone enregistré</span>')
+        + '</div>'
         + '</div>';
     }).join('');
   }
@@ -6643,7 +6697,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-journal';
+const APP_VERSION = 'v2026-08-04-verif-base';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
