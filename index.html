@@ -492,9 +492,9 @@ function traduireNoeud(node){
     <div class="stats-grid" id="apercu-stats"></div>
     <div class="panel">
       <h2>💵 Argent reçu</h2>
-      <div class="meta">Le manager enregistre ici tout paiement reçu, sans code. Le directeur valide ensuite : l'argent n'entre dans la caisse qu'à la validation.</div>
+      <div class="meta">Le manager NOTE ici l'argent qu'il reçoit, sans code — rien n'entre encore dans les comptes. C'est la validation du directeur qui enregistre la recette, UNE SEULE FOIS. Ne pas encaisser en plus depuis l'Atelier ou le Pressing : ce serait compté deux fois.</div>
       <div class="item-actions" style="margin-top:10px;">
-        <button onclick="ouvrirSaisiePaiement()" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">💵 Enregistrer un paiement reçu</button>
+        <button onclick="ouvrirSaisiePaiement()" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">💵 Noter un paiement reçu</button>
         <button onclick="controleGeneral()">🩺 Contrôle général</button>
       </div>
       <div id="paiements-attente" style="margin-top:10px;"></div>
@@ -5822,6 +5822,11 @@ async function validerPaiementAttente(id){
   if(!p) return;
   if(p.statut !== 'attente'){ toast('Ce paiement a déjà été traité'); return; }
   if(!await demanderCodeAdmin('Valider un paiement de ' + p.montant + ' D')) return;
+  /* 04/08 : Djamil a vu un doublon — le manager avait note 800 D, la
+     validation en a ajoute 800 de plus. Desormais la validation cherche
+     d'abord une recette identique recente et propose de ne PAS recompter :
+     la fiche client est alors mise a jour sans nouvelle recette. */
+  const compterArgent = await confirmerSiDoublon(p.nom, Number(p.montant)||0);
   if(!await confirmerModale('✅ Valider ce paiement',
       '<p><b>' + (p.nom||'') + '</b> — <b>' + p.montant + ' D</b>' + (p.recu ? ' · reçu n° ' + p.recu : '') + '</p>' +
       '<p style="font-size:.85rem;color:var(--gris);">L\'argent entrera dans la caisse du jour' +
@@ -5838,7 +5843,11 @@ async function validerPaiementAttente(id){
     .catch(function(err){ echecEcriture('Validation du paiement', err); });
 
   var desc = (p.nom||'') + (p.recu ? ' — reçu ' + p.recu : '') + ' (validé par le directeur)';
-  enregistrerTransaction(Number(p.montant)||0, p.activite || 'Général', desc);
+  if(compterArgent){
+    enregistrerTransaction(Number(p.montant)||0, p.activite || 'Général', desc);
+  } else {
+    noter('Validation sans recette : ' + (p.nom||'') + ' ' + p.montant + ' D déjà compté');
+  }
 
   if(p.dossierType === 'atelier' && p.dossierId){
     var c = CACHE.commandes_couture.find(function(x){ return x.id === p.dossierId; });
@@ -5860,7 +5869,10 @@ async function validerPaiementAttente(id){
         .catch(function(err){ echecEcriture('Mise à jour de l\'avance', err); });
     }
   }
-  toast('Paiement validé — ' + p.montant + ' D entrés en caisse');
+  afficherInfo(compterArgent
+    ? (p.montant + " D validés pour " + (p.nom||'') + ".\n\nLa recette est enregistrée aujourd'hui" + (p.dossierId ? " et la fiche du client est à jour." : "."))
+    : ("Paiement validé sans nouvelle recette — cet argent était déjà compté.\n\n" + (p.dossierId ? "La fiche du client a été mise à jour." : "")),
+    compterArgent ? '✅ Paiement validé' : '✅ Validé sans doublon');
   rendrePaiementsAttente();
 }
 
@@ -6806,7 +6818,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-boutons-clairs';
+const APP_VERSION = 'v2026-08-04-validation-sans-doublon';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
