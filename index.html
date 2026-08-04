@@ -2680,6 +2680,40 @@ async function remplacerPhotoAtelier(id, type){
   };
   input.click();
 }
+/* ====================================================================
+   GARDE ANTI-DOUBLON — ajoutee le 04/08/2026
+   Pendant la panne du 03/08, de l'argent a ete encaisse sans que la fiche
+   client soit mise a jour. En reprenant l'encaissement le lendemain, la
+   recette s'ecrit une seconde fois. Avant toute ecriture on cherche donc une
+   recette du MEME montant pour le MEME client dans les 10 derniers jours, et
+   on previent. Le choix reste a Djamil : deux clientes peuvent payer la meme
+   somme, ce n'est pas forcement un doublon.
+   ==================================================================== */
+function recetteSimilaireRecente(nomClient, montant, jours){
+  var limite = Date.now() - (jours||10)*86400000;
+  var nom = (nomClient||'').toLowerCase().trim();
+  if(!nom) return [];
+  return (CACHE.transactions||[]).filter(function(t){
+    if(Number(t.montant) !== Number(montant)) return false;
+    var d = t.dateISO ? new Date(t.dateISO).getTime() : 0;
+    if(d && d < limite) return false;
+    return ((t.description||'') + ' ' + (t.client||'')).toLowerCase().indexOf(nom) >= 0;
+  });
+}
+
+async function confirmerSiDoublon(nomClient, montant){
+  var trouvees = recetteSimilaireRecente(nomClient, montant, 10);
+  if(trouvees.length === 0) return true;
+  var lignes = trouvees.slice(0,4).map(function(t){
+    return '<div class="meta">• ' + (t.dateISO||'') + ' — ' + (t.description||'') + ' — ' + t.montant + ' D</div>';
+  }).join('');
+  return await confirmerModale('⚠️ Cet argent semble déjà encaissé',
+    '<p>Une recette de <b>' + montant + ' D</b> existe déjà pour <b>' + (nomClient||'') + '</b> :</p>'
+    + lignes
+    + '<p style="font-size:.85rem;color:var(--gris);margin-top:8px;">Si c\'est le même paiement, réponds NON : la fiche client sera corrigée sans recompter l\'argent.</p>',
+    'Enregistrer quand même');
+}
+
 async function marquerSoldePayeAtelier(id){
   noter('Bouton Solde payé ATELIER pressé, id=' + id);
   const c = CACHE.commandes_couture.find(x=>x.id===id);
@@ -2709,13 +2743,19 @@ async function marquerSoldePayeAtelier(id){
      qui n'attendait pas, marchait. On revient au principe de toute l'app :
      ecrire sans attendre, afficher tout de suite, signaler l'echec plus tard.
      NE JAMAIS remettre d'await sur une ecriture Firestore dans ce fichier. */
+  /* Ne jamais compter deux fois le meme argent. */
+  const compterArgent = await confirmerSiDoublon(c.nom, reste);
   c.acompte = c.prix; // mise à jour immédiate à l'écran
   rendreAtelier();
   db.collection('commandes_couture').doc(id).update({acompte: c.prix})
     .catch(err => echecEcriture('Mise à jour du solde de ' + c.nom, err, function(){ marquerSoldePayeAtelier(id); }));
   noter('→ écriture commande envoyée');
-  enregistrerTransaction(reste, 'Atelier', c.nom + ' — ' + c.code + ' (solde final)');
-  noter('→ recette de ' + reste + ' D envoyée');
+  if(compterArgent){
+    enregistrerTransaction(reste, 'Atelier', c.nom + ' — ' + c.code + ' (solde final)');
+    noter('→ recette de ' + reste + ' D envoyée');
+  } else {
+    noter('→ recette NON écrite : cet argent était déjà encaissé');
+  }
   rendreApercu();
   /* 04/08 : Djamil voit le paiement s'afficher puis revenir a l'ancien montant
      apres rafraichissement. On RELIT donc le document quelques secondes plus
@@ -2737,11 +2777,13 @@ async function marquerSoldePayeAtelier(id){
       }
     }).catch(function(e){ noter('Vérification impossible : ' + (e.message||'')); });
   }, 4000);
-  afficherInfo(reste + " D encaissés pour " + c.nom + ".\n\n"
-    + "Commande : " + c.prix + " D reçus sur " + c.prix + " D.\n"
-    + "Recette du " + new Date().toLocaleDateString('fr-FR') + " — visible dans Finances.\n\n"
-    + "Si le réseau est lent, l'enregistrement se termine en arrière-plan ; l'app préviendrait en cas d'échec.",
-    '✅ Encaissement enregistré');
+  afficherInfo(compterArgent
+    ? (reste + " D encaissés pour " + c.nom + ".\n\n"
+       + "Commande : " + c.prix + " D reçus sur " + c.prix + " D.\n"
+       + "Recette du " + new Date().toLocaleDateString('fr-FR') + " — visible dans Finances.")
+    : ("Fiche corrigée : " + c.prix + " D reçus sur " + c.prix + " D.\n\n"
+       + "Aucune recette ajoutée — cet argent était déjà compté dans les finances."),
+    compterArgent ? '✅ Encaissement enregistré' : '✅ Fiche corrigée sans doublon');
 }
 
 /* Fonction centrale unique pour toutes les notifications WhatsApp dynamiques :
@@ -6747,7 +6789,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-lang-corrige';
+const APP_VERSION = 'v2026-08-04-garde-doublon';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
