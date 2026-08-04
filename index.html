@@ -1438,7 +1438,7 @@ function demanderTexte(message, valeurDefaut){
 /* Confirmation par fenêtre de l'application : confirm() peut être bloqué
    par le navigateur (case « empêcher cette page de créer des boîtes de
    dialogue »), auquel cas il renvoie false en silence. */
-function confirmerModale(titre, texteHTML, texteBouton){
+function confirmerModale(titre, texteHTML, texteBouton, texteRefus){
   /* Les messages repris des anciens confirm() contiennent des \n : on les
      rend visibles en HTML. */
   if(typeof texteHTML === 'string' && texteHTML.indexOf('<') < 0)
@@ -1446,9 +1446,14 @@ function confirmerModale(titre, texteHTML, texteBouton){
   return new Promise(function(resoudre){
     let repondu = false;
     const finir = function(v){ if(!repondu){ repondu = true; resoudre(v); } };
+    /* 04/08 : le bouton negatif s'appelait toujours "Annuler". Sur la question
+       "cet argent est-il deja dans les recettes ?", Djamil a cru arreter
+       l'operation alors qu'il repondait NON et que l'app continuait vers
+       l'ecriture. Un bouton doit dire ce qu'il FAIT : chaque appel peut
+       nommer son refus. */
     const fond = ouvrirModale(titre, texteHTML, [
       { texte: texteBouton || 'Confirmer', action:function(){ finir(true); } },
-      { texte:'Annuler', style:'secondary', action:function(){ finir(false); } }
+      { texte: texteRefus || 'Annuler', style:'secondary', action:function(){ finir(false); } }
     ]);
     if(fond) fond.addEventListener('click', function(e){ if(e.target === fond) finir(false); });
   });
@@ -2568,7 +2573,10 @@ async function corrigerAvanceAtelier(id){
   if(!await demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
-  const saisie = await demanderTexte('Corriger le montant de l\'avance reçue pour '+c.nom+' (actuellement '+c.acompte+' D) :', c.acompte);
+  /* Champ laisse VIDE : preremplí avec l'ancien montant, il le conservait
+     quand on tapait sans l'effacer — Djamil a ainsi "corrige" 23000 en 23000
+     et ne pouvait pas remettre une fiche a zero. */
+  const saisie = await demanderTexte('Nouveau montant de l\'avance pour '+c.nom+' — actuellement '+c.acompte+' D.\n\nTape le montant total reçu (0 si le client n\'a rien versé) :');
   if(saisie===null) return;
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
@@ -2579,7 +2587,7 @@ async function corrigerAvanceAtelier(id){
   const dejaCompte = await confirmerModale('Cet argent est-il déjà dans les recettes ?',
     "<p>Tu passes l'avance de <b>" + c.acompte + " D</b> à <b>" + nouveauMontant + " D</b>.</p>" +
     "<p style=\"font-size:.85rem;color:var(--gris);\">Si cette somme a déjà été enregistrée en recette un autre jour, réponds OUI : la fiche sera corrigée sans recompter l'argent.</p>",
-    'Oui, déjà enregistré');
+    'Oui, déjà enregistré', 'Non, enregistrer cette somme');
   let dateSaisie = { trim:function(){ return dateISOAujourdhui(); } };
   if(!dejaCompte){
     const d = await demanderTexte('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
@@ -2712,7 +2720,7 @@ async function confirmerSiDoublon(nomClient, montant){
     '<p>Une recette de <b>' + montant + ' D</b> existe déjà pour <b>' + (nomClient||'') + '</b> :</p>'
     + lignes
     + '<p style="font-size:.85rem;color:var(--gris);margin-top:8px;">Si c\'est le même paiement, réponds NON : la fiche client sera corrigée sans recompter l\'argent.</p>',
-    'Enregistrer quand même');
+    'Enregistrer quand même', 'Non, ne pas recompter');
 }
 
 async function marquerSoldePayeAtelier(id){
@@ -6798,7 +6806,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-carnet-homme-2';
+const APP_VERSION = 'v2026-08-04-boutons-clairs';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
