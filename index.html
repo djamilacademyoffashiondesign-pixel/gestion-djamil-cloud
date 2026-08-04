@@ -52,6 +52,7 @@ CHUNKS.push(["À FAIRE","TO DO"],["PRÊT","READY"],["ANNULÉ","CANCELLED"],["Cha
 CHUNKS.push(["rendez-vous proche(s) — travail à finir","upcoming appointment(s) — work to finish"],["commande(s) prête(s) — la cliente doit passer","order(s) ready — the client needs to come"],["prêt, à récupérer","ready, to collect"],["travail en cours","work in progress"]);
 CHUNKS.push(["Vêtement déjà terminé — rien à coudre","Garment already finished — nothing to sew"],["La commande sera enregistrée comme","The order will be saved as"],["et n'occupera aucune place dans le planning.","and will take up no slot in the schedule."],["Vêtement déjà terminé — n'occupe aucune place","Garment already finished — takes up no slot"]);
 CHUNKS.push(["ce sont vos mesures, le paiement la concerne","these are your measurements, the payment is hers"],["Offert par","Gift from"]);
+CHUNKS.push(["CARNET HOMME — mesures complémentaires","MEN\u2019S SHEET — additional measurements"],["Carrure dos","Across back"],["Long. manche courte","Short sleeve length"],["Long. boubou","Boubou length"],["Tour de tête","Head"],["Entrejambe","Inseam"],["Montant (fourche)","Rise"],["Tour de mollet","Calf"],["Genre non renseigné — classez cette fiche :","Gender not set — file this sheet:"],["À classer","To file"],["mesure(s) encore à prendre","measurement(s) still to take"],["fiche complète","complete sheet"],["Carnet homme","Men\u2019s sheet"],["Carnet femme","Women\u2019s sheet"],["Haut / chemise","Top / shirt"],["Bas / pantalon","Bottom / trousers"],["Boubou / veste / divers","Boubou / jacket / other"],["Robe / jupe","Dress / skirt"]);
 CHUNKS.push(["les mesures sont à son nom","the measurements are under her name"],["commande(s) offerte(s) — payée(s) par","order(s) received as a gift — paid by"]);
 CHUNKS.push(["Reporté — rendez-vous initial:","Postponed — original appointment:"],["à traiter en priorité","to handle as a priority"],["priorité, promis le","priority, promised on"],["priorité — était prévu le","priority — was due on"],["déjà reporté au","already postponed to"]);
 CHUNKS.push(["déjà prêt(s) — elle peut les récupérer dès maintenant","already ready — she can collect them now"],["tenue(s) à récupérer dès maintenant","item(s) to collect now"],["à finir pour le","to finish by"]);
@@ -902,6 +903,24 @@ function traduireNoeud(node){
         <div><label>Long. haut</label><input id="ms-longhaut" type="number"></div>
         <div><label>Long. pantalon</label><input id="ms-longpantalon" type="number"></div>
       </div>
+      <div id="ms-champs-homme">
+        <div style="color:var(--or);font-size:0.78rem;margin:10px 0 4px;letter-spacing:.5px;">CARNET HOMME — mesures complémentaires</div>
+        <div class="row3">
+          <div><label>Carrure dos</label><input id="ms-carrure" type="number"></div>
+          <div><label>Long. chemise</label><input id="ms-longchemise" type="number"></div>
+          <div><label>Long. manche courte</label><input id="ms-manchecourte" type="number"></div>
+        </div>
+        <div class="row3">
+          <div><label>Long. veste</label><input id="ms-longveste" type="number"></div>
+          <div><label>Long. boubou</label><input id="ms-longboubou" type="number"></div>
+          <div><label>Tour de tête</label><input id="ms-tourtete" type="number"></div>
+        </div>
+        <div class="row3">
+          <div><label>Entrejambe</label><input id="ms-entrejambe" type="number"></div>
+          <div><label>Montant (fourche)</label><input id="ms-montant" type="number"></div>
+          <div><label>Tour de mollet</label><input id="ms-mollet" type="number"></div>
+        </div>
+      </div>
       <div class="row2" id="ms-champs-femme" style="display:none;">
         <div><label>Longueur de robe</label><input id="ms-longrobe" type="number"></div>
         <div><label>Longueur de jupe</label><input id="ms-longjupe" type="number"></div>
@@ -919,6 +938,7 @@ function traduireNoeud(node){
         <button type="button" id="fg-tout" onclick="filtrerFichesGenre('Tout')">Tout</button>
         <button type="button" id="fg-homme" onclick="filtrerFichesGenre('Homme')">Homme</button>
         <button type="button" id="fg-femme" onclick="filtrerFichesGenre('Femme')">Femme</button>
+        <button type="button" id="fg-aclasser" onclick="filtrerFichesGenre('À classer')">❓ À classer</button>
       </div>
       <div id="mesures-liste"></div>
     </div>
@@ -2033,25 +2053,10 @@ function tenterResolutionParTelephone(prefixe){
   } else {
     document.getElementById('ms-edit-id').value = client.id;
     choisirGenreMesures(client.genre||'Homme');
-    document.getElementById('ms-cou').value=client.cou||'';
-    document.getElementById('ms-epaule').value=client.epaule||'';
-    document.getElementById('ms-poitrine').value=client.poitrine||'';
-    document.getElementById('ms-longmanche').value=client.longManche||'';
-    document.getElementById('ms-tourmanche').value=client.tourManche||'';
-    document.getElementById('ms-poignet').value=client.poignet||'';
-    document.getElementById('ms-tourtaille').value=client.tourTaille||'';
-    document.getElementById('ms-longtaille').value=client.longTaille||'';
-    document.getElementById('ms-ceinture').value=client.ceinture||'';
-    document.getElementById('ms-bassin').value=client.bassin||'';
-    document.getElementById('ms-cuisse').value=client.cuisse||'';
-    document.getElementById('ms-pince').value=client.pince||'';
-    document.getElementById('ms-tourgenou').value=client.tourGenou||'';
-    document.getElementById('ms-baspantalon').value=client.basPantalon||'';
-    document.getElementById('ms-longhaut').value=client.longHaut||'';
-    document.getElementById('ms-longpantalon').value=client.longPantalon||'';
-    document.getElementById('ms-longrobe').value = client.genre==='Femme' ? (client.longRobe||'') : '';
-    document.getElementById('ms-longjupe').value = client.genre==='Femme' ? (client.longJupe||'') : '';
-    toast('Fiche identifiée par téléphone — mise à jour à l\'enregistrement');
+    const conserve = remplirChampsMesures(client, false);
+    toast(conserve>0
+      ? 'Fiche identifiée par téléphone — vos '+conserve+' nouvelle(s) mesure(s) sont conservées'
+      : 'Fiche identifiée par téléphone — mise à jour à l\'enregistrement');
   }
 }
 function remplirDepuisClientExistant(){
@@ -2091,43 +2096,31 @@ function remplirDepuisClientExistant(){
    automatiquement (utile pour mettre à jour une fiche sans la rechercher dans la liste). */
 function viderChampsMesures(){
   document.getElementById('ms-edit-id').value='';
-  ['ms-tel','ms-cou','ms-epaule','ms-poitrine','ms-longmanche','ms-tourmanche','ms-poignet','ms-tourtaille','ms-longtaille',
-   'ms-ceinture','ms-bassin','ms-cuisse','ms-pince','ms-tourgenou','ms-baspantalon','ms-longhaut','ms-longpantalon','ms-longrobe','ms-longjupe']
+  ['ms-tel'].concat(Object.keys(MS_MAP).map(function(c){ return MS_MAP[c]; }))
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  msSaisieManuelle = false;
 }
 function remplirDepuisClientExistantMesures(){
   const nomSaisi = document.getElementById('ms-nom').value.trim();
   const telSaisi = document.getElementById('ms-tel').value.trim();
-  if(!nomSaisi){ viderChampsMesures(); return; }
+  /* On ne vide plus le formulaire quand le nom est effacé si Djamil a déjà
+     saisi des mesures : c'est ce vidage automatique qui les faisait
+     disparaître pendant qu'il corrigeait l'orthographe d'un nom. */
+  if(!nomSaisi){ if(!msSaisieManuelle) viderChampsMesures(); return; }
   const client = trouverClientExistant(nomSaisi, telSaisi);
   if(client==='AMBIGU'){
     document.getElementById('ms-edit-id').value='';
-    toast('⚠️ Plusieurs clients s\'appellent "'+nomSaisi+'" — entrez son téléphone pour charger sa fiche, sinon une NOUVELLE fiche sera créée à l\'enregistrement');
+    toast('⚠️ Plusieurs clients s\'appellent "'+nomSaisi+'" — entrez son téléphone pour charger sa fiche');
     return;
   }
   if(!client){ document.getElementById('ms-edit-id').value=''; return; }
   document.getElementById('ms-edit-id').value = client.id;
-  document.getElementById('ms-tel').value = client.tel||'';
+  if(!document.getElementById('ms-tel').value.trim()) document.getElementById('ms-tel').value = client.tel||'';
   choisirGenreMesures(client.genre||'Homme');
-  document.getElementById('ms-cou').value=client.cou||'';
-  document.getElementById('ms-epaule').value=client.epaule||'';
-  document.getElementById('ms-poitrine').value=client.poitrine||'';
-  document.getElementById('ms-longmanche').value=client.longManche||'';
-  document.getElementById('ms-tourmanche').value=client.tourManche||'';
-  document.getElementById('ms-poignet').value=client.poignet||'';
-    document.getElementById('ms-tourtaille').value=client.tourTaille||'';
-    document.getElementById('ms-longtaille').value=client.longTaille||'';
-  document.getElementById('ms-ceinture').value=client.ceinture||'';
-  document.getElementById('ms-bassin').value=client.bassin||'';
-  document.getElementById('ms-cuisse').value=client.cuisse||'';
-  document.getElementById('ms-pince').value=client.pince||'';
-  document.getElementById('ms-tourgenou').value=client.tourGenou||'';
-  document.getElementById('ms-baspantalon').value=client.basPantalon||'';
-  document.getElementById('ms-longhaut').value=client.longHaut||'';
-  document.getElementById('ms-longpantalon').value=client.longPantalon||'';
-  document.getElementById('ms-longrobe').value = client.genre==='Femme' ? (client.longRobe||'') : '';
-  document.getElementById('ms-longjupe').value = client.genre==='Femme' ? (client.longJupe||'') : '';
-  toast('Fiche existante chargée — modification mise à jour à l\'enregistrement');
+  const conserve = remplirChampsMesures(client, false);
+  toast(conserve>0
+    ? 'Fiche existante — vos '+conserve+' nouvelle(s) mesure(s) sont conservées'
+    : 'Fiche existante chargée — modification mise à jour à l\'enregistrement');
 }
 function mettreAJourListeClients(){
   const liste = document.getElementById('liste-clients-existants');
@@ -2145,15 +2138,23 @@ async function synchroniserCarnetAdresses(nom, tel, genre, mesures){
      (Empêche qu'une nouvelle commande efface des mesures non re-saisies — ex. poitrine.) */
   const anc = existant || {};
   const fusion = (cle)=>{ const n=(mesures[cle]==null?'':String(mesures[cle])).trim(); return n!=='' ? n : (anc[cle]!=null ? anc[cle] : ''); };
+  /* CORRECTIF 04/08 (hommes et femmes mélangés) : le formulaire de l'atelier
+     revient toujours sur "Homme" après chaque commande. Il ne doit donc JAMAIS
+     réécrire le genre d'une fiche déjà classée — sinon une cliente basculait
+     dans le carnet homme à sa commande suivante. */
+  const genreRetenu = (anc && anc.genre) ? anc.genre : genre;
   const fiche = {
-    nom, tel, genre,
+    nom, tel, genre: genreRetenu,
     cou:fusion('cou'), epaule:fusion('epaule'), poitrine:fusion('poitrine'),
     longManche:fusion('longManche'), tourManche:fusion('tourManche'), poignet:fusion('poignet'),
     tourTaille:fusion('tourTaille'), longTaille:fusion('longTaille'),
     ceinture:fusion('ceinture'), bassin:fusion('bassin'), cuisse:fusion('cuisse'),
     pince:fusion('pince'), tourGenou:fusion('tourGenou'), basPantalon:fusion('basPantalon'),
     longHaut:fusion('longHaut'), longPantalon:fusion('longPantalon'),
-    longRobe:fusion('longRobe'), longJupe:fusion('longJupe')
+    longRobe:fusion('longRobe'), longJupe:fusion('longJupe'),
+    carrure:fusion('carrure'), longChemise:fusion('longChemise'), mancheCourte:fusion('mancheCourte'),
+    longVeste:fusion('longVeste'), longBoubou:fusion('longBoubou'), tourTete:fusion('tourTete'),
+    entrejambe:fusion('entrejambe'), montant:fusion('montant'), mollet:fusion('mollet')
   };
   if(trouve==='AMBIGU'){
     toast('⚠️ Plusieurs clients nommés "'+nom+'" — une fiche séparée a été créée pour éviter de mélanger les mesures');
@@ -6797,7 +6798,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-encaisse-protege';
+const APP_VERSION = 'v2026-08-04-carnet-homme';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6847,88 +6848,149 @@ if('serviceWorker' in navigator){
 }
 
 /* ================= MESURES (indépendant) ================= */
+/* Table unique cle Firestore -> champ du formulaire. Toute mesure ajoutée
+   doit l'être ICI seulement : saisie, chargement, fusion et vidage la lisent. */
+var MS_MAP = {
+  cou:'ms-cou', epaule:'ms-epaule', poitrine:'ms-poitrine',
+  longManche:'ms-longmanche', tourManche:'ms-tourmanche', poignet:'ms-poignet',
+  tourTaille:'ms-tourtaille', longTaille:'ms-longtaille',
+  ceinture:'ms-ceinture', bassin:'ms-bassin', cuisse:'ms-cuisse',
+  pince:'ms-pince', tourGenou:'ms-tourgenou', basPantalon:'ms-baspantalon',
+  longHaut:'ms-longhaut', longPantalon:'ms-longpantalon',
+  longRobe:'ms-longrobe', longJupe:'ms-longjupe',
+  /* carnet homme, ajouté le 04/08 */
+  carrure:'ms-carrure', longChemise:'ms-longchemise', mancheCourte:'ms-manchecourte',
+  longVeste:'ms-longveste', longBoubou:'ms-longboubou', tourTete:'ms-tourtete',
+  entrejambe:'ms-entrejambe', montant:'ms-montant', mollet:'ms-mollet'
+};
+var MS_LIBELLES = {
+  cou:'Tour de cou', epaule:'Épaule', poitrine:'Tour poitrine',
+  longManche:'Long. manche', tourManche:'Tour manche', poignet:'Poignet',
+  tourTaille:'Tour de taille', longTaille:'Longueur de taille',
+  ceinture:'Ceinture', bassin:'Tour bassin', cuisse:'Tour de cuisse',
+  pince:'Long. pince', tourGenou:'Tour de genou', basPantalon:'Bas du pantalon',
+  longHaut:'Long. haut', longPantalon:'Long. pantalon',
+  longRobe:'Long. robe', longJupe:'Long. jupe',
+  carrure:'Carrure dos', longChemise:'Long. chemise', mancheCourte:'Long. manche courte',
+  longVeste:'Long. veste', longBoubou:'Long. boubou', tourTete:'Tour de tête',
+  entrejambe:'Entrejambe', montant:'Montant (fourche)', mollet:'Tour de mollet'
+};
+/* Mesures propres à chaque carnet : le reste est commun aux deux. */
+var MS_CLES_FEMME = ['longRobe','longJupe','pince'];
+var MS_CLES_HOMME = ['carrure','longChemise','mancheCourte','longVeste','longBoubou','tourTete','entrejambe','montant','mollet'];
+
+/* CORRECTIF 04/08 (mesures qui disparaissent) : le pré-remplissage automatique
+   écrasait AVEC DU VIDE les mesures que Djamil venait de taper, dès qu'il
+   corrigeait le nom ou saisissait le téléphone. On mémorise donc s'il a saisi
+   quelque chose à la main depuis le dernier chargement ; dans ce cas on ne
+   remplit QUE les champs restés vides et on n'efface plus rien. */
+var msSaisieManuelle = false;
+function surveillerSaisieMesures(){
+  Object.keys(MS_MAP).forEach(function(cle){
+    var el = document.getElementById(MS_MAP[cle]);
+    if(el && !el._surveille){
+      el._surveille = true;
+      el.addEventListener('input', function(){ msSaisieManuelle = true; });
+    }
+  });
+}
+function lireChampsMesures(){
+  var out = {};
+  Object.keys(MS_MAP).forEach(function(cle){
+    var el = document.getElementById(MS_MAP[cle]);
+    out[cle] = el ? el.value : '';
+  });
+  return out;
+}
+/* forcer = true : chargement volontaire (bouton Modifier), on remplace tout.
+   forcer = false : pré-remplissage automatique, on ne touche pas à ce qui est saisi. */
+function remplirChampsMesures(client, forcer){
+  var conserve = 0;
+  Object.keys(MS_MAP).forEach(function(cle){
+    var el = document.getElementById(MS_MAP[cle]);
+    if(!el) return;
+    var stocke = (client && client[cle]!=null) ? String(client[cle]) : '';
+    var actuel = (el.value||'').trim();
+    if(forcer || !msSaisieManuelle){ el.value = stocke; return; }
+    if(actuel===''){ el.value = stocke; }
+    else if(stocke!=='' && stocke!==actuel){ conserve++; }
+  });
+  return conserve;
+}
 let genreMesures='Homme';
 function choisirGenreMesures(genre){
   genreMesures=genre;
   document.getElementById('ms-genre-homme').classList.toggle('actif', genre==='Homme');
   document.getElementById('ms-genre-femme').classList.toggle('actif', genre==='Femme');
   document.getElementById('ms-champs-femme').style.display = genre==='Femme' ? 'grid' : 'none';
+  const blocHomme = document.getElementById('ms-champs-homme');
+  if(blocHomme) blocHomme.style.display = genre==='Homme' ? 'block' : 'none';
   const champPince = document.getElementById('champ-pince-mesures');
   if(champPince) champPince.style.display = genre==='Femme' ? 'block' : 'none';
 }
 choisirGenreMesures('Homme');
+try { surveillerSaisieMesures(); } catch(e){}
 
 function enregistrerMesure(){
   const nom=document.getElementById('ms-nom').value.trim();
   if(!nom){ toast('Entrez le nom du client'); return; }
-  const fiche={
-    nom,
-    tel:document.getElementById('ms-tel').value.trim(),
-    genre:genreMesures,
-    cou:document.getElementById('ms-cou').value,
-    epaule:document.getElementById('ms-epaule').value,
-    poitrine:document.getElementById('ms-poitrine').value,
-    longManche:document.getElementById('ms-longmanche').value,
-    tourManche:document.getElementById('ms-tourmanche').value,
-    poignet:document.getElementById('ms-poignet').value,
-    tourTaille:document.getElementById('ms-tourtaille').value,
-    longTaille:document.getElementById('ms-longtaille').value,
-    ceinture:document.getElementById('ms-ceinture').value,
-    bassin:document.getElementById('ms-bassin').value,
-    cuisse:document.getElementById('ms-cuisse').value,
-    pince:document.getElementById('ms-pince').value,
-    tourGenou:document.getElementById('ms-tourgenou').value,
-    basPantalon:document.getElementById('ms-baspantalon').value,
-    longHaut:document.getElementById('ms-longhaut').value,
-    longPantalon:document.getElementById('ms-longpantalon').value,
-    longRobe: genreMesures==='Femme' ? document.getElementById('ms-longrobe').value : '',
-    longJupe: genreMesures==='Femme' ? document.getElementById('ms-longjupe').value : ''
-  };
-  const idEdition = document.getElementById('ms-edit-id').value;
+  const tel=document.getElementById('ms-tel').value.trim();
+  const saisie = lireChampsMesures();
+  const fiche = Object.assign({nom:nom, tel:tel, genre:genreMesures}, saisie);
+  /* Une fiche homme ne porte pas les mesures femme, et l'inverse. */
+  (genreMesures==='Femme' ? MS_CLES_HOMME : MS_CLES_FEMME).forEach(function(cle){
+    if(cle==='pince' && genreMesures==='Femme') return;
+    fiche[cle] = '';
+  });
 
-  /* CORRECTIF (perte de mesures) : lors de la modification d'une fiche existante,
-     un champ laissé vide ne remplace plus la valeur déjà enregistrée. Avant, une
-     mesure non re-saisie était écrasée par du vide et disparaissait de la fiche.
-     Pour corriger une mesure, il suffit de saisir la nouvelle valeur par-dessus. */
-  if(idEdition){
-    const ancienne = CACHE.clients_mesures.find(c=>c.id===idEdition);
-    if(ancienne){
-      Object.keys(fiche).forEach(cle=>{
-        if(cle==='nom' || cle==='genre') return;
-        const nouvelle = (fiche[cle]==null ? '' : String(fiche[cle])).trim();
-        if(nouvelle==='' && ancienne[cle]!=null && String(ancienne[cle]).trim()!==''){
-          fiche[cle] = ancienne[cle];
-        }
-      });
-    }
+  let idEdition = document.getElementById('ms-edit-id').value;
+
+  /* CORRECTIF 04/08 (fiches en double) : si Djamil saisit le nom d'un client
+     DÉJÀ connu sans passer par "Modifier", on complète sa fiche au lieu d'en
+     créer une seconde — sinon ses anciennes mesures semblaient disparaître. */
+  let fusionnee = false;
+  if(!idEdition){
+    const dejaLa = trouverClientExistant(nom, tel);
+    if(dejaLa && dejaLa!=='AMBIGU'){ idEdition = dejaLa.id; fusionnee = true; }
+  }
+
+  /* Un champ laissé vide ne remplace jamais une valeur déjà enregistrée.
+     Pour corriger une mesure, saisir la nouvelle valeur par-dessus. */
+  const ancienne = idEdition ? CACHE.clients_mesures.find(c=>c.id===idEdition) : null;
+  if(ancienne){
+    Object.keys(fiche).forEach(cle=>{
+      if(cle==='nom' || cle==='genre') return;
+      const nouvelle = (fiche[cle]==null ? '' : String(fiche[cle])).trim();
+      if(nouvelle==='' && ancienne[cle]!=null && String(ancienne[cle]).trim()!==''){
+        fiche[cle] = ancienne[cle];
+      }
+    });
   }
 
   /* Affichage immédiat dans "Fiches clients", sans attendre le serveur. */
-  if(idEdition){
-    const existant = CACHE.clients_mesures.find(c=>c.id===idEdition);
-    if(existant) Object.assign(existant, fiche);
+  if(ancienne){
+    Object.assign(ancienne, fiche);
   } else {
     CACHE.clients_mesures.push(Object.assign({id:'local_'+Date.now()}, fiche));
   }
   rendreMesures();
   mettreAJourListeClients();
 
-  toast(idEdition ? 'Fiche mise à jour' : 'Fiche enregistrée');
-  viderChamps(['ms-nom','ms-tel','ms-cou','ms-epaule','ms-poitrine','ms-longmanche','ms-tourmanche',
-    'ms-poignet','ms-tourtaille','ms-longtaille','ms-ceinture','ms-bassin','ms-cuisse','ms-pince','ms-tourgenou','ms-baspantalon',
-    'ms-longhaut','ms-longpantalon','ms-longrobe','ms-longjupe']);
+  toast(fusionnee ? 'Fiche existante complétée (aucun doublon créé)'
+                  : (idEdition ? 'Fiche mise à jour' : 'Fiche enregistrée'));
+  const aVider = ['ms-nom','ms-tel'].concat(Object.keys(MS_MAP).map(function(c){ return MS_MAP[c]; }));
+  viderChamps(aVider);
   document.getElementById('ms-edit-id').value='';
+  msSaisieManuelle = false;
   choisirGenreMesures('Homme');
 
-  /* Synchronisation réelle avec Firestore en arrière-plan. */
+  /* Synchronisation réelle avec Firestore en arrière-plan (jamais d'await :
+     avec la persistance hors ligne, la promesse peut ne jamais revenir). */
   const ficheAEnvoyer = Object.assign({}, fiche, {misAJourLe: firebase.firestore.FieldValue.serverTimestamp()});
-  const operation = (idEdition && !idEdition.startsWith('local_'))
+  const operation = (idEdition && !String(idEdition).startsWith('local_'))
     ? db.collection('clients_mesures').doc(idEdition).update(ficheAEnvoyer)
     : db.collection('clients_mesures').add(ficheAEnvoyer);
-  operation.catch(err=>{
-    console.error('Erreur de synchronisation de la fiche mesures:', err);
-    toast('⚠️ La fiche n\'a pas pu être synchronisée en ligne — sera réessayé');
-  });
+  operation.catch(err=>{ echecEcriture('la fiche de mesures de '+nom, err, ()=>{}); });
 }
 async function modifierMesure(id){
   if(!await demanderCodeAdmin('Modifier une fiche mesures existante')) return;
@@ -6936,29 +6998,26 @@ async function modifierMesure(id){
   if(!f) return;
   document.getElementById('ms-nom').value=f.nom||'';
   document.getElementById('ms-tel').value=f.tel||'';
-  document.getElementById('ms-cou').value=f.cou||'';
-  document.getElementById('ms-epaule').value=f.epaule||'';
-  document.getElementById('ms-poitrine').value=f.poitrine||'';
-  document.getElementById('ms-longmanche').value=f.longManche||'';
-  document.getElementById('ms-tourmanche').value=f.tourManche||'';
-  document.getElementById('ms-poignet').value=f.poignet||'';
-  document.getElementById('ms-tourtaille').value=f.tourTaille||'';
-  document.getElementById('ms-longtaille').value=f.longTaille||'';
-  document.getElementById('ms-ceinture').value=f.ceinture||'';
-  document.getElementById('ms-bassin').value=f.bassin||'';
-  document.getElementById('ms-cuisse').value=f.cuisse||'';
-  document.getElementById('ms-pince').value=f.pince||'';
-  document.getElementById('ms-tourgenou').value=f.tourGenou||'';
-  document.getElementById('ms-baspantalon').value=f.basPantalon||'';
-  document.getElementById('ms-longhaut').value=f.longHaut||'';
-  document.getElementById('ms-longpantalon').value=f.longPantalon||'';
   choisirGenreMesures(f.genre||'Homme');
-  document.getElementById('ms-longrobe').value=f.longRobe||'';
-  document.getElementById('ms-longjupe').value=f.longJupe||'';
+  msSaisieManuelle = false;
+  remplirChampsMesures(f, true);
   document.getElementById('ms-edit-id').value=id;
   toast('Fiche chargée pour modification');
   document.querySelector('[data-mod="mesures"]').click();
   window.scrollTo(0,0);
+}
+/* Corrige le genre d'une fiche directement depuis la liste (fiches anciennes
+   ou créées depuis l'atelier avec le mauvais réglage). */
+function definirGenreFiche(id, genre){
+  const f = CACHE.clients_mesures.find(x=>x.id===id);
+  if(!f) return;
+  f.genre = genre;
+  rendreMesures();
+  if(!String(id).startsWith('local_')){
+    db.collection('clients_mesures').doc(id).update({genre:genre})
+      .catch(err=>{ echecEcriture('le genre de la fiche de '+(f.nom||''), err, ()=>{}); });
+  }
+  toast('Fiche classée : '+genre);
 }
 async function supprimerMesure(id){
   if(!await demanderCodeAdmin('Supprimer une fiche mesures')) return;
@@ -6971,15 +7030,26 @@ function filtrerFichesGenre(g){
 }
 function rendreMesures(){
   const recherche = (document.getElementById('ms-recherche')?.value||'').toLowerCase();
-  /* Djamil ne veut pas voir les fiches hommes et femmes melangees : le carnet
-     de mesures n'est pas le meme. Le choix est garde d'une session a l'autre. */
+  /* Djamil ne veut pas voir les fiches hommes et femmes mélangées : le carnet
+     de mesures n'est pas le même. Le choix est gardé d'une session à l'autre.
+     CORRECTIF 04/08 : une fiche SANS genre n'est plus comptée comme un homme
+     (c'est ainsi que des clientes apparaissaient dans le carnet homme) ; elle
+     va dans "❓ À classer" et se corrige en un geste. */
   const genreFiltre = localStorage.getItem('cd_filtre_genre') || 'Tout';
-  ['Tout','Homme','Femme'].forEach(g=>{
-    const b = document.getElementById('fg-'+g.toLowerCase());
-    if(b) b.classList.toggle('actif', g===genreFiltre);
+  const genreDe = f => (f.genre==='Homme' || f.genre==='Femme') ? f.genre : 'À classer';
+  const nb = {Tout:0, Homme:0, Femme:0, 'À classer':0};
+  CACHE.clients_mesures.forEach(f=>{ nb.Tout++; nb[genreDe(f)]++; });
+  [['Tout','fg-tout'],['Homme','fg-homme'],['Femme','fg-femme'],['À classer','fg-aclasser']].forEach(([g,id])=>{
+    const b = document.getElementById(id);
+    if(b){
+      b.classList.toggle('actif', g===genreFiltre);
+      const base = g==='À classer' ? '❓ À classer' : g;
+      b.textContent = base + ' (' + nb[g] + ')';
+      if(g==='À classer') b.style.display = nb[g]>0 ? '' : 'none';
+    }
   });
   const data = CACHE.clients_mesures
-    .filter(f=>genreFiltre==='Tout' || (f.genre||'Homme')===genreFiltre)
+    .filter(f=>genreFiltre==='Tout' || genreDe(f)===genreFiltre)
     .filter(f=>!recherche || (f.nom||'').toLowerCase().includes(recherche));
   const liste=document.getElementById('mesures-liste');
   if(data.length===0){
@@ -6989,18 +7059,13 @@ function rendreMesures(){
   const comptageNoms = {};
   CACHE.clients_mesures.forEach(f=>{ comptageNoms[f.nom] = (comptageNoms[f.nom]||0)+1; });
   liste.innerHTML=data.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'', 'fr', {sensitivity:'base'})).map(f=>`<div class="liste-item">
-    <div class="nom" onclick="basculerDetailMesure('${f.id}')" style="cursor:pointer;">👁️ ${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${f.genre||''})</span>${(function(t){ return t ? ' <span class="badge" style="background:rgba(201,162,39,.18);color:var(--or);border:1px solid rgba(201,162,39,.5);">'+t.taille+'</span>' : ''; })(tailleClient(f))} ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
+    <div class="nom" onclick="basculerDetailMesure('${f.id}')" style="cursor:pointer;">👁️ ${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${genreDe(f)})</span>${(function(t){ return t ? ' <span class="badge" style="background:rgba(201,162,39,.18);color:var(--or);border:1px solid rgba(201,162,39,.5);">'+t.taille+'</span>' : ''; })(tailleClient(f))} ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
     <div class="meta">${f.tel||'<span style="color:var(--rouge);">Aucun téléphone — risque de confusion</span>'}</div>
+    ${genreDe(f)==='À classer' ? `<div class="meta" style="color:var(--rouge);">Genre non renseigné — classez cette fiche :
+      <button onclick="definirGenreFiche('${f.id}','Homme')">Homme</button>
+      <button onclick="definirGenreFiche('${f.id}','Femme')">Femme</button></div>` : ''}
     <div class="meta">Cou ${f.cou||'-'} · Poitrine ${f.poitrine||'-'} · Taille ${f.tourTaille||'-'} · Ceinture ${f.ceinture||'-'} · Bassin ${f.bassin||'-'}</div>
-    <div id="detail-mesure-${f.id}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.8rem;line-height:1.7;">
-      Cou: ${f.cou||'-'} · Épaule: ${f.epaule||'-'} · Poitrine: ${f.poitrine||'-'}<br>
-      Long. manche: ${f.longManche||'-'} · Tour manche: ${f.tourManche||'-'} · Poignet: ${f.poignet||'-'}<br>
-      Tour de taille: ${f.tourTaille||'-'} · Longueur de taille: ${f.longTaille||'-'}<br>
-      Ceinture: ${f.ceinture||'-'} · Tour bassin: ${f.bassin||'-'} · Tour de cuisse: ${f.cuisse||'-'}<br>
-      Long. pince: ${f.pince||'-'} · Tour de genou: ${f.tourGenou||'-'} · Bas du pantalon: ${f.basPantalon||'-'}<br>
-      Long. haut: ${f.longHaut||'-'} · Long. pantalon: ${f.longPantalon||'-'}
-      ${f.genre==='Femme' ? '<br>Long. robe: '+(f.longRobe||'-')+' · Long. jupe: '+(f.longJupe||'-') : ''}
-    </div>
+    <div id="detail-mesure-${f.id}" style="display:none;margin-top:8px;">${detailMesuresHTML(f)}</div>
     <div class="item-actions">
       <button onclick="ouvrirFicheCoupe('${f.id}')">✂️ Coupe</button>
       <button onclick="ouvrirPatron('${f.id}')">🧵 Patron</button>
@@ -7008,6 +7073,38 @@ function rendreMesures(){
       <button class="del" onclick="supprimerMesure('${f.id}')">Supprimer</button>
     </div>
   </div>`).join('');
+}
+/* Tableau complet des mesures d'une fiche, groupé par partie du vêtement.
+   Les mesures manquantes restent VISIBLES, en gris, pour que Djamil voie
+   d'un coup d'œil ce qu'il reste à prendre sur le client. */
+function detailMesuresHTML(f){
+  const homme = (f.genre!=='Femme');
+  const groupes = homme ? [
+    ['Haut / chemise', ['cou','epaule','carrure','poitrine','longTaille','longHaut','longChemise']],
+    ['Manche', ['longManche','mancheCourte','tourManche','poignet']],
+    ['Bas / pantalon', ['tourTaille','ceinture','bassin','montant','entrejambe','cuisse','tourGenou','mollet','basPantalon','longPantalon']],
+    ['Boubou / veste / divers', ['longBoubou','longVeste','tourTete']]
+  ] : [
+    ['Haut', ['cou','epaule','poitrine','pince','tourTaille','longTaille','longHaut']],
+    ['Manche', ['longManche','tourManche','poignet']],
+    ['Bas', ['ceinture','bassin','cuisse','tourGenou','basPantalon','longPantalon']],
+    ['Robe / jupe', ['longRobe','longJupe']]
+  ];
+  let manquantes = 0;
+  const blocs = groupes.map(function(g){
+    const lignes = g[1].map(function(cle){
+      const v = (f[cle]==null || String(f[cle]).trim()==='') ? '' : String(f[cle]);
+      if(v==='') manquantes++;
+      return '<tr><td style="padding:3px 8px 3px 0;color:var(--gris);">'+MS_LIBELLES[cle]+'</td>'
+           + '<td style="padding:3px 0;text-align:right;font-weight:700;'+(v===''?'color:#666;font-weight:400;':'color:#fff;')+'">'+(v===''?'—':v)+'</td></tr>';
+    }).join('');
+    return '<div style="margin-bottom:8px;"><div style="color:var(--or);font-size:0.75rem;letter-spacing:.5px;margin-bottom:2px;">'+g[0]+'</div>'
+         + '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">'+lignes+'</table></div>';
+  }).join('');
+  return '<div style="padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;">'
+       + '<div style="font-size:0.75rem;color:var(--gris);margin-bottom:6px;">Carnet '+(homme?'homme':'femme')
+       + (manquantes>0 ? ' · '+manquantes+' mesure(s) encore à prendre' : ' · fiche complète') + '</div>'
+       + blocs + '</div>';
 }
 /* Affiche/masque le détail complet des mesures d'un client en un tap sur son
    nom, pour simplement CONSULTER ses mesures sans passer par "Modifier"
