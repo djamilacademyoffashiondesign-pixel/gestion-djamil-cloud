@@ -2544,8 +2544,20 @@ async function corrigerAvanceAtelier(id){
   if(saisie===null) return;
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
-  const dateSaisie = await demanderTexte('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
-  if(dateSaisie===null) return;
+  /* 03/08 — cas signale par Djamil : un paiement peut avoir DEJA ete compte
+     en recette alors que la fiche client est restee en retard (c'est ce qui
+     s'est passe pendant la panne d'encaissement). Corriger l'avance ecrivait
+     alors une SECONDE recette. On lui laisse donc le choix. */
+  const dejaCompte = await confirmerModale('Cet argent est-il déjà dans les recettes ?',
+    "<p>Tu passes l'avance de <b>" + c.acompte + " D</b> à <b>" + nouveauMontant + " D</b>.</p>" +
+    "<p style=\"font-size:.85rem;color:var(--gris);\">Si cette somme a déjà été enregistrée en recette un autre jour, réponds OUI : la fiche sera corrigée sans recompter l'argent.</p>",
+    'Oui, déjà enregistré');
+  let dateSaisie = { trim:function(){ return dateISOAujourdhui(); } };
+  if(!dejaCompte){
+    const d = await demanderTexte('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
+    if(d===null) return;
+    dateSaisie = d;
+  }
   const difference = nouveauMontant - c.acompte;
   c.acompte = nouveauMontant;
   rendreAtelier();
@@ -2554,8 +2566,14 @@ async function corrigerAvanceAtelier(id){
       /* La recette n'est ecrite QUE si l'avance a bien ete enregistree :
          sinon les Finances afficheraient un encaissement que la fiche client
          ne porte pas. */
-      enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)', dateSaisie.trim());
-      toast('Avance corrigée — ' + nouveauMontant + ' D');
+      if(dejaCompte){
+        afficherInfo("Fiche corrigée : " + nouveauMontant + " D reçus sur " + c.prix + " D.\n\n"
+          + "Aucune recette n'a été ajoutée — l'argent était déjà compté.", '✅ Fiche corrigée');
+      } else {
+        enregistrerAjustementFinance(difference, 'Atelier', c.nom+' — '+c.code+' (correction avance)', dateSaisie.trim());
+        afficherInfo(difference + " D ajoutés aux recettes et fiche corrigée : "
+          + nouveauMontant + " D reçus sur " + c.prix + " D.", '✅ Avance corrigée');
+      }
     })
     .catch(function(err){
       c.acompte = nouveauMontant - difference;   /* on remet la valeur d'avant a l'ecran */
@@ -2654,41 +2672,27 @@ async function marquerSoldePayeAtelier(id){
      message de reussite s'affichait avant meme de savoir si la base avait
      accepte. On attend desormais chaque etape et on rapporte precisement
      laquelle a echoue — plus jamais de "rien ne se passe". */
-  const ancienAcompte = c.acompte;
+  /* 03/08, CAUSE REELLE TROUVEE : j'avais mis `await` sur les ecritures.
+     Avec la persistance hors-ligne de Firestore, la promesse d'une ecriture
+     ne se resout qu'apres CONFIRMATION DU SERVEUR — sur le reseau de Djamil
+     elle peut ne jamais revenir. La fonction restait bloquee sur cette ligne,
+     sans message et sans recette : "rien ne se passe". Le bouton du pressing,
+     qui n'attendait pas, marchait. On revient au principe de toute l'app :
+     ecrire sans attendre, afficher tout de suite, signaler l'echec plus tard.
+     NE JAMAIS remettre d'await sur une ecriture Firestore dans ce fichier. */
   c.acompte = c.prix; // mise à jour immédiate à l'écran
   rendreAtelier();
-
-  let etapeCommande = '', etapeRecette = '';
-  try {
-    await db.collection('commandes_couture').doc(id).update({acompte: c.prix});
-    etapeCommande = '✅ Commande mise à jour : ' + c.prix + ' D reçus sur ' + c.prix + ' D';
-  } catch(err){
-    c.acompte = ancienAcompte; rendreAtelier();
-    afficherInfo("La commande n'a pas pu être mise à jour.\n\nErreur : "
-      + ((err && err.code) ? err.code : '') + ' ' + ((err && err.message) ? err.message : ''),
-      '❌ Encaissement non enregistré');
-    return;
-  }
-  try {
-    await enregistrerTransaction(reste, 'Atelier', c.nom+' — '+c.code+' (solde final)');
-    etapeRecette = '✅ Recette de ' + reste + ' D enregistrée le ' + new Date().toLocaleDateString('fr-FR');
-  } catch(err){
-    etapeRecette = "⚠️ La commande est à jour mais la recette n'a pas pu être écrite : "
-      + ((err && err.code) ? err.code : '') + ' ' + ((err && err.message) ? err.message : '');
-  }
-  rendreBilanFinances(); rendreRecettes(); rendreApercu();
-  afficherInfo(etapeCommande + "\n" + etapeRecette
-    + "\n\nSi la recette n'apparaît pas dans Finances, ferme et rouvre l'onglet.",
+  db.collection('commandes_couture').doc(id).update({acompte: c.prix})
+    .catch(err => echecEcriture('Mise à jour du solde de ' + c.nom, err, function(){ marquerSoldePayeAtelier(id); }));
+  enregistrerTransaction(reste, 'Atelier', c.nom + ' — ' + c.code + ' (solde final)');
+  rendreApercu();
+  afficherInfo(reste + " D encaissés pour " + c.nom + ".\n\n"
+    + "Commande : " + c.prix + " D reçus sur " + c.prix + " D.\n"
+    + "Recette du " + new Date().toLocaleDateString('fr-FR') + " — visible dans Finances.\n\n"
+    + "Si le réseau est lent, l'enregistrement se termine en arrière-plan ; l'app préviendrait en cas d'échec.",
     '✅ Encaissement enregistré');
-  if(c.tel){
-    const msg = texteMsg(
-      `Bonjour ${c.nom}, nous confirmons la réception de votre paiement final de ${reste} D pour votre commande (Code ${c.code}).\n✅ Payé intégralement — merci pour votre confiance !`,
-      `Hello ${c.nom}, we confirm receipt of your final payment of ${reste} D for your order (Code ${c.code}).\n✅ Paid in full — thank you for your trust!`
-    );
-    const lien=lienWhatsApp(c.tel, msg);
-    ouvrirLienWhatsApp(c.nom, lien, 'Confirmation de paiement — ' + reste + ' D reçus');
-  }
 }
+
 /* Fonction centrale unique pour toutes les notifications WhatsApp dynamiques :
    calcule le solde restant, adapte le texte selon l'activité et le statut,
    et respecte la langue choisie (FR/EN) via texteMsg(). Couvre toutes les
@@ -6585,7 +6589,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-03-une-pression';
+const APP_VERSION = 'v2026-08-04-anti-doublon';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
