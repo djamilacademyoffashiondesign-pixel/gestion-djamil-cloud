@@ -3096,11 +3096,23 @@ function resumeMoisAtelier(liste){
   let total=0, encaisse=0;
   duMois.forEach(c=>{ total+=Number(c.prix)||0; encaisse+=Number(c.acompte)||0; });
   const reste=Math.max(0, total-encaisse);
-  const lbl = (LANG==='en') ? 'This month' : 'Ce mois';
-  const nb  = (LANG==='en') ? ' order(s)' : ' commande(s)';
-  const lT  = (LANG==='en') ? 'Total ' : 'Total ';
-  const lE  = (LANG==='en') ? 'Collected ' : 'Encaiss\u00e9 ';
-  const lR  = (LANG==='en') ? 'Left ' : 'Reste ';
+  /* ================== BUG TROUVE LE 04/08 ==================
+     LANG est declare DANS le module de traduction, lui-meme enferme dans une
+     (function(){...})(). Il n'existe donc pas ici : cette ligne levait
+     "LANG is not defined" a CHAQUE rendu de l'atelier. Consequence invisible
+     mais grave : marquerSoldePayeAtelier appelle rendreAtelier() AVANT
+     d'ecrire dans la base ; l'exception interrompait la fonction, l'argent
+     n'etait jamais envoye, l'ecran affichait "paye" (l'objet en memoire avait
+     ete modifie) puis le serveur renvoyait l'ancienne valeur : "ca revient".
+     C'est la cause des 24 heures de blocage sur le paiement d'Aicha.
+     On lit la langue directement, sans dependre du module.
+     ======================================================== */
+  const langue = (function(){ try { return localStorage.getItem('appLang') || 'fr'; } catch(e){ return 'fr'; } })();
+  const lbl = (langue==='en') ? 'This month' : 'Ce mois';
+  const nb  = (langue==='en') ? ' order(s)' : ' commande(s)';
+  const lT  = 'Total ';
+  const lE  = (langue==='en') ? 'Collected ' : 'Encaiss\u00e9 ';
+  const lR  = (langue==='en') ? 'Left ' : 'Reste ';
   return '<span style="color:var(--or);font-weight:700;">'+lbl+'</span> \u2014 '
     + duMois.length + nb
     + ' \u00b7 ' + lT + total + ' D'
@@ -6735,7 +6747,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-file-secours';
+const APP_VERSION = 'v2026-08-04-lang-corrige';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
