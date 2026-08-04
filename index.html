@@ -1258,11 +1258,31 @@ function resynchroniserSecours(){
     liste.forEach(item=>{
       if(item.enCours) return; // déjà en train d'être envoyée, ne pas la dupliquer
       marquerEnCoursSecours(nomCollection, item.idLocal, true);
-      const donnees = Object.assign({}, item.donnees);
-      donnees.creeLe = firebase.firestore.FieldValue.serverTimestamp();
-      db.collection(nomCollection).doc(item.idLocal).set(donnees).then(()=>{
-        retirerDeSecours(nomCollection, item.idLocal);
-        toast('✅ Donnée en attente synchronisée');
+      /* ========================================================
+         CORRECTIF DU 04/08 — LA CAUSE DE L'ENCAISSEMENT QUI REVIENT
+         Ce renvoi faisait un set() COMPLET du document, c'est-à-dire la
+         version d'ORIGINE de la commande, avec son acompte de départ.
+         Une entrée restée dans la file réécrasait donc, toutes les 30
+         secondes, le paiement que Djamil venait d'enregistrer : à l'écran
+         le solde passait bien à payé, puis "revenait" une minute plus tard.
+         Et comme cette file vit sur CHAQUE appareil, l'ordinateur pouvait
+         écraser ce que le téléphone venait d'encaisser.
+         Désormais on VÉRIFIE D'ABORD si le document existe déjà en base :
+         s'il existe, la donnée est arrivée, on retire simplement l'entrée
+         de la file sans jamais réécrire par-dessus.
+         ======================================================== */
+      db.collection(nomCollection).doc(item.idLocal).get().then(doc=>{
+        if(doc.exists){
+          retirerDeSecours(nomCollection, item.idLocal);
+          noter('File de secours : ' + nomCollection + ' déjà en base, entrée retirée sans réécriture');
+          return null;
+        }
+        const donnees = Object.assign({}, item.donnees);
+        donnees.creeLe = firebase.firestore.FieldValue.serverTimestamp();
+        return db.collection(nomCollection).doc(item.idLocal).set(donnees).then(()=>{
+          retirerDeSecours(nomCollection, item.idLocal);
+          toast('✅ Donnée en attente synchronisée');
+        });
       }).catch(err=>{
         console.error('Resynchronisation échouée pour', nomCollection, err);
         marquerEnCoursSecours(nomCollection, item.idLocal, false);
@@ -5536,8 +5556,17 @@ async function controleGeneral(){
       }
     }
   } catch(e){}
-  if(enAttente > 0) ko(enAttente + ' écriture(s) bloquées en attente sur ce téléphone');
-  else ok('Aucune écriture bloquée en attente');
+  if(enAttente > 0){
+    ko(enAttente + ' écriture(s) en attente sur cet appareil — elles peuvent écraser des données plus récentes');
+    try {
+      ['commandes_couture','depots_pressing','transactions'].forEach(function(nc){
+        var l = JSON.parse(localStorage.getItem('secours_'+nc) || '[]');
+        l.forEach(function(it){
+          info('• ' + nc + ' : ' + ((it.donnees && (it.donnees.nom || it.donnees.description)) || it.idLocal));
+        });
+      });
+    } catch(e){}
+  } else ok('Aucune écriture bloquée en attente');
 
   /* 5. Verdict */
   var verdict = '';
@@ -5569,6 +5598,15 @@ async function controleGeneral(){
           navigator.clipboard.writeText(JOURNAL.join('\n'));
           toast('Journal copié — colle-le dans la conversation');
         } catch(e){ toast('Copie impossible sur cet appareil'); }
+      } },
+    { texte:'Vider la file d\'attente', style:'secondary', action:function(){
+        try {
+          ['commandes_couture','depots_pressing','transactions'].forEach(function(nc){
+            localStorage.removeItem('secours_'+nc);
+          });
+          noter('File de secours vidée manuellement');
+          toast('File d\'attente vidée — plus rien ne peut écraser tes données');
+        } catch(e){ toast('Impossible de vider la file'); }
       } },
     { texte:'Vider le journal', style:'secondary', action:function(){
         JOURNAL = [];
@@ -6697,7 +6735,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-verif-base';
+const APP_VERSION = 'v2026-08-04-file-secours';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
