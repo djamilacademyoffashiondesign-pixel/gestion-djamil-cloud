@@ -2661,10 +2661,12 @@ async function remplacerPhotoAtelier(id, type){
   input.click();
 }
 async function marquerSoldePayeAtelier(id){
+  noter('Bouton Solde payé ATELIER pressé, id=' + id);
   const c = CACHE.commandes_couture.find(x=>x.id===id);
-  if(!c) return;
+  if(!c){ noter('→ ARRÊT : commande introuvable dans le cache'); return; }
   const reste = c.prix-c.acompte;
-  if(reste<=0){ toast('Cette commande est déjà payée en totalité'); return; }
+  noter('→ ' + c.nom + ' : prix=' + c.prix + ' acompte=' + c.acompte + ' reste=' + reste);
+  if(reste<=0){ noter('→ ARRÊT : reste ≤ 0'); toast('Cette commande est déjà payée en totalité'); return; }
   /* 03/08 : le code administrateur est RETIRE de l'encaissement. Il bloquait
      Djamil toute la journee sur un paiement reel de 15 000 D, et le refus de
      code n'etait pas visible. Encaisser de l'argent deja recu n'est pas une
@@ -2691,7 +2693,9 @@ async function marquerSoldePayeAtelier(id){
   rendreAtelier();
   db.collection('commandes_couture').doc(id).update({acompte: c.prix})
     .catch(err => echecEcriture('Mise à jour du solde de ' + c.nom, err, function(){ marquerSoldePayeAtelier(id); }));
+  noter('→ écriture commande envoyée');
   enregistrerTransaction(reste, 'Atelier', c.nom + ' — ' + c.code + ' (solde final)');
+  noter('→ recette de ' + reste + ' D envoyée');
   rendreApercu();
   afficherInfo(reste + " D encaissés pour " + c.nom + ".\n\n"
     + "Commande : " + c.prix + " D reçus sur " + c.prix + " D.\n"
@@ -5414,6 +5418,33 @@ function ventesAConfirmer(){
 }
 
 /* ====================================================================
+   JOURNAL DE BORD — ajoute le 04/08/2026
+   Djamil signale depuis deux jours que l'encaissement "ne fait rien", et
+   aucune de mes corrections ne l'a change. Plutot que de deviner encore,
+   l'app note desormais ce qu'elle fait reellement : chaque pression sur un
+   bouton d'encaissement, chaque etape franchie, et surtout toute erreur
+   JavaScript, qui autrement n'apparait que dans une console inexistante sur
+   telephone. Le journal se lit dans "Controle general" et se copie en une
+   pression pour me l'envoyer.
+   ==================================================================== */
+var JOURNAL = [];
+try { JOURNAL = JSON.parse(localStorage.getItem('cd_journal') || '[]'); } catch(e){ JOURNAL = []; }
+function noter(texte){
+  var h = new Date().toLocaleTimeString('fr-FR');
+  JOURNAL.push(h + ' — ' + texte);
+  if(JOURNAL.length > 60) JOURNAL = JOURNAL.slice(-60);
+  try { localStorage.setItem('cd_journal', JSON.stringify(JOURNAL)); } catch(e){}
+}
+window.addEventListener('error', function(e){
+  noter('❌ ERREUR : ' + (e.message||'') + ' (' + (e.filename||'').slice(-20) + ':' + (e.lineno||'') + ')');
+});
+window.addEventListener('unhandledrejection', function(e){
+  var r = e.reason || {};
+  noter('❌ PROMESSE REJETÉE : ' + (r.code ? r.code + ' ' : '') + (r.message || String(r)).slice(0,120));
+});
+noter('Application ouverte');
+
+/* ====================================================================
    CONTROLE GENERAL — ajoute le 03/08/2026
    Constat qui a tout change : des commandes LIVREES affichent "Paye 0", les
    changements d'etat ne tiennent pas, aucune recette du jour n'existe. Ce
@@ -5487,7 +5518,25 @@ async function controleGeneral(){
       + '<div class="meta" style="margin-top:6px;">Le blocage n\'est donc pas côté base : c\'est l\'action elle-même qu\'il faut examiner.</div></div>';
   }
 
-  ouvrirModale('🩺 Contrôle général', lignes.join('') + verdict);
+  var journalHtml = '<div style="margin-top:14px;border-top:1px solid var(--bordure);padding-top:10px;">'
+    + '<b>📋 Journal de bord</b>'
+    + '<div style="font-size:.72rem;white-space:pre-line;max-height:38vh;overflow:auto;margin-top:6px;">'
+    + (JOURNAL.length ? JOURNAL.slice(-40).join('\n') : 'Journal vide.')
+    + '</div></div>';
+  var fondC = ouvrirModale('🩺 Contrôle général', lignes.join('') + verdict + journalHtml, [
+    { texte:'Copier le journal', action:function(){
+        try {
+          navigator.clipboard.writeText(JOURNAL.join('\n'));
+          toast('Journal copié — colle-le dans la conversation');
+        } catch(e){ toast('Copie impossible sur cet appareil'); }
+      } },
+    { texte:'Vider le journal', style:'secondary', action:function(){
+        JOURNAL = [];
+        try { localStorage.removeItem('cd_journal'); } catch(e){}
+        toast('Journal vidé');
+      } },
+    { texte:'Fermer', style:'secondary' }
+  ]);
 }
 
 /* ====================================================================
@@ -6594,7 +6643,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-aucune-attente';
+const APP_VERSION = 'v2026-08-04-journal';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
