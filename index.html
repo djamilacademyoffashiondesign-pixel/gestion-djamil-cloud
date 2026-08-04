@@ -1347,12 +1347,14 @@ async function changerCodeAdminPrincipal(){
   if(confirmation === null) return;
   if(confirmation.trim() !== nouveauTrim){ toast('Les deux codes ne correspondent pas — rien n\'a été changé'); return; }
   try{
-    await REF_CODE_ADMIN_PRINCIPAL().set({
+    REF_CODE_ADMIN_PRINCIPAL().set({
       code: nouveauTrim,
       modifieLe: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    }).catch(function(err){ echecEcriture('Changement du code administrateur', err); });
     CODE_ADMIN = nouveauTrim;
-    toast('✅ Code administrateur changé avec succès');
+    afficherInfo("Ton nouveau code administrateur est : " + nouveauTrim
+      + "\n\nNote-le quelque part. C'est lui qu'il faudra taper pour les suppressions et les corrections de montant.",
+      '✅ Code administrateur changé');
   } catch(err){
     toast('Erreur: '+err.message);
   }
@@ -1432,7 +1434,10 @@ async function verifierCodeAdmin(saisieTrim){
           toast('Ce code a déjà été utilisé — demandez-en un nouveau');
           return false;
         }
-        await ref.update({utilise:true, utiliseLe: firebase.firestore.FieldValue.serverTimestamp()});
+        /* Sans await : sur un reseau lent la promesse ne revient pas et le
+           code valide restait bloque sans reponse. */
+        ref.update({utilise:true, utiliseLe: firebase.firestore.FieldValue.serverTimestamp()})
+           .catch(function(e){ console.error('Marquage code temporaire', e); });
         toast('Code à usage unique accepté — action autorisée');
         return true;
       }
@@ -1495,11 +1500,11 @@ async function genererCodeTemporaire(){
   if(saisie.trim() !== CODE_ADMIN){ toast('Code incorrect — seul le propriétaire peut générer un code'); return; }
   const code = String(Math.floor(10000+Math.random()*90000)); // 5 chiffres, facile à dicter au téléphone
   try{
-    await REF_CODE_TEMP().set({
+    REF_CODE_TEMP().set({
       code,
       utilise:false,
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    }).catch(function(err){ echecEcriture('Code à usage unique', err); });
     afficherStatutCodeTemporaire();
     afficherInfo('✅ Nouveau code à usage unique :\n\n'+code+'\n\nDictez-le au manager par téléphone. Il ne fonctionnera qu\'une seule fois.');
   } catch(err){
@@ -1512,7 +1517,7 @@ async function revoquerCodeTemporaire(){
   if(saisie.trim() !== CODE_ADMIN){ toast('Code incorrect — action annulée'); return; }
   if(!await confirmerModale('Confirmation', 'Désactiver le code à usage unique en cours (s\'il n\'a pas encore servi) ?')) return;
   try{
-    await REF_CODE_TEMP().delete();
+    REF_CODE_TEMP().delete().catch(function(err){ echecEcriture('Révocation du code', err); });
     toast('Code à usage unique désactivé');
     afficherStatutCodeTemporaire();
   } catch(err){
@@ -2365,10 +2370,12 @@ function proposerSuppressionRecettesLiees(code, source, nomClient){
 async function supprimerRecettes(liste){
   if(!liste || !liste.length) return;
   let echecs = 0;
-  for(const t of liste){
-    try { await db.collection('transactions').doc(t.id).delete(); }
-    catch(e){ echecs++; console.error('Suppression recette échouée', e); }
-  }
+  /* Suppressions lancees en parallele et NON attendues : une seule promesse
+     qui ne revient pas figeait toute la boucle. */
+  liste.forEach(function(t){
+    db.collection('transactions').doc(t.id).delete()
+      .catch(function(e){ echecEcriture('Suppression d\'une recette', e); });
+  });
   CACHE.transactions = (CACHE.transactions||[]).filter(function(x){ return liste.indexOf(x) === -1; });
   rendreBilanFinances(); rendreRecettes(); rendreApercu();
   toast(echecs ? '⚠️ ' + echecs + ' recette(s) non supprimée(s) — réessayez en ligne' : 'Recettes supprimées');
@@ -3377,12 +3384,10 @@ async function validerComptage(comptes, nbManquants, valeurManquante){
     if(c.compte === c.enregistre) continue;
     const p = (CACHE.boutique_inventaire||[]).find(function(x){ return x.id===c.id; });
     if(p) p.qte = c.compte;
-    try {
-      await db.collection('boutique_inventaire').doc(c.id).update({
-        qte: c.compte,
-        misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } catch(err){ echecs++; console.error('Erreur ajustement stock', err); }
+    db.collection('boutique_inventaire').doc(c.id).update({
+      qte: c.compte,
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(err){ echecEcriture('Ajustement du stock', err); });
   }
   rendreBoutique();
 
@@ -5183,11 +5188,11 @@ async function reprogrammerCommande(id, iso, silencieux){
        qui fixe le rang de priorite. Un deuxieme report ne doit pas effacer le
        fait que la cliente attend depuis le 25. */
     const promesseOrigine = c.livraisonPrecedente || ancienne || '';
-    await db.collection('commandes_couture').doc(id).update({
+    db.collection('commandes_couture').doc(id).update({
       livraison: iso,
       livraisonPrecedente: promesseOrigine,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    }).catch(function(err){ echecEcriture('Report du rendez-vous de ' + (c.nom||''), err); });
     c.livraisonPrecedente = promesseOrigine;
   } catch(err){
     console.error('Erreur reprogrammation', err);
@@ -5630,12 +5635,12 @@ async function validerPaiementAttente(id){
 
   /* On marque D'ABORD, on encaisse ENSUITE : si le marquage échoue, aucune
      recette n'est créée, donc jamais de double comptage. */
-  try {
-    await db.collection('paiements_attente').doc(id).update({ statut:'valide', valideLeMs: Date.now() });
-  } catch(err){
-    echecEcriture('Validation du paiement', err, function(){ validerPaiementAttente(id); });
-    return;
-  }
+  /* Le statut est change DANS LE CACHE tout de suite : c'est lui qui empeche
+     un second clic de recompter l'argent. L'ecriture part sans etre attendue,
+     comme partout ailleurs dans l'app. */
+  p.statut = 'valide';
+  db.collection('paiements_attente').doc(id).update({ statut:'valide', valideLeMs: Date.now() })
+    .catch(function(err){ echecEcriture('Validation du paiement', err); });
 
   var desc = (p.nom||'') + (p.recu ? ' — reçu ' + p.recu : '') + ' (validé par le directeur)';
   enregistrerTransaction(Number(p.montant)||0, p.activite || 'Général', desc);
@@ -6589,7 +6594,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-anti-doublon';
+const APP_VERSION = 'v2026-08-04-aucune-attente';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6954,10 +6959,10 @@ async function supprimerDoublonsDepense(cle){
 
   document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
   let echecs = 0;
-  for(const d of aSupprimer){
-    try { await db.collection('depenses').doc(d.id).delete(); }
-    catch(e){ echecs++; console.error('Suppression doublon échouée', e); }
-  }
+  aSupprimer.forEach(function(d){
+    db.collection('depenses').doc(d.id).delete()
+      .catch(function(e){ echecEcriture('Suppression d\'un doublon', e); });
+  });
   CACHE.depenses = (CACHE.depenses||[]).filter(function(x){ return aSupprimer.indexOf(x) === -1; });
   rendreDepenses(); rendreBilanFinances(); rendreApercu();
   toast(echecs ? '⚠️ ' + echecs + ' suppression(s) non confirmée(s) — réessayez en ligne'
