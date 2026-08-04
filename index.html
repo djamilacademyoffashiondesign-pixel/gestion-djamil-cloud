@@ -887,15 +887,15 @@ function traduireNoeud(node){
       </div>
       <div class="row2">
         <div><label>Tour de taille</label><input id="ms-tourtaille" type="number"></div>
-        <div><label>Longueur de taille</label><input id="ms-longtaille" type="number"></div>
+        <div id="champ-longtaille-mesures"><label>Longueur de taille</label><input id="ms-longtaille" type="number"></div>
       </div>
       <div class="row3">
         <div><label>Ceinture</label><input id="ms-ceinture" type="number"></div>
         <div><label>Tour bassin</label><input id="ms-bassin" type="number"></div>
-        <div><label>Tour de cuisse</label><input id="ms-cuisse" type="number"></div>
+        <div id="champ-pince-mesures"><label>Longueur de pince</label><input id="ms-pince" type="number"></div>
       </div>
       <div class="row3">
-        <div id="champ-pince-mesures"><label>Longueur de pince</label><input id="ms-pince" type="number"></div>
+        <div><label>Tour de cuisse</label><input id="ms-cuisse" type="number"></div>
         <div><label>Tour de genou</label><input id="ms-tourgenou" type="number"></div>
         <div><label>Bas du pantalon</label><input id="ms-baspantalon" type="number"></div>
       </div>
@@ -6798,7 +6798,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-carnet-homme';
+const APP_VERSION = 'v2026-08-04-carnet-homme-2';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6925,6 +6925,10 @@ function choisirGenreMesures(genre){
   document.getElementById('ms-champs-femme').style.display = genre==='Femme' ? 'grid' : 'none';
   const blocHomme = document.getElementById('ms-champs-homme');
   if(blocHomme) blocHomme.style.display = genre==='Homme' ? 'block' : 'none';
+  /* Djamil ne prend pas la "Longueur de taille" sur un homme : le champ est
+     masqué dans le carnet homme (la valeur déjà enregistrée est conservée). */
+  const champLongTaille = document.getElementById('champ-longtaille-mesures');
+  if(champLongTaille) champLongTaille.style.display = genre==='Femme' ? 'block' : 'none';
   const champPince = document.getElementById('champ-pince-mesures');
   if(champPince) champPince.style.display = genre==='Femme' ? 'block' : 'none';
 }
@@ -7080,7 +7084,7 @@ function rendreMesures(){
 function detailMesuresHTML(f){
   const homme = (f.genre!=='Femme');
   const groupes = homme ? [
-    ['Haut / chemise', ['cou','epaule','carrure','poitrine','longTaille','longHaut','longChemise']],
+    ['Haut / chemise', ['cou','epaule','carrure','poitrine','longHaut','longChemise']],
     ['Manche', ['longManche','mancheCourte','tourManche','poignet']],
     ['Bas / pantalon', ['tourTaille','ceinture','bassin','montant','entrejambe','cuisse','tourGenou','mollet','basPantalon','longPantalon']],
     ['Boubou / veste / divers', ['longBoubou','longVeste','tourTete']]
