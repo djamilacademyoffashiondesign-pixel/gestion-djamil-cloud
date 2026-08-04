@@ -2743,6 +2743,11 @@ async function marquerSoldePayeAtelier(id){
      qui n'attendait pas, marchait. On revient au principe de toute l'app :
      ecrire sans attendre, afficher tout de suite, signaler l'echec plus tard.
      NE JAMAIS remettre d'await sur une ecriture Firestore dans ce fichier. */
+  /* 04/08 : le code administrateur est RETABLI ici a la demande de Djamil.
+     Il avait ete retire le 03/08 pour debloquer un paiement, mais la vraie
+     cause etait ailleurs (LANG). Encaisser modifie les comptes : cela doit
+     rester une action volontaire, et le manager n'y a pas acces seul. */
+  if(!await demanderCodeAdmin('Encaisser le solde de ' + c.nom)) return;
   /* Ne jamais compter deux fois le meme argent. */
   const compterArgent = await confirmerSiDoublon(c.nom, reste);
   c.acompte = c.prix; // mise à jour immédiate à l'écran
@@ -4117,7 +4122,7 @@ async function marquerSoldePayePressing(id){
   if(!t) return;
   const reste = t.prix-t.avance;
   if(reste<=0){ toast('Ce ticket est déjà payé en totalité'); return; }
-  /* Code administrateur retire ici aussi — voir la note dans l'atelier. */
+  if(!await demanderCodeAdmin('Encaisser le solde de ' + t.nom)) return;
   if(!await confirmerModale('💰 Encaisser le solde',
       '<p>'+t.nom+' a payé le solde restant de <b>'+reste+' D</b> ?</p>' +
       '<p style="font-size:.85rem;color:var(--gris);">Le total reçu passera à '+t.prix+' D.</p>',
@@ -6200,7 +6205,10 @@ function rendreImpayes(){
            retrouver la commande dans l'onglet Atelier. Le bouton est donc
            ajoute la ou l'argent est reclame. */
         + '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
-        +   (x.id ? '<button onclick="encaisserDepuisImpayes(\'' + x.rayon + '\',\'' + x.id + '\')" style="background:transparent;border:1px solid rgba(63,174,92,0.6);color:var(--vert);padding:8px 14px;border-radius:8px;font-size:.8rem;font-weight:700;">💰 Encaisser ' + x.reste + ' D</button>' : '')
+        /* 04/08 — BOUTON RETIRE. Djamil a perdu la fiche de Bintou Seck en
+           l'effleurant depuis cet ecran : l'Apercu est un ecran de CONSULTATION,
+           on y regarde les retards, on n'y engage pas d'argent. L'encaissement
+           reste dans Atelier, Pressing et Boutique, protege par le code. */
         +   (lien
               ? '<a href="' + lien + '" target="_blank" rel="noopener" style="display:inline-block;background:#25D366;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:.8rem;font-weight:700;">💬 Relancer</a>'
               : '<span class="meta" style="color:var(--gris);">Pas de téléphone enregistré</span>')
@@ -6789,7 +6797,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-garde-doublon';
+const APP_VERSION = 'v2026-08-04-encaisse-protege';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
