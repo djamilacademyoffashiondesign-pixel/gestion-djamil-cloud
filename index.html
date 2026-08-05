@@ -44,7 +44,7 @@ CHUNKS.push(["Inventaire physique","Physical stock count"],["Démarrer un compta
 CHUNKS.push(["Abonnements mensuels","Monthly subscriptions"],["Clients au forfait : ils déposent autant qu'ils veulent et règlent un montant fixe en fin de mois.","Flat-rate clients: they drop off as much as they like and pay a fixed amount at month end."],["Nouvel abonnement","New subscription"],["Encaisser","Collect"],["Montant","Amount"],["ATTENDU (D)","EXPECTED (D)"],["ENCAISSÉ (D)","COLLECTED (D)"],["RESTE (D)","REMAINING (D)"],["Pas encore réglé pour","Not yet paid for"],["abonnement(s) à encaisser","subscription(s) to collect"],["Aucun abonnement. Utilisez « Nouvel abonnement » pour un client au forfait.","No subscription. Use “New subscription” for a flat-rate client."]);
 CHUNKS.push(["En cours","In progress"],["Terminés","Completed"],["Tout","All"],["Rechercher : nom, code, téléphone, vêtement…","Search: name, code, phone, garment…"],["Aucun résultat pour cette recherche.","No result for this search."],["Aucun dossier terminé.","No completed record."]);
 CHUNKS.push(["Non enregistré","Not saved"],["Le serveur n'a pas accepté cette modification.","The server did not accept this change."],["L'ancienne valeur reviendra au prochain rafraîchissement.","The previous value will return on the next refresh."]);
-CHUNKS.push(["Pourquoi une recette n'apparaît pas ?","Why is an income entry missing?"],["Diagnostic des recettes","Income diagnostic"],["Recettes enregistrées aujourd'hui","Income recorded today"],["encaissement(s) sans recette","payment(s) with no income entry"],["Cet argent figure sur la fiche client mais pas dans les Finances.","This money is on the client record but not in Finances."],["Enregistrer cette recette","Record this income"],["Chaque encaissement a bien sa recette","Every payment has its income entry"],["écriture(s) bloquée(s) hors ligne","write(s) stuck offline"],["Réessayer maintenant","Retry now"]);
+CHUNKS.push(["🧾 Clients payés mais restés en impayé","🧾 Paid clients still listed as unpaid"],["✅ Pointer la fiche (sans recompter)","✅ Mark as paid (no double count)"],["Pourquoi une recette n'apparaît pas ?","Why is an income entry missing?"],["Diagnostic des recettes","Income diagnostic"],["Recettes enregistrées aujourd'hui","Income recorded today"],["encaissement(s) sans recette","payment(s) with no income entry"],["Cet argent figure sur la fiche client mais pas dans les Finances.","This money is on the client record but not in Finances."],["Enregistrer cette recette","Record this income"],["Chaque encaissement a bien sa recette","Every payment has its income entry"],["écriture(s) bloquée(s) hors ligne","write(s) stuck offline"],["Réessayer maintenant","Retry now"]);
 CHUNKS.push(["Ouvrir WhatsApp","Open WhatsApp"],["Aucun numéro enregistré pour ce client","No phone saved for this client"],["Facture de la commande — Code","Order invoice — Code"],["Reçu de dépôt — Code","Drop-off receipt — Code"],["Confirmation de paiement —","Payment confirmation —"],["D reçus","D received"]);
 CHUNKS.push(["Forcer la mise à jour","Force update"],["Version","Version"]);
 CHUNKS.push(["Envoyer la notification","Send the notification"],["Ne pas envoyer","Do not send"],["Nouveau statut :","New status:"],["Statut non enregistré","Status not saved"],["Le changement n'a pas été accepté par le serveur.","The change was not accepted by the server."],["Vérifiez votre connexion, puis réessayez.","Check your connection, then try again."],["Réessayer","Try again"]);
@@ -950,6 +950,7 @@ function traduireNoeud(node){
       <h2>Bilan — Recettes, Dépenses, Solde</h2>
       <div class="item-actions" style="margin-bottom:10px;">
         <button onclick="diagnostiquerRecettes()">🔎 Pourquoi une recette n'apparaît pas ?</button>
+        <button onclick="fichesAPointer()">🧾 Clients payés mais restés en impayé</button>
       </div>
       <div id="finances-bilan"></div>
     </div>
@@ -6818,7 +6819,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-04-validation-sans-doublon';
+const APP_VERSION = 'v2026-08-05-fiches-a-pointer';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7315,6 +7316,93 @@ async function supprimerTransaction(id){
      2. L'ecriture a echoue et dort dans la file hors-ligne.
      3. Aucun encaissement n'a ete saisi (avance laissee a 0 a la creation).
    Ce panneau confronte chaque commande/ticket du jour a sa recette. */
+/* ====================================================================
+   FICHES A POINTER — ajoute le 05/08/2026
+   Sequelle de la panne du 03/08 : de l'argent est bien entre dans les
+   Finances, mais la fiche du client n'a jamais ete mise a jour. Ces
+   clients restent donc affiches comme devant payer, alors qu'ils ont
+   paye et parfois deja recupere leurs vetements.
+   Cet outil rapproche les RECETTES des FICHES et propose de pointer la
+   fiche SANS jamais ecrire d'argent : la recette existe deja.
+   ==================================================================== */
+function candidatsAPointer(){
+  const trente = Date.now() - 30*86400000;
+  const recettes = (CACHE.transactions||[]).filter(function(t){
+    const d = t.dateISO ? new Date(t.dateISO).getTime() : 0;
+    return !d || d >= trente;
+  });
+  const trouve = function(nom, montant){
+    const n = (nom||'').toLowerCase().trim();
+    if(!n) return null;
+    return recettes.find(function(t){
+      const texte = ((t.description||'') + ' ' + (t.client||'')).toLowerCase();
+      return texte.indexOf(n) >= 0 && Number(t.montant) === Number(montant);
+    }) || null;
+  };
+  const out = [];
+  (CACHE.commandes_couture||[]).forEach(function(c){
+    const reste = (Number(c.prix)||0) - (Number(c.acompte)||0);
+    if(reste <= 0 || c.statut === 'Annulé') return;
+    const r = trouve(c.nom, reste);
+    if(r) out.push({ rayon:'Atelier', id:c.id, nom:c.nom, code:c.code, reste:reste,
+                     total:Number(c.prix)||0, recette:r });
+  });
+  (CACHE.depots_pressing||[]).forEach(function(t){
+    const reste = (Number(t.prix)||0) - (Number(t.avance)||0);
+    if(reste <= 0 || t.statut === 'Annulé') return;
+    const r = trouve(t.nom, reste);
+    if(r) out.push({ rayon:'Pressing', id:t.id, nom:t.nom, code:t.code, reste:reste,
+                     total:Number(t.prix)||0, recette:r });
+  });
+  return out;
+}
+
+function fichesAPointer(){
+  const liste = candidatsAPointer();
+  if(liste.length === 0){
+    ouvrirModale('🧾 Clients payés mais restés en impayé',
+      '<p>Aucune fiche à corriger : chaque recette enregistrée correspond à une fiche déjà à jour.</p>'
+      + '<p style="font-size:.85rem;color:var(--gris);">Si un client apparaît quand même en impayé, c\'est que son argent n\'a jamais été enregistré dans les Finances. Encaisse-le normalement depuis sa carte.</p>');
+    return;
+  }
+  const corps = liste.map(function(x){
+    return '<div class="liste-item" style="margin-top:8px;">'
+      + '<div class="nom">' + (x.nom||'') + ' — <span style="color:var(--vert);">' + x.reste + ' D</span></div>'
+      + '<div class="meta">' + x.rayon + ' · ' + (x.code||'') + ' · fiche : ' + (x.total - x.reste) + ' / ' + x.total + ' D</div>'
+      + '<div class="meta">Recette trouvée : ' + (x.recette.dateISO||'') + ' — ' + (x.recette.description||'') + '</div>'
+      + '<div class="item-actions"><button onclick="pointerFiche(\'' + x.rayon + '\',\'' + x.id + '\',' + x.reste + ')" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">✅ Pointer la fiche (sans recompter)</button></div>'
+      + '</div>';
+  }).join('');
+  ouvrirModale('🧾 ' + liste.length + ' fiche(s) à corriger',
+    '<p style="font-size:.85rem;color:var(--gris);">Ces clients ont une recette à leur nom dans les Finances, mais leur fiche est restée impayée. Pointer la fiche la sort des impayés <b>sans ajouter d\'argent</b> — la recette existe déjà.</p>'
+    + corps);
+}
+
+async function pointerFiche(rayon, id, montant){
+  if(!await demanderCodeAdmin('Pointer une fiche déjà payée')) return;
+  if(rayon === 'Atelier'){
+    const c = CACHE.commandes_couture.find(function(x){ return x.id === id; });
+    if(!c) return;
+    c.acompte = Number(c.prix)||0;
+    rendreAtelier();
+    db.collection('commandes_couture').doc(id).update({acompte: c.acompte})
+      .catch(function(err){ echecEcriture('Pointage de la fiche de ' + (c.nom||''), err); });
+    noter('Fiche pointée sans recette : ' + (c.nom||'') + ' ' + montant + ' D');
+  } else {
+    const t = CACHE.depots_pressing.find(function(x){ return x.id === id; });
+    if(!t) return;
+    t.avance = Number(t.prix)||0;
+    rendrePressing();
+    db.collection('depots_pressing').doc(id).update({avance: t.avance})
+      .catch(function(err){ echecEcriture('Pointage du ticket de ' + (t.nom||''), err); });
+    noter('Ticket pointé sans recette : ' + (t.nom||'') + ' ' + montant + ' D');
+  }
+  rendreApercu();
+  afficherInfo("Fiche mise à jour : elle sort des impayés.\n\nAucune recette ajoutée — l'argent était déjà dans les Finances.",
+    '✅ Fiche pointée');
+  setTimeout(fichesAPointer, 600);
+}
+
 function diagnostiquerRecettes(){
   const iso = dateISOAujourdhui();
   const tr = (CACHE.transactions||[]);
