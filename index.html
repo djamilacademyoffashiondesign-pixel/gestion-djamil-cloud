@@ -2731,6 +2731,7 @@ async function marquerSoldePayeAtelier(id){
   const reste = c.prix-c.acompte;
   noter('→ ' + c.nom + ' : prix=' + c.prix + ' acompte=' + c.acompte + ' reste=' + reste);
   if(reste<=0){ noter('→ ARRÊT : reste ≤ 0'); toast('Cette commande est déjà payée en totalité'); return; }
+  if(await relayerVersPaiementEnAttente(id, c.nom)){ noter('→ relayé vers le paiement noté par le manager'); return; }
   /* 03/08 : le code administrateur est RETIRE de l'encaissement. Il bloquait
      Djamil toute la journee sur un paiement reel de 15 000 D, et le refus de
      code n'etait pas visible. Encaisser de l'argent deja recu n'est pas une
@@ -4127,11 +4128,41 @@ async function corrigerPrixPressing(id){
   db.collection('depots_pressing').doc(id).update({prix:nouveauPrix}).catch(err=>echecEcriture('Correction prix', err));
   toast('Prix mis à jour — '+t.nom+' doit maintenant '+nouveauPrix+' D au total');
 }
+/* ====================================================================
+   UN SEUL CHEMIN POUR UN PAIEMENT — 05/08/2026
+   Djamil a eu deux recettes de 2100 D pour Ya Inna Mbye : une venant de la
+   validation du paiement note par le manager, une venant du bouton "Solde
+   paye" de la carte. Deux portes, deux ecritures.
+   Desormais les deux portes se rejoignent : si le manager a deja note un
+   paiement pour ce dossier, le bouton d'encaissement ne cree plus rien — il
+   VALIDE le paiement en attente. Il n'y a donc jamais qu'une seule recette.
+   ==================================================================== */
+function paiementEnAttentePourDossier(id){
+  return (CACHE.paiements_attente||[]).find(function(p){
+    return p.statut === 'attente' && p.dossierId === id;
+  }) || null;
+}
+
+/* Renvoie true si l'appelant doit s'arreter (le paiement en attente prend le
+   relais), false s'il peut encaisser normalement. */
+async function relayerVersPaiementEnAttente(id, nom){
+  var p = paiementEnAttentePourDossier(id);
+  if(!p) return false;
+  var suite = await confirmerModale('💵 Le manager a déjà noté ce paiement',
+    '<p><b>' + (p.nom||nom||'') + '</b> — <b>' + p.montant + ' D</b>'
+    + (p.recu ? ' · reçu n° ' + p.recu : '') + ', noté le ' + (p.date||'') + '.</p>'
+    + '<p style="font-size:.85rem;color:var(--gris);">Encaisser en plus créerait une deuxième recette. Valide plutôt ce paiement : l\'argent sera compté une seule fois et la fiche sera mise à jour.</p>',
+    'Valider ce paiement', 'Ne rien faire');
+  if(suite) validerPaiementAttente(p.id);
+  return true;
+}
+
 async function marquerSoldePayePressing(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
   if(!t) return;
   const reste = t.prix-t.avance;
   if(reste<=0){ toast('Ce ticket est déjà payé en totalité'); return; }
+  if(await relayerVersPaiementEnAttente(id, t.nom)) return;
   if(!await demanderCodeAdmin('Encaisser le solde de ' + t.nom)) return;
   if(!await confirmerModale('💰 Encaisser le solde',
       '<p>'+t.nom+' a payé le solde restant de <b>'+reste+' D</b> ?</p>' +
@@ -4141,8 +4172,13 @@ async function marquerSoldePayePressing(id){
   rendrePressing();
   if(document.getElementById('p-recherche-code')) rechercherCodePressing();
   db.collection('depots_pressing').doc(id).update({avance:t.prix}).catch(err=>echecEcriture('Mise à jour solde', err));
-  enregistrerTransaction(reste, 'Pressing', t.nom+' — '+t.code+' (solde final)');
-  toast('Solde encaissé — ticket payé en totalité');
+  if(await confirmerSiDoublon(t.nom, reste)){
+    enregistrerTransaction(reste, 'Pressing', t.nom+' — '+t.code+' (solde final)');
+    toast('Solde encaissé — ticket payé en totalité');
+  } else {
+    noter('Ticket pointé sans recette : ' + (t.nom||'') + ' ' + reste + ' D');
+    toast('Ticket mis à jour — argent déjà compté');
+  }
   if(t.tel){
     const msg = texteMsg(
       `Bonjour ${t.nom}, nous confirmons la réception de votre paiement final de ${reste} D pour votre ticket pressing (Code ${t.code}).\n✅ Payé intégralement — merci pour votre confiance !`,
@@ -6819,7 +6855,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-05-fiches-a-pointer';
+const APP_VERSION = 'v2026-08-05-un-seul-chemin';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
