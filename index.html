@@ -35,7 +35,7 @@
   var CHUNKS = [["Fermeture","Closing"],["encaissement(s)","payment(s)"]];
  CHUNKS.push(["TOTAL REÇU AUJOURD'HUI","TOTAL RECEIVED TODAY"],["Total reçu aujourd'hui","Total received today"],["Total reçu","Total received"],["Clôturer la journée & Notifier le propriétaire","Close the day & Notify the owner"],["Changer le numéro du propriétaire","Change owner's number"],["À faire aujourd'hui","To do today"],["rendez-vous proche(s)","upcoming appointment(s)"],["livraison EN RETARD de","delivery LATE by"],["jour(s)","day(s)"],["Atelier","Workshop"],["Pressing","Dry cleaning"]); var PH = [["Nom, téléphone ou code (ex : Fatima, 003, 7...)","Name, phone or code (e.g. Fatima, 003, 7...)"]];
 CHUNKS.push(["GESTION ATELIER · PRESSING · BOUTIQUE","WORKSHOP · DRY CLEANING · BOUTIQUE"],["MESSAGES CLIENTS","CLIENT MESSAGES"],["PRÊTES","READY"],["LIVRÉES","DELIVERED"],["Dépense rapide","Quick expense"],["Catégorie (ex: Fil, boutons)","Category (e.g. Thread, buttons)"],["Montant (D)","Amount (D)"],["Description (optionnel)","Description (optional)"],["Enregistrer la dépense","Save expense"],["Client historique (dépôt avant l'application)","Historical client (deposit before the app)"],["Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer. Enregistré directement comme \"Livré\", sans passer par tout le formulaire de commande.","For a client who dropped off a garment long ago (before the app) and is collecting it today. Saved directly as \"Delivered\", without the full order form."],["Nom du client","Client name"],["Téléphone","Phone"],["Montant total payé (D)","Total amount paid (D)"],["Ce client doit-il encore de l'argent ?","Does this client still owe money?"],["Quand cet argent a-t-il été reçu ? (laisser aujourd'hui si le paiement se fait maintenant)","When was this money received? (leave today if paying now)"],["Enregistrer et marquer livré","Save and mark delivered"],["Enregistrer et marquer récupéré","Save and mark collected"],["Nouvelle commande","New order"],["Type de commande (choisir avant de remplir)","Order type (choose before filling)"],["Confection","Tailoring"],["Retouche","Alteration"],["Prêt-à-porter","Ready-to-wear"],["Genre du client","Client gender"],["Homme","Man"],["Femme","Woman"],["Notes / précisions (tissu, style, instructions...)","Notes / details (fabric, style, instructions...)"],["Photo(s) du/des tissu(s) déposé(s)","Photo(s) of deposited fabric(s)"],["Photo(s) du/des modèle(s) / style(s) souhaité(s)","Photo(s) of desired model(s) / style(s)"],["MESURES (CM)","MEASUREMENTS (CM)"],["Épaule","Shoulder"],["Poitrine","Chest"],["Long. poitrine","Bust length"],["Long. taille","Waist length"],["Tour taille","Waist"],["Tour de taille","Waist"],["Ceinture","Waistband"],["Tour bassin","Hips"],["Tour de bassin","Hips"],["Tour de cuisse","Thigh"],["Tour de genou","Knee"],["Bas du pantalon","Trouser hem"],["Long. haut","Top length"],["Long. pantalon","Trouser length"],["Long. manche","Sleeve length"],["Tour de manche","Sleeve width"],["Long. robe","Dress length"],["Long. chemise","Shirt length"],["Long. veste","Jacket length"],["Longueur de frappe","Crotch"],["Long. frappe","Crotch"],["Cou","Neck"],["Cuisse","Thigh"],["Bassin","Hips"],["ARTICLES DE LA COMMANDE (FACTURE DÉTAILLÉE)","ORDER ITEMS (DETAILED INVOICE)"],["Article 1 (ex: Robe africaine)","Item 1 (e.g. African dress)"],["Article","Item"],["Prix (D)","Price (D)"],["+ Ajouter un article","+ Add an item"],["Total commande","Order total"],["Avance payée (D)","Advance paid (D)"],["Avance reçue (D)","Advance received (D)"],["Reste à payer (D)","Balance due (D)"],["Date de dépôt","Deposit date"],["Date de livraison prévue","Expected delivery date"],["Date de retrait prévue","Expected pickup date"],["Créer la commande","Create order"],["Commandes en cours","Orders in progress"],["Tickets en cours","Tickets in progress"],["PAYÉ","PAID"],["Payé en totalité","Paid in full"],["Acompte","Deposit"],["Avance","Advance"],["Livré","Delivered"],["Récupéré","Collected"],["Prête","Ready"],["En production","In production"],["En attente","Pending"],["Remerciement","Thank you"],["Tél.","Phone"],["Date livraison","Delivery date"],["Date retrait","Pickup date"],["Nom","Name"],["Dépôt:","Deposit:"],["Livraison prévue:","Expected delivery:"],["/ unité","/ unit"],["Valider le dépôt & Envoyer le reçu WhatsApp","Confirm deposit & Send WhatsApp receipt"],["Rechercher un Code Reçu","Search a Receipt Code"],["Code du ticket (ex: 001)","Ticket code (e.g. 001)"],["Rechercher","Search"],["Nouveau ticket","New ticket"],["Photo des vêtements déposés","Photo of deposited garments"],["Ex: Mme Diallo","e.g. Mrs Diallo"],["Ex: M. Sanneh","e.g. Mr Sanneh"],["Ex: 7XX XXXX","e.g. 7XX XXXX"],["Ex: Robe de soirée, tissu bazin","e.g. Evening dress, bazin fabric"],["Ex: Pantalon, Boubou","e.g. Trousers, Boubou"],["Ex: 5000","e.g. 5000"],["Ex: 500","e.g. 500"],["Genre","Gender"]);CHUNKS.push(["\ud83d\udecd\ufe0f Pr\u00eat-\u00e0-porter en cours","\ud83d\udecd\ufe0f Ready-to-wear in progress"],["Aucun pr\u00eat-\u00e0-porter en cours.","No ready-to-wear order in progress."],["Aucune retouche en cours.","No alteration in progress."],["Aucune commande en cours.","No order in progress."]);  var LANG = localStorage.getItem('appLang') || 'fr';
-CHUNKS.push(["💵 Argent reçu","💵 Money received"],["💵 Enregistrer un paiement reçu","💵 Record a payment received"],["Aucun paiement en attente.","No payment awaiting validation."],["Numéro de reçu","Receipt number"],["Montant reçu (D)","Amount received (D)"],["✅ Valider","✅ Approve"],["✖ Refuser","✖ Reject"],["Bustier","Bodice"],["Robe","Dress"],["Jupe","Skirt"],["Tunique","Tunic"],["Veste","Jacket"],["Boubou / Grand boubou","Boubou"],["Tout","All"],["✂️ Coupe","✂️ Cutting"],["Fiche de coupe","Cutting sheet"],["Aisances","Ease"],["Devant","Front"],["Dos","Back"],["Manche","Sleeve"],["Ceinture","Waistband"],["🧵 Patron","🧵 Pattern"],["Tracer un patron pour","Draft a pattern for"],["Chemise","Shirt"],["Pantalon","Trousers"],["Bloc de base","Basic block"],["Télécharger le patron","Download the pattern"],["Patron de","Pattern for"],["Chargement du moteur de patrons","Loading the pattern engine"],["Tour de cou","Neck"],["Tour poitrine","Chest"],["Tour manche","Sleeve width"],["Poignet","Wrist"],["Longueur de taille","Waist length"],["Longueur de","Length of"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"],["ITEMS DE LA COMMANDE (FACTURE DÉTAILLÉE)","ORDER ITEMS (DETAILED INVOICE)"],["DE LA COMMANDE (FACTURE DÉTAILLÉE)","— ORDER (DETAILED INVOICE)"]); var PHX=[["Ex: Robe de soirée, tissu bazin","e.g. Evening dress, bazin fabric"],["Ex: Pantalon, Boubou","e.g. Trousers, Boubou"],["Ex: Mme Diallo","e.g. Mrs Diallo"],["Ex: M. Sanneh","e.g. Mr Sanneh"],["Ex: 7XX XXXX","e.g. 7XX XXXX"],["Ex: 5000","e.g. 5000"],["Ex: 500","e.g. 500"],["Catégorie (ex: Fil, boutons)","Category (e.g. Thread, buttons)"],["Montant (D)","Amount (D)"],["Description (optionnel)","Description (optional)"],["Nom, téléphone ou code","Name, phone or code"]]; setInterval(function(){ if((localStorage.getItem('appLang')||'fr')!=='en') return; document.querySelectorAll('input,textarea').forEach(function(el){ var p=el.getAttribute('placeholder')||''; PHX.forEach(function(s){ if(p.indexOf(s[0])>=0){ p=p.split(s[0]).join(s[1]); } }); if(p!==el.getAttribute('placeholder')) el.setAttribute('placeholder',p); }); }, 700);  var busy = false, timer = null;
+CHUNKS.push(["💵 Argent reçu","💵 Money received"],["💵 Enregistrer un paiement reçu","💵 Record a payment received"],["Aucun paiement en attente.","No payment awaiting validation."],["Numéro de reçu","Receipt number"],["Montant reçu (D)","Amount received (D)"],["✅ Valider","✅ Approve"],["✖ Refuser","✖ Reject"],["Bustier","Bodice"],["Robe","Dress"],["Jupe","Skirt"],["Tunique","Tunic"],["Veste","Jacket"],["Boubou / Grand boubou","Boubou"],["Tout","All"],["✂️ Coupe","✂️ Cutting"],["Fiche de coupe","Cutting sheet"],["Aisances","Ease"],["Devant","Front"],["Dos","Back"],["Manche","Sleeve"],["Ceinture","Waistband"],["🧵 Patron","🧵 Pattern"],["Tracer un patron pour","Draft a pattern for"],["Chemise","Shirt"],["Pantalon","Trousers"],["Bloc de base","Basic block"],["Télécharger le patron","Download the pattern"],["Patron de","Pattern for"],["Chargement du moteur de patrons","Loading the pattern engine"],["Tour de cou","Neck"],["Tour poitrine","Chest"],["Tour manche","Sleeve width"],["Poignet","Wrist"],["Longueur de taille","Waist length"],["Longueur de","Length of"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"],["ITEMS DE LA COMMANDE (FACTURE DÉTAILLÉE)","ORDER ITEMS (DETAILED INVOICE)"],["DE LA COMMANDE (FACTURE DÉTAILLÉE)","— ORDER (DETAILED INVOICE)"],["📥 Importer des mesures (Google Sheets)","📥 Import measurements (Google Sheets)"],["📥 Importer des mesures","📥 Import measurements"],["📥 Verification avant import","📥 Check before importing"],["Analyser","Analyse"],["Importer","Import"],["Deviner (Mr = homme, sinon femme)","Guess (Mr = man, otherwise woman)"],["Toutes des femmes","All women"],["Tous des hommes","All men"],["— ignorer —","— skip —"],["à attribuer","to assign"],["✅ Import termine","✅ Import finished"]); var PHX=[["Ex: Robe de soirée, tissu bazin","e.g. Evening dress, bazin fabric"],["Ex: Pantalon, Boubou","e.g. Trousers, Boubou"],["Ex: Mme Diallo","e.g. Mrs Diallo"],["Ex: M. Sanneh","e.g. Mr Sanneh"],["Ex: 7XX XXXX","e.g. 7XX XXXX"],["Ex: 5000","e.g. 5000"],["Ex: 500","e.g. 500"],["Catégorie (ex: Fil, boutons)","Category (e.g. Thread, buttons)"],["Montant (D)","Amount (D)"],["Description (optionnel)","Description (optional)"],["Nom, téléphone ou code","Name, phone or code"]]; setInterval(function(){ if((localStorage.getItem('appLang')||'fr')!=='en') return; document.querySelectorAll('input,textarea').forEach(function(el){ var p=el.getAttribute('placeholder')||''; PHX.forEach(function(s){ if(p.indexOf(s[0])>=0){ p=p.split(s[0]).join(s[1]); } }); if(p!==el.getAttribute('placeholder')) el.setAttribute('placeholder',p); }); }, 700);  var busy = false, timer = null;
 CHUNKS.push(["Année en cours","Current year"],["bilan annuel","annual summary"],["Détail jour par jour (mois en cours)","Day-by-day detail (current month)"],["Chaque journée du mois, activité par activité — l'historique complet jusqu'à la fin du mois.","Each day of the month, activity by activity — the complete history until the end of the month."]);CHUNKS.push(["Aujourd\u2019hui","Today"],["Aujourd'hui","Today"],["Hier","Yesterday"]);CHUNKS.push(["Bilan annuel — mois par mois","Annual summary — month by month"],["Chaque mois de l'année, activité par activité. Au 31","Each month of the year, activity by activity. On 31"],["cette liste est votre bilan de l'année","this list is your full-year summary"],["complète. Le 1er","complete. On 1"],["une nouvelle année","a new year"],["démarre — les années passées restent conservées","starts — past years remain stored"],["dans la base.","in the database."],["Ajouter une dépense","Add an expense"],["Activité concernée","Activity concerned"],["Catégorie","Category"],["Date de la dépense","Expense date"],["Dépenses récentes","Recent expenses"],["Enregistrer la fiche","Save sheet"],["Ajoutez un employé pour commencer le suivi des salaires.","Add an employee to start tracking salaries."],["Employés","Employees"],["Fiche permanente — les noms, téléphones et salaires restent affichés en permanence, mois après mois.","Permanent record — names, phones and salaries stay displayed permanently, month after month."],["Aucun employé enregistré.","No employee recorded."],["Aujourd'hui","Today"],["Hier","Yesterday"],["Janvier","January"],["Février","February"],["Mars","March"],["Avril","April"],["Mai","May"],["Juin","June"],["Juillet","July"],["Août","August"],["Septembre","September"],["Octobre","October"],["Novembre","November"],["Décembre","December"],["janvier","January"],["février","February"],["mars","March"],["avril","April"],["mai","May"],["juin","June"],["juillet","July"],["août","August"],["septembre","September"],["octobre","October"],["novembre","November"],["décembre","December"]); PHX.push(["Ex: Électricité, Fournitures, Transport","e.g. Electricity, Supplies, Transport"],["Détail de la dépense","Expense details"],["Rechercher un client","Search a client"]);CHUNKS.push(["Neckturière","Seamstress"],["Neckturier","Tailor"],["Couturière","Seamstress"],["Couturier","Tailor"],["Fiche mesures client","Client measurement sheet"],["ARTICLES","ITEMS"],["EN STOCK","IN STOCK"],["RECETTE D","REVENUE D"],["Nouvel article","New item"],["Name de l'article","Item name"],["Nom de l'article","Item name"],["Quantité en stock","Stock quantity"],["Prix de vente unitaire (D)","Unit sale price (D)"],["Ajouter au stock","Add to stock"],["Tissu","Fabric"],["Type","Type"],["Bilan — Recettes, Dépenses, Solde","Summary — Revenue, Expenses, Balance"],["Aujourd'hui","Today"],["Semaine","Week"],["Mois en cours","Current month"],["Recettes:","Revenue:"],["Dépenses:","Expenses:"],["Solde:","Balance:"],["TOTAL —","TOTAL —"],["janvier","January"],["février","February"],["mars","March"],["avril","April"],["mai","May"],["juin","June"],["juillet","July"],["août","August"],["septembre","September"],["octobre","October"],["novembre","November"],["décembre","December"],["Salaires","Payroll"],["Visiteurs","Visitors"],["Ajouter un employé","Add an employee"],["Ajouter l'employé","Add employee"],["Poste — touchez pour choisir","Position — tap to choose"],["Presseur","Presser"],["Ménagère","Cleaner"],["Vendeuse","Saleswoman"],["Apprenti(e)","Apprentice"],["Salaire mensuel (D)","Monthly salary (D)"],["Récapitulatif mensuel","Monthly summary"],["Mois","Month"],["Enregistrer un passage","Record a visit"],["Enregistrer le passage","Save visit"],["Recherche","Search"],["Passages enregistrés","Recorded visits"],["Supprimer","Delete"],["Note","Note"]); PHX.push(["Catégorie (ex: Réapprovisionnement)","Category (e.g. Restocking)"],["Ex: Bazin riche 6 yards / Robe taille M","e.g. Rich bazin 6 yards / Dress size M"],["Ex: Awa Ndiaye","e.g. Awa Ndiaye"],["Ex: Amadou","e.g. Amadou"],["Ou écrivez un autre poste ici","Or type another position here"],["Rechercher un visiteur","Search a visitor"],["Ex: veut voir Djamil, demande un devis","e.g. wants to see Djamil, asks for a quote"]);CHUNKS.push(["PRÊTS","READY"],["RÉCUPÉRÉS","COLLECTED"],["Pour un client qui avait déposé un vêtement il y a longtemps (avant l'appli) et qui vient aujourd'hui le récupérer et payer. Enregistré directement comme \"Collected\", sans passer par tout le formulaire de ticket.","For a client who dropped off a garment long ago (before the app) and is collecting and paying today. Saved directly as \"Collected\", without the full ticket form."]); PHX.push(["Catégorie (ex: Détergent, électricité)","Category (e.g. Detergent, electricity)"],["Nom du client","Client name"],["Téléphone","Phone"],["Description (ex: 2 boubous déposés il y a 3 mois)","Description (e.g. 2 boubous dropped off 3 months ago)"],["Description (ex: Robe boubou déposée il y a","Description (e.g. Boubou dress dropped off"],["Description (ex:","Description (e.g."]);  CHUNKS.push(["Length of pince","Shoulder to bust / underbust"],["Longueur de pince","Shoulder to bust / underbust"],["Long. de pince","Shoulder to bust / underbust"],["Long. pince","Shoulder to bust / underbust"],["MESURES (CM)","MEASUREMENTS (CM)"],["MESURES","MEASUREMENTS"]);
 /* Tarifs pressing configurables — éditeur admin (FR/EN, additif) */
 CHUNKS.push(["Gérer les tarifs","Manage prices"],["Tarifs du pressing","Dry cleaning prices"],["Modifiez les noms et les prix, ajoutez ou supprimez des articles et des catégories. Ces tarifs sont propres à cet établissement.","Edit names and prices, add or remove items and categories. These prices are specific to this business."],["Ajouter une catégorie","Add a category"],["Valeurs par défaut","Default prices"],["Annuler","Cancel"],["Enregistrer les tarifs","Save prices"],["Tarifs du pressing enregistrés","Dry cleaning prices saved"],["Ajoutez au moins un article avant d'enregistrer","Add at least one item before saving"],["Changer le nom du commerce","Change business name"],["La gestion d'atelier complète","Complete workshop management"]);
@@ -927,6 +927,7 @@ function traduireNoeud(node){
       </div>
       <input type="hidden" id="ms-edit-id" value="">
       <button class="btn" id="btn-mesure" onclick="enregistrerMesure()">Enregistrer la fiche</button>
+      <button class="btn secondary" id="btn-import-mesures" onclick="ouvrirImportMesures()">📥 Importer des mesures (Google Sheets)</button>
     </div>
     <div class="panel">
       <h2>Recherche</h2>
@@ -6855,7 +6856,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-05-un-seul-chemin';
+const APP_VERSION = 'v2026-08-06-import-mesures';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6935,6 +6936,210 @@ var MS_LIBELLES = {
 /* Mesures propres à chaque carnet : le reste est commun aux deux. */
 var MS_CLES_FEMME = ['longRobe','longJupe','pince'];
 var MS_CLES_HOMME = ['carrure','longChemise','mancheCourte','longVeste','longBoubou','tourTete','entrejambe','montant','mollet'];
+
+/* ============ IMPORT DE MESURES DEPUIS UNE FEUILLE (06/08) ============
+   Djamil garde des centaines de fiches dans un Google Sheets, une cellule par
+   cliente : "Name: ... / Phone: ... / Measurement: E = 48 / LM = 33 / 73 ...".
+   On colle le texte tel quel, l'app reconnait les codes, montre ce qu'elle a
+   compris, laisse corriger chaque code UNE FOIS (retenu dans localStorage),
+   puis remplit le carnet de mesures sans jamais ecraser une valeur existante. */
+var IMPORT_CODES_DEFAUT = {
+  E:['epaule'], EP:['epaule'], EPAULE:['epaule'],
+  LM:['mancheCourte','longManche'], LONGMANCHE:['longManche'],
+  TM:['tourManche','poignet'], TOURMANCHE:['tourManche'],
+  P:['poitrine'], POIT:['poitrine'], POITRINE:['poitrine'],
+  LH:['longHaut','longBoubou'], LONGHAUT:['longHaut'],
+  COL:['cou'], COU:['cou'], ENC:['cou'],
+  CEINT:['ceinture'], CEINTURE:['ceinture'],
+  BSIN:['bassin'], BASSIN:['bassin'], HANCHE:['bassin'],
+  CUIS:['cuisse'], CUISSE:['cuisse'],
+  LP:['longPantalon'], LONGPANT:['longPantalon'],
+  BAS:['basPantalon'], BP:['basPantalon'],
+  TT:['tourTaille'], TAILLE:['tourTaille'], LT:['longTaille'],
+  GEN:['tourGenou'], GENOU:['tourGenou'],
+  LR:['longRobe'], LJ:['longJupe'], PIN:['pince'], PINCE:['pince'],
+  CAR:['carrure'], CARRURE:['carrure'], LC:['longChemise'], LV:['longVeste'],
+  LB:['longBoubou'], TETE:['tourTete'], ENTR:['entrejambe'], MONT:['montant'],
+  MOL:['mollet'], POIG:['poignet']
+};
+function normCodeImport(txt){
+  return String(txt||'').toUpperCase()
+    .replace(/[ÀÂÄ]/g,'A').replace(/[ÉÈÊË]/g,'E').replace(/[ÎÏ]/g,'I')
+    .replace(/[ÔÖ]/g,'O').replace(/[ÙÛÜ]/g,'U')
+    .replace(/[^A-Z0-9]/g,'');
+}
+function codesImportEnregistres(){
+  var perso = {};
+  try { perso = JSON.parse(localStorage.getItem('cd_import_codes')||'{}') || {}; } catch(e){ perso = {}; }
+  var table = {};
+  Object.keys(IMPORT_CODES_DEFAUT).forEach(function(c){ table[c] = IMPORT_CODES_DEFAUT[c].slice(); });
+  Object.keys(perso).forEach(function(c){ table[c] = perso[c]; });
+  return table;
+}
+function devinerGenreImport(nom){
+  var n = (nom||'').trim().toLowerCase();
+  if(/^(mr|m\.|mister|monsieur|alh|alhaji|alhagie|pa |baba|imam|sheikh|dr )/.test(n)) return 'Homme';
+  return 'Femme';
+}
+/* Decoupe le texte colle en fiches et releve, pour chacune, les codes bruts. */
+function analyserCollageMesures(texte){
+  var brut = String(texte||'').replace(/\r/g,'');
+  var morceaux = brut.split(/(?=^[^\S\n]*(?:Name|Nom)[^\S\n]*:)/mi);
+  var fiches = [], codesVus = {};
+  var motsIgnores = ['NAME','NOM','PHONE','TEL','TELEPHONE','EMAIL','MEASUREMENT','MEASUREMENTS','MESURE','MESURES','ADRESSE','ADDRESS','DATE'];
+  morceaux.forEach(function(bloc){
+    if(!bloc || !bloc.trim()) return;
+    var mNom = bloc.match(/(?:Name|Nom)[^\S\n]*:[^\S\n]*([^\n]*)/i);
+    var mTel = bloc.match(/(?:Phone|Tel|Tél|Telephone|Téléphone)[^\S\n]*:[^\S\n]*([^\n]*)/i);
+    var nom = mNom ? mNom[1].trim() : '';
+    var tel = mTel ? mTel[1].trim() : '';
+    var codes = {};
+    bloc.split('\n').forEach(function(ligne){
+      var m = ligne.match(/^[^\S\n]*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.\s]{0,14}?)[^\S\n]*[:=][^\S\n]*(.*)$/);
+      if(!m) return;
+      var code = normCodeImport(m[1]);
+      if(!code || motsIgnores.indexOf(code) >= 0) return;
+      var nombres = (m[2].match(/\d+(?:[.,]\d+)?/g) || []).map(function(v){ return v.replace(',', '.'); });
+      if(nombres.length === 0) return;
+      codes[code] = nombres.slice(0, 2);
+      if(!codesVus[code]) codesVus[code] = m[2].trim();
+    });
+    if(nom || Object.keys(codes).length) fiches.push({nom:nom, tel:tel, codes:codes});
+  });
+  return {fiches:fiches, codesVus:codesVus};
+}
+var _importMesuresEtat = null;
+function ouvrirImportMesures(){
+  var corps = '<p style="margin:0 0 10px;font-size:.9rem;color:var(--gris);">'
+    + 'Ouvrez la feuille, selectionnez la colonne des fiches, copiez, puis collez ici. '
+    + 'Vous pouvez coller des centaines de fiches d\'un coup.</p>'
+    + '<textarea id="imp-texte" rows="8" placeholder="Name: Aunty Ngoneh&#10;Phone: 701 4140&#10;Measurement:&#10;E = 41&#10;LP = 27 - 35" style="width:100%;"></textarea>'
+    + '<label style="display:block;margin-top:10px;">Ces fiches sont</label>'
+    + '<select id="imp-genre" style="width:100%;">'
+    + '<option value="auto">Deviner (Mr = homme, sinon femme)</option>'
+    + '<option value="Femme">Toutes des femmes</option>'
+    + '<option value="Homme">Tous des hommes</option></select>';
+  var fond = ouvrirModale('📥 Importer des mesures', corps, [
+    {texte:'Analyser', action:function(){
+      var t = champTexte ? champTexte.value : '';
+      var g = champGenre ? champGenre.value : 'auto';
+      if(!t.trim()){ afficherInfo('Rien n\'a ete colle dans la zone de texte.', 'Import annule'); return; }
+      _importMesuresEtat = analyserCollageMesures(t);
+      _importMesuresEtat.genre = g;
+      previsualiserImportMesures();
+    }},
+    {texte:'Fermer', style:'secondary'}
+  ]);
+  /* REGLE DU PROJET : capturer les noeuds a l'ouverture — la modale est retiree
+     du document AVANT l'execution de l'action du bouton. */
+  var champTexte = fond.querySelector('#imp-texte');
+  var champGenre = fond.querySelector('#imp-genre');
+}
+function previsualiserImportMesures(){
+  var etat = _importMesuresEtat;
+  if(!etat || !etat.fiches.length){ afficherInfo('Aucune fiche reconnue dans ce texte.', 'Import'); return; }
+  var table = codesImportEnregistres();
+  var codes = Object.keys(etat.codesVus);
+  var optionsCle = '<option value="">— ignorer —</option>' + Object.keys(MS_LIBELLES).map(function(cle){
+    return '<option value="'+cle+'">'+MS_LIBELLES[cle]+'</option>';
+  }).join('');
+  var lignes = codes.map(function(code){
+    var cibles = table[code] || [];
+    var nbValeurs = 1;
+    etat.fiches.forEach(function(f){ if(f.codes[code] && f.codes[code].length > nbValeurs) nbValeurs = f.codes[code].length; });
+    var sel = '<select data-code="'+code+'" data-rang="0" style="width:100%;margin:2px 0;">'+optionsCle+'</select>';
+    if(nbValeurs > 1) sel += '<select data-code="'+code+'" data-rang="1" style="width:100%;margin:2px 0;">'+optionsCle+'</select>';
+    var inconnu = cibles.length ? '' : ' <span style="color:#e0a800;">à attribuer</span>';
+    return '<tr><td style="padding:4px 8px 4px 0;white-space:nowrap;"><b>'+code+'</b><br><span style="color:var(--gris);font-size:.8rem;">'+(etat.codesVus[code]||'')+'</span>'+inconnu+'</td>'
+         + '<td style="padding:4px 0;">'+sel+'</td></tr>';
+  }).join('');
+  var nouvelles = 0, completees = 0, sansNom = 0;
+  etat.fiches.forEach(function(f){
+    if(!f.nom){ sansNom++; return; }
+    var r = null;
+    try { r = trouverClientExistant(f.nom, f.tel); } catch(e){}
+    if(r && r !== 'AMBIGU') completees++; else nouvelles++;
+  });
+  var apercu = etat.fiches.filter(function(f){ return f.nom; }).slice(0, 6).map(function(f){
+    return '<li>'+f.nom+' <span style="color:var(--gris);">— '+Object.keys(f.codes).length+' mesure(s)</span></li>';
+  }).join('');
+  var corps = '<p style="margin:0 0 8px;"><b>'+etat.fiches.length+' fiche(s)</b> trouvee(s) : '
+    + nouvelles+' nouvelle(s), '+completees+' a completer'
+    + (sansNom ? ', '+sansNom+' sans nom (ignoree(s))' : '')+'.</p>'
+    + '<ul style="margin:0 0 12px 18px;padding:0;font-size:.9rem;">'+apercu+'</ul>'
+    + '<p style="margin:0 0 6px;font-size:.9rem;">Verifiez ce que veut dire chaque code. Ce reglage est retenu pour les prochains imports.</p>'
+    + '<table style="width:100%;font-size:.88rem;">'+lignes+'</table>'
+    + '<p style="margin:10px 0 0;font-size:.85rem;color:var(--gris);">Une mesure deja enregistree n\'est jamais remplacee : l\'import ne fait que completer.</p>';
+  var fond = ouvrirModale('📥 Verification avant import', corps, [
+    {texte:'Importer', action:function(){
+      var choix = {};
+      selects.forEach(function(s){
+        var code = s.getAttribute('data-code'), rang = parseInt(s.getAttribute('data-rang'), 10);
+        if(!choix[code]) choix[code] = [];
+        choix[code][rang] = s.value || null;
+      });
+      try { localStorage.setItem('cd_import_codes', JSON.stringify(choix)); } catch(e){}
+      appliquerImportMesures(choix);
+    }},
+    {texte:'Annuler', style:'secondary'}
+  ]);
+  var selects = Array.prototype.slice.call(fond.querySelectorAll('select[data-code]'));
+  selects.forEach(function(s){
+    var code = s.getAttribute('data-code'), rang = parseInt(s.getAttribute('data-rang'), 10);
+    var cibles = table[code] || [];
+    if(cibles[rang]) s.value = cibles[rang];
+  });
+}
+function appliquerImportMesures(mapping){
+  var etat = _importMesuresEtat;
+  if(!etat) return;
+  var creees = 0, majs = 0, ignorees = 0, dejaCompletes = 0, horodatage = Date.now();
+  etat.fiches.forEach(function(f, rang){
+    if(!f.nom){ ignorees++; return; }
+    var valeurs = {};
+    Object.keys(f.codes).forEach(function(code){
+      var cibles = mapping[code] || [];
+      (f.codes[code] || []).forEach(function(v, i){
+        var cle = cibles[i];
+        if(cle && MS_MAP[cle]) valeurs[cle] = v;
+      });
+    });
+    if(!Object.keys(valeurs).length){ ignorees++; return; }
+    var existante = null;
+    try { var r = trouverClientExistant(f.nom, f.tel); if(r && r !== 'AMBIGU') existante = r; } catch(e){}
+    if(existante){
+      var maj = {};
+      Object.keys(valeurs).forEach(function(cle){
+        var ancien = existante[cle];
+        if(ancien == null || String(ancien).trim() === '') maj[cle] = valeurs[cle];
+      });
+      if(!existante.tel && f.tel) maj.tel = f.tel;
+      if(!Object.keys(maj).length){ dejaCompletes++; return; }
+      Object.assign(existante, maj);
+      majs++;
+      if(!String(existante.id).startsWith('local_')){
+        /* Jamais d'await sur une ecriture Firestore dans ce fichier. */
+        db.collection('clients_mesures').doc(existante.id).update(maj)
+          .catch(function(err){ echecEcriture('la fiche importee de ' + f.nom, err, function(){}); });
+      }
+    } else {
+      var genre = etat.genre === 'auto' ? devinerGenreImport(f.nom) : etat.genre;
+      var fiche = Object.assign({nom:f.nom, tel:f.tel || '', genre:genre}, valeurs);
+      CACHE.clients_mesures.push(Object.assign({id:'local_' + horodatage + '_' + rang}, fiche));
+      creees++;
+      db.collection('clients_mesures').add(fiche)
+        .catch(function(err){ echecEcriture('la fiche importee de ' + f.nom, err, function(){}); });
+    }
+  });
+  try { rendreMesures(); } catch(e){}
+  try { mettreAJourListeClients(); } catch(e){}
+  afficherInfo('<b>' + creees + '</b> fiche(s) creee(s)<br><b>' + majs + '</b> fiche(s) completee(s)'
+    + (dejaCompletes ? '<br>' + dejaCompletes + ' deja a jour' : '')
+    + (ignorees ? '<br>' + ignorees + ' ignoree(s) (sans nom ou sans mesure reconnue)' : '')
+    + '<br><br>Verifiez une fiche dans la liste avant d\'importer le reste.', '✅ Import termine');
+  _importMesuresEtat = null;
+}
+
 
 /* CORRECTIF 04/08 (mesures qui disparaissent) : le pré-remplissage automatique
    écrasait AVEC DU VIDE les mesures que Djamil venait de taper, dès qu'il
