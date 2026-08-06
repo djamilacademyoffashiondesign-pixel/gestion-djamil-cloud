@@ -866,6 +866,7 @@ function traduireNoeud(node){
   <section class="module" id="mesures">
     <div class="panel">
       <h2>Fiche mesures client</h2>
+      <button class="btn secondary" id="btn-import-mesures" onclick="ouvrirImportMesures()" style="margin-bottom:12px;">📥 Importer des mesures (Google Sheets)</button>
       <label>Nom du client</label>
       <input id="ms-nom" placeholder="Ex: Mme Diallo" list="liste-clients-existants" oninput="remplirDepuisClientExistantMesures()">
       <label>Téléphone</label>
@@ -927,7 +928,6 @@ function traduireNoeud(node){
       </div>
       <input type="hidden" id="ms-edit-id" value="">
       <button class="btn" id="btn-mesure" onclick="enregistrerMesure()">Enregistrer la fiche</button>
-      <button class="btn secondary" id="btn-import-mesures" onclick="ouvrirImportMesures()">📥 Importer des mesures (Google Sheets)</button>
     </div>
     <div class="panel">
       <h2>Recherche</h2>
@@ -6856,7 +6856,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-06-import-mesures';
+const APP_VERSION = 'v2026-08-06-import-visible';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
