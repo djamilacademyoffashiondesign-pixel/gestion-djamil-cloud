@@ -426,6 +426,37 @@ function traduireNoeud(node){
 .coupe-table .val { font-variant-numeric: tabular-nums; }
 .coupe-table .section td { border-bottom: none; }
 </style>
+<style>
+/* === VUE ORDINATEUR (18/08/2026) ==========================================
+   Djamil consulte l'app sur son Lenovo : main etait plafonne a 720 px, donc
+   un mince bandeau au milieu d'un grand ecran. Ce bloc est PUREMENT ADDITIF
+   et ne s'applique qu'a partir de 1000 px de large : le telephone n'est
+   absolument pas touche. Aucun HTML, aucun JS modifie. */
+@media (min-width: 1000px){
+  body{ font-size: 17px; }
+  header{ padding: 24px 18px 18px; }
+  header h1{ font-size: 2rem; letter-spacing: 0.08em; }
+  header p{ font-size: 0.92rem; }
+  #etat-connexion{ font-size: 0.78rem; padding: 4px 14px; }
+  nav.tabs{ justify-content: center; overflow-x: visible; }
+  nav.tabs button{ flex: 0 0 auto; min-width: 130px; padding: 16px 10px; font-size: 0.95rem; }
+  main{ max-width: 1180px; padding: 26px 30px 100px; }
+  .panel{ padding: 22px 24px; margin-bottom: 20px; }
+  .panel h2{ font-size: 1.22rem; padding-bottom: 10px; margin-bottom: 16px; }
+  .stats-grid{ gap: 14px; }
+  /* Les champs de saisie ne s'etirent pas sur toute la largeur : illisible
+     et desagreable a remplir sur un grand ecran. */
+  .panel > input, .panel > select, .panel > textarea{ max-width: 560px; }
+}
+/* Tableau de bord sur deux colonnes : les panneaux de l'Apercu se placent
+   cote a cote au lieu de s'empiler sur des metres de hauteur. Reserve aux
+   tres grands ecrans pour ne jamais couper un panneau en deux. */
+@media (min-width: 1400px){
+  main{ max-width: 1560px; }
+  #apercu.module.active{ columns: 2; column-gap: 24px; }
+  #apercu .panel{ break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
 </head>
 <body class="notranslate">
 
@@ -6856,7 +6887,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-06-import-visible';
+const APP_VERSION = 'v2026-08-18-vue-ordinateur';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
