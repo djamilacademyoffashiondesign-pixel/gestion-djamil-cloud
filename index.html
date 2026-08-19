@@ -973,6 +973,7 @@ function traduireNoeud(node){
         <button type="button" id="fg-aclasser" onclick="filtrerFichesGenre('À classer')">❓ À classer</button>
       </div>
       <button class="btn secondary" onclick="reclasserGenresParNom()" style="margin:8px 0;">👥 Corriger le genre d'après les noms</button>
+      <button class="btn secondary" onclick="fusionnerDoublonsMesures()" style="margin:0 0 8px;">🧹 Repérer et fusionner les doublons</button>
       <div id="mesures-liste"></div>
     </div>
   </section>
@@ -6888,7 +6889,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-genres';
+const APP_VERSION = 'v2026-08-19-doublons';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7280,6 +7281,91 @@ function reclasserGenresParNom(){
         noter('Genres : ' + aChanger.length + ' fiche(s) reclassee(s), ' + ecrites + ' envoyee(s) au serveur');
         try { rendreMesures(); } catch(e){}
         afficherInfo(aChanger.length + ' fiche(s) corrigee(s).', '✅ Genres');
+      }},
+      {texte:'Annuler', style:'secondary'}
+    ]);
+}
+
+/* 19/08 — Apres l'import de la feuille (799 fiches), le meme client peut
+   exister plusieurs fois : la feuille elle-meme contenait des repetitions.
+   REGLE : on ne rapproche QUE des fiches de meme nom normalise ET dont les
+   telephones ne se contredisent pas (l'un vide, ou les deux identiques).
+   On garde la fiche la plus remplie, on y recopie les mesures manquantes
+   prises sur les autres, puis on supprime les autres. Rien n'est ecrase. */
+function fusionnerDoublonsMesures(){
+  var fiches = CACHE.clients_mesures || [];
+  var normNom = function(v){ return String(v||'').trim().toLowerCase().replace(/[()]/g,'').replace(/\s+/g,' '); };
+  var normTel = function(v){ return String(v||'').replace(/\D/g,''); };
+  var cles = Object.keys(MS_LIBELLES);
+  var remplies = function(f){ var n=0; cles.forEach(function(c){ if(f[c]) n++; }); return n; };
+  var paquets = {};
+  fiches.forEach(function(f){
+    var n = normNom(f.nom);
+    if(!n) return;
+    (paquets[n] = paquets[n] || []).push(f);
+  });
+  var groupes = [];
+  Object.keys(paquets).forEach(function(n){
+    var lot = paquets[n];
+    if(lot.length < 2) return;
+    /* Sous-groupes : telephones compatibles entre eux. */
+    var restants = lot.slice();
+    while(restants.length){
+      var chef = restants.shift();
+      var groupe = [chef];
+      restants = restants.filter(function(f){
+        var a = normTel(chef.tel), b = normTel(f.tel);
+        if(!a || !b || a === b){ groupe.push(f); return false; }
+        return true;
+      });
+      if(groupe.length > 1) groupes.push(groupe);
+    }
+  });
+  if(!groupes.length){ afficherInfo("Aucun doublon trouve : aucun nom n'apparait deux fois avec des telephones compatibles.", '🧹 Doublons'); return; }
+  var aSupprimer = 0;
+  groupes.forEach(function(g){ aSupprimer += g.length - 1; });
+  var apercu = groupes.slice(0,10).map(function(g){
+    return '• ' + g[0].nom + ' — ' + g.length + ' fiches';
+  }).join('<br>');
+  ouvrirModale('🧹 Fusionner les doublons',
+    '<p><b>' + groupes.length + '</b> client(s) en double, <b>' + aSupprimer + '</b> fiche(s) seront supprimees.</p>'
+    + '<p style="font-size:.85rem;color:var(--gris);">' + apercu
+    + (groupes.length > 10 ? '<br>… et ' + (groupes.length - 10) + ' autre(s)' : '') + '</p>'
+    + '<p style="font-size:.85rem;">La fiche la plus complete est conservee ; les mesures qui lui manquent sont recopiees depuis les autres. <b>Cette suppression est definitive.</b></p>',
+    [
+      {texte:'Fusionner', action:function(){
+        var supprimees = 0, completees = 0;
+        groupes.forEach(function(g){
+          var garde = g.slice().sort(function(a,b){ return remplies(b) - remplies(a); })[0];
+          var maj = {};
+          g.forEach(function(f){
+            if(f === garde) return;
+            cles.forEach(function(c){ if(!garde[c] && f[c]) maj[c] = f[c]; });
+            if(!garde.tel && f.tel) maj.tel = f.tel;
+          });
+          if(Object.keys(maj).length){
+            Object.assign(garde, maj);
+            completees++;
+            if(!String(garde.id).startsWith('local_')){
+              db.collection('clients_mesures').doc(garde.id).update(maj)
+                .catch(function(err){ echecEcriture('la fusion de ' + garde.nom, err, function(){}); });
+            }
+          }
+          g.forEach(function(f){
+            if(f === garde) return;
+            var rang = CACHE.clients_mesures.indexOf(f);
+            if(rang >= 0) CACHE.clients_mesures.splice(rang, 1);
+            supprimees++;
+            if(!String(f.id).startsWith('local_')){
+              db.collection('clients_mesures').doc(f.id).delete()
+                .catch(function(err){ echecEcriture('la suppression du doublon de ' + f.nom, err, function(){}); });
+            }
+          });
+        });
+        noter('Doublons : ' + supprimees + ' fiche(s) supprimee(s), ' + completees + ' completee(s)');
+        try { rendreMesures(); } catch(e){}
+        try { mettreAJourListeClients(); } catch(e){}
+        afficherInfo(supprimees + ' doublon(s) supprime(s), ' + completees + ' fiche(s) completee(s).', '✅ Doublons');
       }},
       {texte:'Annuler', style:'secondary'}
     ]);
