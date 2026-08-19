@@ -6887,7 +6887,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-18-vue-ordinateur';
+const APP_VERSION = 'v2026-08-19-frap-fond';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -6991,7 +6991,10 @@ var IMPORT_CODES_DEFAUT = {
   LR:['longRobe'], LJ:['longJupe'], PIN:['pince'], PINCE:['pince'],
   CAR:['carrure'], CARRURE:['carrure'], LC:['longChemise'], LV:['longVeste'],
   LB:['longBoubou'], TETE:['tourTete'], ENTR:['entrejambe'], MONT:['montant'],
-  MOL:['mollet'], POIG:['poignet']
+  MOL:['mollet'], POIG:['poignet'],
+  /* 19/08 — confirme par Djamil : FRAP = le fond du pantalon (la fourche),
+     donc la mesure 'montant'. FOND est accepte comme synonyme. */
+  FRAP:['montant'], FOND:['montant'], FOURCHE:['montant']
 };
 function normCodeImport(txt){
   return String(txt||'').toUpperCase()
