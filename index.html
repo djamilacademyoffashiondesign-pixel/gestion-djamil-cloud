@@ -972,6 +972,7 @@ function traduireNoeud(node){
         <button type="button" id="fg-femme" onclick="filtrerFichesGenre('Femme')">Femme</button>
         <button type="button" id="fg-aclasser" onclick="filtrerFichesGenre('À classer')">❓ À classer</button>
       </div>
+      <button class="btn secondary" onclick="ouvrirTableauTailles()" style="margin:8px 0 0;">📐 Tableau des tailles standard</button>
       <button class="btn secondary" onclick="reclasserGenresParNom()" style="margin:8px 0;">👥 Corriger le genre d'après les noms</button>
       <button class="btn secondary" onclick="fusionnerDoublonsMesures()" style="margin:0 0 8px;">🧹 Repérer et fusionner les doublons</button>
       <div id="mesures-liste"></div>
@@ -4991,6 +4992,29 @@ function tailleClient(f){
   };
 }
 
+/* 19/08 — Djamil veut aussi CONSULTER sa grille telle quelle, pour
+   confectionner du pret-a-porter en serie sans partir des mesures d'une
+   cliente. Simple lecture : rien n'est calcule ici. */
+function ouvrirTableauTailles(){
+  var tableau = function(genre){
+    var G = GRILLE_TAILLES[genre];
+    var entete = '<tr style="color:var(--or);"><th style="text-align:left;">Mesure</th>'
+      + TAILLES_NOMS.map(function(t){ return '<th>' + t + '</th>'; }).join('') + '</tr>'
+      + '<tr style="color:var(--gris);"><td style="text-align:left;">Taille FR</td>'
+      + G.fr.map(function(v){ return '<td>' + v + '</td>'; }).join('') + '</tr>';
+    var corps = Object.keys(G).filter(function(c){ return c !== 'fr'; }).map(function(cle){
+      return '<tr><td style="text-align:left;">' + (MS_LIBELLES[cle] || cle) + '</td>'
+        + G[cle].map(function(v){ return '<td>' + v + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    return '<h3 style="margin:14px 0 6px;color:var(--or);">' + genre + '</h3>'
+      + '<div style="overflow-x:auto;"><table style="width:100%;font-size:.8rem;border-collapse:collapse;text-align:center;">'
+      + entete + corps + '</table></div>';
+  };
+  ouvrirModale('📐 Tailles standard prêt-à-porter',
+    '<p style="font-size:.85rem;color:var(--gris);">Valeurs du corps, en centimètres. À utiliser telles quelles pour couper en série ; les aisances du modèle s\'ajoutent par-dessus.</p>'
+    + tableau('Femme') + tableau('Homme'));
+}
+
 /* Fiche « valeur cliente / taille standard / ecart », reprise de la feuille
    que Djamil remplissait a la main dans Google Sheets. */
 function comparerAuStandard(id){
@@ -6991,7 +7015,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-tailles-morpho';
+const APP_VERSION = 'v2026-08-19-tableau-tailles';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
