@@ -4929,21 +4929,123 @@ var MODELES_COUPE = {
   }}
 };
 
-/* Taille commerciale (S, M, L...) deduite du tour de poitrine, sinon du
-   bassin. Djamil la veut a cote du nom : il raisonne en tailles quand il
-   parle a une cliente ou a un eleve, pas en centimetres. */
+/* ====================================================================
+   GRILLE DE TAILLES PRET-A-PORTER — 19/08
+   Reprise du classeur de Djamil (« TABLEAU DE MESURES FEMME / HOMME »).
+   HOMME : releve tel quel sur sa feuille « Hauts » (chemises).
+   FEMME : ses colonnes XS a L, prolongees selon SA progression reguliere
+   (+4 cm poitrine/taille/bassin, +1 cm epaules et cou par taille) ;
+   les valeurs XXL ainsi obtenues (poitrine 100, bassin 106, epaules 41,
+   cou 39) correspondent exactement a celles de sa « Fiche Cliente ».
+   Toutes les valeurs sont en centimetres.
+   ==================================================================== */
+var TAILLES_NOMS = ['XS','S','M','L','XL','XXL','3XL'];
+var GRILLE_TAILLES = {
+  Femme: {
+    fr:          [34,36,38,40,42,44,46],
+    poitrine:    [80,84,88,92,96,100,104],
+    tourTaille:  [60,64,68,72,76,80,84],
+    bassin:      [86,90,94,98,102,106,110],
+    cou:         [34,35,36,37,38,39,40],
+    epaule:      [36,37,38,39,40,41,42],
+    longTaille:  [38,39,40,41,42,43,44],
+    longManche:  [57,58,59,60,61,62,63],
+    tourManche:  [26,27,28,30,32,34,36],
+    poignet:     [15,15.5,16,16.5,17,17.5,18],
+    cuisse:      [52,54,56,58,60,62,64],
+    tourGenou:   [34,35,36,37,38,39,40],
+    entrejambe:  [74,75,76,77,78,79,80]
+  },
+  Homme: {
+    fr:          [44,46,48,50,52,54,56],
+    poitrine:    [86,90,94,98,102,106,110],
+    tourTaille:  [70,74,78,82,86,90,96],
+    bassin:      [88,92,96,100,104,108,112],
+    cou:         [37,38,39,40,41,42,44],
+    epaule:      [41,43,44,46,47,49,51],
+    longTaille:  [69,71,73,75,77,79,81],
+    longManche:  [60,62,63,65,66,67,68],
+    poignet:     [18,19,20,21,22,23,24]
+  }
+};
+/* La taille est decidee sur le tour de poitrine (le poste le plus
+   structurant du pret-a-porter), a defaut sur le bassin. */
 function tailleClient(f){
-  var P = parseFloat(f.poitrine)||0, B = parseFloat(f.bassin)||0;
   var femme = (f.genre === 'Femme');
-  var base = P, source = 'poitrine';
-  if (!base && B){ base = femme ? B - 8 : B + 8; source = 'bassin'; }
-  if (!base) return null;
-  var bornes = femme
-    ? [[86,'XS'],[94,'S'],[102,'M'],[110,'L'],[118,'XL'],[126,'XXL']]
-    : [[88,'XS'],[96,'S'],[104,'M'],[112,'L'],[120,'XL'],[128,'XXL']];
-  var taille = '3XL';
-  for (var i=0;i<bornes.length;i++){ if (base < bornes[i][0]){ taille = bornes[i][1]; break; } }
-  return { taille: taille, source: source, valeur: Math.round(base) };
+  var G = GRILLE_TAILLES[femme ? 'Femme' : 'Homme'];
+  var P = parseFloat(f.poitrine)||0, B = parseFloat(f.bassin)||0;
+  var base = P, poste = 'poitrine', source = 'poitrine';
+  if(!base && B){ base = B; poste = 'bassin'; source = 'bassin'; }
+  if(!base) return null;
+  var ref = G[poste], rang = ref.length - 1;
+  for(var i=0;i<ref.length;i++){
+    /* On prend la premiere taille dont la valeur atteint la mesure,
+       avec une tolerance de 2 cm au-dessus (aisance du vetement). */
+    if(base <= ref[i] + 2){ rang = i; break; }
+  }
+  var horsGrille = base > ref[ref.length-1] + 2;
+  return {
+    taille: horsGrille ? 'Sur mesure' : TAILLES_NOMS[rang],
+    fr: horsGrille ? null : G.fr[rang],
+    rang: rang, source: source, valeur: Math.round(base), horsGrille: horsGrille
+  };
+}
+
+/* Fiche « valeur cliente / taille standard / ecart », reprise de la feuille
+   que Djamil remplissait a la main dans Google Sheets. */
+function comparerAuStandard(id){
+  var f = (CACHE.clients_mesures||[]).filter(function(x){ return x.id === id; })[0];
+  if(!f){ afficherInfo("Fiche introuvable.", '⚠️'); return; }
+  var t = tailleClient(f);
+  if(!t){ afficherInfo("Il faut au moins le tour de poitrine (ou le bassin) pour comparer cette fiche au standard.", '📏 Comparaison'); return; }
+  var femme = (f.genre === 'Femme');
+  var G = GRILLE_TAILLES[femme ? 'Femme' : 'Homme'];
+  var rang = t.rang;
+  var lignes = '', ecarts = [];
+  Object.keys(G).forEach(function(cle){
+    if(cle === 'fr' || !MS_LIBELLES[cle]) return;
+    var std = G[cle][rang];
+    var val = parseFloat(f[cle]);
+    var libelle = MS_LIBELLES[cle];
+    if(!val){
+      lignes += '<tr><td>' + libelle + '</td><td style="color:var(--gris);">à mesurer</td><td>' + std + '</td><td style="color:var(--gris);">—</td></tr>';
+      return;
+    }
+    var e = Math.round((val - std) * 10) / 10;
+    var fort = Math.abs(e) >= 4;
+    if(fort) ecarts.push({ libelle: libelle, ecart: e });
+    var couleur = fort ? 'var(--rouge)' : (Math.abs(e) >= 2 ? 'var(--or)' : 'inherit');
+    lignes += '<tr><td>' + libelle + '</td><td><b>' + val + '</b></td><td>' + std + '</td>'
+            + '<td style="color:' + couleur + ';">' + (e > 0 ? '+' : '') + e + '</td></tr>';
+  });
+  var conseil;
+  if(t.horsGrille){
+    conseil = 'Hors grille de prêt-à-porter : <b>confection sur mesure</b> recommandée.';
+  } else if(!ecarts.length){
+    conseil = 'Le client entre dans le <b>' + t.taille + '</b> sans retouche importante.';
+  } else {
+    conseil = 'Prendre la taille <b>' + t.taille + '</b> puis retoucher : '
+      + ecarts.map(function(x){ return x.libelle.toLowerCase() + ' ' + (x.ecart > 0 ? 'à élargir de ' : 'à reprendre de ') + Math.abs(x.ecart) + ' cm'; }).join(' • ') + '.';
+  }
+  /* Morphologie, comme sur la fiche papier de Djamil : on compare epaules,
+     poitrine et bassin entre eux plutot qu'a la grille. */
+  var morpho = '';
+  var ep = parseFloat(f.epaule)||0, po = parseFloat(f.poitrine)||0, ba = parseFloat(f.bassin)||0;
+  if(po && ba){
+    var d = po - ba;
+    if(Math.abs(d) <= 4) morpho = 'Silhouette équilibrée (poitrine et bassin proches)';
+    else if(d < 0) morpho = 'Silhouette en A : bassin plus fort que la poitrine de ' + Math.abs(Math.round(d)) + ' cm';
+    else morpho = 'Silhouette en V : poitrine plus forte que le bassin de ' + Math.round(d) + ' cm';
+    if(ep && ep < (po/2 - 5)) morpho += ' — épaules étroites pour le gabarit';
+  }
+  ouvrirModale('📏 ' + f.nom + ' — comparaison au standard',
+    '<p>Taille retenue : <b style="color:var(--or);font-size:1.1rem;">' + t.taille + '</b>'
+    + (t.fr ? ' · FR ' + t.fr : '') + ' <span style="color:var(--gris);font-size:.85rem;">(d\'après le ' + t.source + ' : ' + t.valeur + ' cm)</span></p>'
+    + '<table style="width:100%;font-size:.85rem;border-collapse:collapse;">'
+    + '<tr style="color:var(--gris);text-align:left;"><th>Mesure</th><th>Client</th><th>Standard</th><th>Écart</th></tr>'
+    + lignes + '</table>'
+    + (morpho ? '<p style="margin-top:10px;font-size:.9rem;"><b>Morphologie :</b> ' + morpho + '.</p>' : '')
+    + '<p style="margin-top:6px;">' + conseil + '</p>');
 }
 
 function modelesPourGenre(genre){
@@ -6889,7 +6991,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-partage-whatsapp';
+const APP_VERSION = 'v2026-08-19-tailles-morpho';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7557,7 +7659,7 @@ function rendreMesures(){
   const comptageNoms = {};
   CACHE.clients_mesures.forEach(f=>{ comptageNoms[f.nom] = (comptageNoms[f.nom]||0)+1; });
   liste.innerHTML=data.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'', 'fr', {sensitivity:'base'})).map(f=>`<div class="liste-item">
-    <div class="nom" onclick="basculerDetailMesure('${f.id}')" style="cursor:pointer;">👁️ ${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${genreDe(f)})</span>${(function(t){ return t ? ' <span class="badge" style="background:rgba(201,162,39,.18);color:var(--or);border:1px solid rgba(201,162,39,.5);">'+t.taille+'</span>' : ''; })(tailleClient(f))} ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
+    <div class="nom" onclick="basculerDetailMesure('${f.id}')" style="cursor:pointer;">👁️ ${f.nom} <span style="color:var(--gris);font-size:0.75rem;">(${genreDe(f)})</span>${(function(t){ return t ? ' <span class="badge" style="background:rgba(201,162,39,.18);color:var(--or);border:1px solid rgba(201,162,39,.5);">'+t.taille+(t.fr ? ' · FR '+t.fr : '')+'</span>' : ''; })(tailleClient(f))} ${comptageNoms[f.nom]>1 ? '<span class="badge retard">⚠️ Homonyme — vérifier le tél.</span>' : ''}</div>
     <div class="meta">${f.tel||'<span style="color:var(--rouge);">Aucun téléphone — risque de confusion</span>'}</div>
     ${genreDe(f)==='À classer' ? `<div class="meta" style="color:var(--rouge);">Genre non renseigné — classez cette fiche :
       <button onclick="definirGenreFiche('${f.id}','Homme')">Homme</button>
@@ -7567,6 +7669,7 @@ function rendreMesures(){
     <div class="item-actions">
       <button onclick="ouvrirFicheCoupe('${f.id}')">✂️ Coupe</button>
       <button onclick="ouvrirPatron('${f.id}')">🧵 Patron</button>
+      <button onclick="comparerAuStandard('${f.id}')">📏 Standard</button>
       <button onclick="modifierMesure('${f.id}')">Modifier</button>
       <button class="del" onclick="supprimerMesure('${f.id}')">Supprimer</button>
     </div>
