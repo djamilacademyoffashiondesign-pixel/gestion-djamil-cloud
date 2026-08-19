@@ -6889,7 +6889,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-doublons';
+const APP_VERSION = 'v2026-08-19-partage-whatsapp';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7061,7 +7061,7 @@ function analyserCollageMesures(texte){
   return {fiches:fiches, codesVus:codesVus};
 }
 var _importMesuresEtat = null;
-function ouvrirImportMesures(){
+function ouvrirImportMesures(texteInitial){
   var corps = '<p style="margin:0 0 10px;font-size:.9rem;color:var(--gris);">'
     + 'Deux façons de faire : <b>1)</b> dans Google Sheets, Fichier → Télécharger → CSV, puis choisissez le fichier ci-dessous — '
     + 'c\'est le plus sûr. <b>2)</b> ou bien copiez les cellules et collez-les dans le cadre.</p>'
@@ -7099,6 +7099,7 @@ function ouvrirImportMesures(){
      du document AVANT l'execution de l'action du bouton. */
   var champTexte = fond.querySelector('#imp-texte');
   var champGenre = fond.querySelector('#imp-genre');
+  if(texteInitial && champTexte) champTexte.value = String(texteInitial);
   /* 19/08 — LE PRESSE-PAPIER EST LE POINT DE BLOCAGE : Djamil pressait
      « Analyser » sur un cadre resté vide (il voyait l'exemple en filigrane).
      On peut donc désormais charger directement le fichier CSV téléchargé
@@ -8993,3 +8994,33 @@ attacherEcouteur('paiements_attente', ()=>{ rendrePaiementsAttente(); surveiller
 })();
 </script>
 
+<script>
+/* ====================================================================
+   19/08 — IMPORT DEPUIS WHATSAPP.
+   Dans WhatsApp : appui long sur le message → Partager → « Chez Djamil ».
+   Android transmet le texte à l'appli installée (share_target du
+   manifest.json) sous la forme ?texte=… ; on ouvre alors directement la
+   fenêtre d'import avec le message déjà collé dedans.
+   ==================================================================== */
+(function(){
+  function ouvrirPartage(){
+    var p = new URLSearchParams(location.search);
+    var t = p.get('texte') || p.get('text') || '';
+    var titre = p.get('titre') || p.get('title') || '';
+    if(titre && t.indexOf(titre) === -1) t = titre + '\n' + t;
+    if(!t.trim()) return;
+    /* On nettoie l'adresse pour qu'un rechargement ne rouvre pas la fenêtre. */
+    try { history.replaceState({}, '', location.pathname); } catch(e){}
+    try { noter('Partage WhatsApp recu : ' + t.length + ' caractere(s)'); } catch(e){}
+    var onglet = document.querySelector('.tab-btn[data-mod="mesures"]');
+    if(onglet) onglet.click();
+    setTimeout(function(){
+      try { ouvrirImportMesures(t); }
+      catch(e){ try { afficherInfo("Le texte partage n'a pas pu etre ouvert : " + (e.message||e), '⚠️ Partage'); } catch(_){} }
+    }, 400);
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ouvrirPartage);
+  } else { ouvrirPartage(); }
+})();
+</script>
