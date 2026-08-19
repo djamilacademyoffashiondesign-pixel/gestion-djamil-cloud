@@ -6887,7 +6887,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-import-trace';
+const APP_VERSION = 'v2026-08-19-import-fichier';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7061,8 +7061,10 @@ function analyserCollageMesures(texte){
 var _importMesuresEtat = null;
 function ouvrirImportMesures(){
   var corps = '<p style="margin:0 0 10px;font-size:.9rem;color:var(--gris);">'
-    + 'Ouvrez la feuille, selectionnez la colonne des fiches, copiez, puis collez ici. '
-    + 'Vous pouvez coller des centaines de fiches d\'un coup.</p>'
+    + 'Deux façons de faire : <b>1)</b> dans Google Sheets, Fichier → Télécharger → CSV, puis choisissez le fichier ci-dessous — '
+    + 'c\'est le plus sûr. <b>2)</b> ou bien copiez les cellules et collez-les dans le cadre.</p>'
+    + '<input type="file" id="imp-fichier" accept=".csv,.txt,.tsv,text/plain,text/csv" style="width:100%;margin-bottom:10px;">'
+    + '<div id="imp-fichier-etat" style="font-size:.85rem;color:var(--gris);margin-bottom:8px;"></div>'
     + '<textarea id="imp-texte" rows="8" placeholder="(exemple — collez ici votre texte)&#10;Name: Aunty Ngoneh&#10;Phone: 701 4140&#10;Measurement:&#10;E = 41&#10;LP = 27 - 35" style="width:100%;"></textarea>'
     + '<label style="display:block;margin-top:10px;">Ces fiches sont</label>'
     + '<select id="imp-genre" style="width:100%;">'
@@ -7095,6 +7097,30 @@ function ouvrirImportMesures(){
      du document AVANT l'execution de l'action du bouton. */
   var champTexte = fond.querySelector('#imp-texte');
   var champGenre = fond.querySelector('#imp-genre');
+  /* 19/08 — LE PRESSE-PAPIER EST LE POINT DE BLOCAGE : Djamil pressait
+     « Analyser » sur un cadre resté vide (il voyait l'exemple en filigrane).
+     On peut donc désormais charger directement le fichier CSV téléchargé
+     depuis Google Sheets : aucun copier-coller. */
+  var champFichier = fond.querySelector('#imp-fichier');
+  var etatFichier = fond.querySelector('#imp-fichier-etat');
+  if(champFichier){
+    champFichier.addEventListener('change', function(){
+      var f = champFichier.files && champFichier.files[0];
+      if(!f) return;
+      if(etatFichier) etatFichier.textContent = 'Lecture de ' + f.name + '…';
+      var lecteur = new FileReader();
+      lecteur.onload = function(){
+        var contenu = String(lecteur.result || '');
+        if(champTexte) champTexte.value = contenu;
+        noter('Import : fichier ' + f.name + ' charge, ' + contenu.length + ' caractere(s)');
+        if(etatFichier) etatFichier.innerHTML = '<span style="color:#4caf50;">✅ ' + f.name + ' chargé (' + contenu.length + ' caractères). Appuyez sur Analyser.</span>';
+      };
+      lecteur.onerror = function(){
+        if(etatFichier) etatFichier.innerHTML = '<span style="color:#e57373;">❌ Impossible de lire ce fichier.</span>';
+      };
+      lecteur.readAsText(f, 'UTF-8');
+    });
+  }
 }
 function previsualiserImportMesures(){
   var etat = _importMesuresEtat;
