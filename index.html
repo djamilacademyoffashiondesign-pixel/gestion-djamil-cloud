@@ -972,6 +972,7 @@ function traduireNoeud(node){
         <button type="button" id="fg-femme" onclick="filtrerFichesGenre('Femme')">Femme</button>
         <button type="button" id="fg-aclasser" onclick="filtrerFichesGenre('À classer')">❓ À classer</button>
       </div>
+      <button class="btn secondary" onclick="reclasserGenresParNom()" style="margin:8px 0;">👥 Corriger le genre d'après les noms</button>
       <div id="mesures-liste"></div>
     </div>
   </section>
@@ -6887,7 +6888,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-import-fichier';
+const APP_VERSION = 'v2026-08-19-genres';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7231,6 +7232,57 @@ function appliquerImportMesures(mapping){
     + (ignorees ? '<br>' + ignorees + ' ignoree(s) (sans nom ou sans mesure reconnue)' : '')
     + '<br><br>Verifiez une fiche dans la liste avant d\'importer le reste.', '✅ Import termine');
   _importMesuresEtat = null;
+}
+
+/* 19/08 — Apres l'import de la feuille Google, presque toutes les fiches sont
+   parties en "Femme" : les noms sont des tournures anglaises (Aisha's brother,
+   Sedibeh's son, Mr Cham...) que devinerGenreImport ne connaissait pas.
+   Cet outil relit tous les noms deja enregistres et propose les corrections. */
+var MOTS_HOMME = /(^|[^a-z])(mr|mr\.|mister|monsieur|alh|alhaji|alhagie|imam|sheikh|baba|pa|brother|son|husband|father|uncle|nephew|grandson|boy|dad|papa|frere|frère|fils|mari|pere|père|oncle|neveu)([^a-z]|$)/i;
+var MOTS_FEMME  = /(^|[^a-z])(mrs|mrs\.|miss|ms|madam|madame|mme|aunty|auntie|aunt|wife|daughter|sister|mother|mum|mom|niece|girl|granddaughter|maman|tante|femme|epouse|épouse|fille|soeur|sœur|nièce|niece)([^a-z]|$)/i;
+function genreDapresNom(nom){
+  var n = String(nom||'').toLowerCase();
+  /* La femme l'emporte quand les deux apparaissent : "Mr Cham's wife". */
+  if(MOTS_FEMME.test(n)) return 'Femme';
+  if(MOTS_HOMME.test(n)) return 'Homme';
+  return null;
+}
+function reclasserGenresParNom(){
+  var fiches = CACHE.clients_mesures || [];
+  var aChanger = [];
+  fiches.forEach(function(f){
+    var g = genreDapresNom(f.nom);
+    if(g && f.genre !== g) aChanger.push({fiche:f, nouveau:g});
+  });
+  if(!aChanger.length){ afficherInfo("Aucun nom ne permet de corriger le genre automatiquement.", '👥 Genres'); return; }
+  var versHomme = aChanger.filter(function(x){ return x.nouveau === 'Homme'; });
+  var versFemme = aChanger.filter(function(x){ return x.nouveau === 'Femme'; });
+  var apercu = aChanger.slice(0,12).map(function(x){
+    return '• ' + x.fiche.nom + ' → ' + x.nouveau;
+  }).join('<br>');
+  ouvrirModale('👥 Corriger le genre',
+    '<p><b>' + versHomme.length + '</b> fiche(s) à passer en Homme,<br>'
+    + '<b>' + versFemme.length + '</b> en Femme.</p>'
+    + '<p style="font-size:.85rem;color:var(--gris);">Exemples :<br>' + apercu
+    + (aChanger.length > 12 ? '<br>… et ' + (aChanger.length - 12) + ' autre(s)' : '') + '</p>'
+    + '<p style="font-size:.85rem;">Seul le genre change ; aucune mesure n\'est touchée.</p>',
+    [
+      {texte:'Corriger', action:function(){
+        var ecrites = 0;
+        aChanger.forEach(function(x){
+          x.fiche.genre = x.nouveau;
+          if(!String(x.fiche.id).startsWith('local_')){
+            ecrites++;
+            db.collection('clients_mesures').doc(x.fiche.id).update({genre:x.nouveau})
+              .catch(function(err){ echecEcriture('le genre de ' + x.fiche.nom, err, function(){}); });
+          }
+        });
+        noter('Genres : ' + aChanger.length + ' fiche(s) reclassee(s), ' + ecrites + ' envoyee(s) au serveur');
+        try { rendreMesures(); } catch(e){}
+        afficherInfo(aChanger.length + ' fiche(s) corrigee(s).', '✅ Genres');
+      }},
+      {texte:'Annuler', style:'secondary'}
+    ]);
 }
 
 
