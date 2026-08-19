@@ -6887,7 +6887,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-frap-fond';
+const APP_VERSION = 'v2026-08-19-import-trace';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7007,7 +7007,14 @@ function codesImportEnregistres(){
   try { perso = JSON.parse(localStorage.getItem('cd_import_codes')||'{}') || {}; } catch(e){ perso = {}; }
   var table = {};
   Object.keys(IMPORT_CODES_DEFAUT).forEach(function(c){ table[c] = IMPORT_CODES_DEFAUT[c].slice(); });
-  Object.keys(perso).forEach(function(c){ table[c] = perso[c]; });
+  Object.keys(perso).forEach(function(c){
+    /* 19/08 — un réglage laissé sur « — ignorer — » était enregistré comme
+       [null] et EFFAÇAIT définitivement la correspondance par défaut de ce
+       code (FRAP, BSIN…). On ne retient donc un réglage personnel que s'il
+       désigne réellement au moins une mesure. */
+    var util = (perso[c]||[]).filter(function(v){ return v; });
+    if(util.length) table[c] = perso[c];
+  });
   return table;
 }
 function devinerGenreImport(nom){
@@ -7018,6 +7025,15 @@ function devinerGenreImport(nom){
 /* Decoupe le texte colle en fiches et releve, pour chacune, les codes bruts. */
 function analyserCollageMesures(texte){
   var brut = String(texte||'').replace(/\r/g,'');
+  /* 19/08 — CAUSE DU « je n'arrive pas à importer » : quand on copie plusieurs
+     cellules dans Google Sheets, chaque cellule multi-lignes est encadrée par
+     des GUILLEMETS et les guillemets internes sont doublés. La ligne devenait
+     donc `"Name: …` et le découpage sur ^Name: ne se faisait plus : les 127
+     fiches se retrouvaient fondues en UNE SEULE (vérifié par simulation).
+     On enlève donc les guillemets de bord de cellule avant toute analyse. */
+  brut = brut.replace(/^[\t ]*["'\u201C\u201D\u00AB]+/gm,'')
+             .replace(/["'\u201C\u201D\u00BB]+[\t ]*$/gm,'')
+             .replace(/""/g,'"');
   var morceaux = brut.split(/(?=^[^\S\n]*(?:Name|Nom)[^\S\n]*:)/mi);
   var fiches = [], codesVus = {};
   var motsIgnores = ['NAME','NOM','PHONE','TEL','TELEPHONE','EMAIL','MEASUREMENT','MEASUREMENTS','MESURE','MESURES','ADRESSE','ADDRESS','DATE'];
@@ -7055,12 +7071,23 @@ function ouvrirImportMesures(){
     + '<option value="Homme">Tous des hommes</option></select>';
   var fond = ouvrirModale('📥 Importer des mesures', corps, [
     {texte:'Analyser', action:function(){
-      var t = champTexte ? champTexte.value : '';
-      var g = champGenre ? champGenre.value : 'auto';
-      if(!t.trim()){ afficherInfo('Rien n\'a ete colle dans la zone de texte.', 'Import annule'); return; }
-      _importMesuresEtat = analyserCollageMesures(t);
-      _importMesuresEtat.genre = g;
-      previsualiserImportMesures();
+      /* 19/08 — « rien ne se passe quand j'appuie sur Analyser ». Sur telephone
+         il n'existe aucune console : une exception ici etait totalement muette.
+         Tout est donc trace dans le journal ET affiche en fenetre. */
+      try {
+        if(!champTexte){ afficherInfo("La zone de texte n'a pas ete retrouvee. Refermez et rouvrez la fenetre d'import.", '⚠️ Import'); noter('Import : champ imp-texte introuvable'); return; }
+        var t = champTexte.value || '';
+        var g = champGenre ? champGenre.value : 'auto';
+        noter('Import : Analyser presse, ' + t.length + ' caractere(s) colle(s)');
+        if(!t.trim()){ afficherInfo("Rien n'a ete colle dans la zone de texte. Recopiez les cellules depuis Google Sheets, puis appuyez longuement dans le cadre et choisissez Coller.", 'Import annule'); return; }
+        _importMesuresEtat = analyserCollageMesures(t);
+        _importMesuresEtat.genre = g;
+        noter('Import : ' + _importMesuresEtat.fiches.length + ' fiche(s), codes ' + Object.keys(_importMesuresEtat.codesVus).join(','));
+        previsualiserImportMesures();
+      } catch(err){
+        noter('❌ Import : ' + ((err && err.message) || err));
+        afficherInfo("L'analyse s'est arretee : " + ((err && err.message) || err) + "\n\nEnvoyez-moi cette phrase.", '⚠️ Import');
+      }
     }},
     {texte:'Fermer', style:'secondary'}
   ]);
@@ -7112,7 +7139,13 @@ function previsualiserImportMesures(){
         if(!choix[code]) choix[code] = [];
         choix[code][rang] = s.value || null;
       });
-      try { localStorage.setItem('cd_import_codes', JSON.stringify(choix)); } catch(e){}
+      try {
+        /* Fusion : ne pas perdre les réglages des codes absents de ce collage. */
+        var ancien = {};
+        try { ancien = JSON.parse(localStorage.getItem('cd_import_codes')||'{}') || {}; } catch(e){ ancien = {}; }
+        Object.keys(choix).forEach(function(c){ ancien[c] = choix[c]; });
+        localStorage.setItem('cd_import_codes', JSON.stringify(ancien));
+      } catch(e){}
       appliquerImportMesures(choix);
     }},
     {texte:'Annuler', style:'secondary'}
