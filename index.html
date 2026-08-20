@@ -973,6 +973,7 @@ function traduireNoeud(node){
         <button type="button" id="fg-aclasser" onclick="filtrerFichesGenre('À classer')">❓ À classer</button>
       </div>
       <button class="btn secondary" onclick="ouvrirTableauTailles()" style="margin:8px 0 0;">📐 Tableau des tailles standard</button>
+      <button class="btn secondary" onclick="ouvrirCodesImport()" style="margin:8px 0 0;">🔤 Correspondance des codes d'import</button>
       <button class="btn secondary" onclick="reclasserGenresParNom()" style="margin:8px 0;">👥 Corriger le genre d'après les noms</button>
       <button class="btn secondary" onclick="fusionnerDoublonsMesures()" style="margin:0 0 8px;">🧹 Repérer et fusionner les doublons</button>
       <div id="mesures-liste"></div>
@@ -5015,6 +5016,34 @@ function ouvrirTableauTailles(){
     + tableau('Femme') + tableau('Homme'));
 }
 
+/* 19/08 — Djamil voit « Bas du pantalon 127 » alors que 127 est son tour de
+   bassin : un code a ete range dans la mauvaise mesure. La table par defaut
+   est pourtant juste (BSIN=bassin, BAS=basPantalon), donc le coupable est le
+   reglage personnel enregistre lors d'un import precedent. Cet outil montre
+   les correspondances reellement utilisees et permet de les effacer. */
+function ouvrirCodesImport(){
+  var perso = {};
+  try { perso = JSON.parse(localStorage.getItem('cd_import_codes')||'{}') || {}; } catch(e){ perso = {}; }
+  var table = codesImportEnregistres();
+  var lignes = Object.keys(table).sort().map(function(c){
+    var cibles = (table[c]||[]).map(function(k){ return k ? (MS_LIBELLES[k] || k) : '—'; }).join(' puis ');
+    var modifie = perso[c] && perso[c].filter(function(v){ return v; }).length;
+    return '<tr' + (modifie ? ' style="color:var(--or);"' : '') + '><td><b>' + c + '</b></td><td>' + cibles
+      + (modifie ? ' <span style="font-size:.75rem;">(réglage perso)</span>' : '') + '</td></tr>';
+  }).join('');
+  ouvrirModale('🔤 Correspondance des codes',
+    '<p style="font-size:.85rem;color:var(--gris);">Ce que chaque code de ta feuille remplit dans l\'app. En doré : les réglages que tu as choisis toi-même lors d\'un import, qui remplacent les valeurs d\'origine.</p>'
+    + '<div style="max-height:50vh;overflow:auto;"><table style="width:100%;font-size:.85rem;border-collapse:collapse;">' + lignes + '</table></div>',
+    [
+      {texte:'Rétablir les codes d\'origine', action:function(){
+        try { localStorage.removeItem('cd_import_codes'); } catch(e){}
+        noter('Codes import : reglages personnels effaces');
+        afficherInfo("Les correspondances d'origine sont rétablies (BSIN → tour de bassin, BAS → bas du pantalon, FRAP → montant).", '✅ Codes');
+      }},
+      {texte:'Fermer', style:'secondary'}
+    ]);
+}
+
 /* Fiche « valeur cliente / taille standard / ecart », reprise de la feuille
    que Djamil remplissait a la main dans Google Sheets. */
 function comparerAuStandard(id){
@@ -7015,7 +7044,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-tableau-tailles';
+const APP_VERSION = 'v2026-08-19-codes-import';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
