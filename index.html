@@ -908,55 +908,55 @@ function traduireNoeud(node){
         <button type="button" id="ms-genre-femme" onclick="choisirGenreMesures('Femme')">Femme</button>
       </div>
       <div class="row3">
-        <div><label>Tour de cou</label><input id="ms-cou" type="number"></div>
-        <div><label>Épaule</label><input id="ms-epaule" type="number"></div>
-        <div><label>Tour poitrine</label><input id="ms-poitrine" type="number"></div>
+        <div><label>Tour de cou</label><input id="ms-cou" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Épaule</label><input id="ms-epaule" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Tour poitrine</label><input id="ms-poitrine" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
       </div>
       <div class="row3">
-        <div><label>Long. manche</label><input id="ms-longmanche" type="number"></div>
-        <div><label>Tour manche</label><input id="ms-tourmanche" type="number"></div>
-        <div><label>Poignet</label><input id="ms-poignet" type="number"></div>
+        <div><label>Long. manche</label><input id="ms-longmanche" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Tour manche</label><input id="ms-tourmanche" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Poignet</label><input id="ms-poignet" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
       </div>
       <div class="row2">
-        <div><label>Tour de taille</label><input id="ms-tourtaille" type="number"></div>
-        <div id="champ-longtaille-mesures"><label>Longueur de taille</label><input id="ms-longtaille" type="number"></div>
+        <div><label>Tour de taille</label><input id="ms-tourtaille" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div id="champ-longtaille-mesures"><label>Longueur de taille</label><input id="ms-longtaille" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
       </div>
       <div class="row3">
-        <div><label>Ceinture</label><input id="ms-ceinture" type="number"></div>
-        <div><label>Tour bassin</label><input id="ms-bassin" type="number"></div>
-        <div id="champ-pince-mesures"><label>Long. pince (pointe sein)</label><input id="ms-pince" type="number"></div>
+        <div><label>Ceinture</label><input id="ms-ceinture" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Tour bassin</label><input id="ms-bassin" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div id="champ-pince-mesures"><label>Long. pince (pointe sein)</label><input id="ms-pince" type="text" inputmode="decimal" placeholder="30 ou 30 - 40" oninput="separerPince()"></div>
       </div>
       <div class="row3">
-        <div id="champ-pincebas-mesures"><label>Long. pince (dessous sein)</label><input id="ms-pincebas" type="number"></div>
-        <div><label>Tour de cuisse</label><input id="ms-cuisse" type="number"></div>
-        <div><label>Tour de genou</label><input id="ms-tourgenou" type="number"></div>
-        <div><label>Bas du pantalon</label><input id="ms-baspantalon" type="number"></div>
+        <div id="champ-pincebas-mesures"><label>Long. pince (dessous sein)</label><input id="ms-pincebas" type="text" inputmode="decimal"></div>
+        <div><label>Tour de cuisse</label><input id="ms-cuisse" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Tour de genou</label><input id="ms-tourgenou" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Bas du pantalon</label><input id="ms-baspantalon" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
       </div>
       <div class="row2">
-        <div><label>Long. haut</label><input id="ms-longhaut" type="number"></div>
-        <div><label>Long. pantalon</label><input id="ms-longpantalon" type="number"></div>
+        <div><label>Long. haut</label><input id="ms-longhaut" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Long. pantalon</label><input id="ms-longpantalon" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
       </div>
       <div id="ms-champs-homme">
         <div style="color:var(--or);font-size:0.78rem;margin:10px 0 4px;letter-spacing:.5px;">CARNET HOMME — mesures complémentaires</div>
         <div class="row3">
-          <div><label>Carrure dos</label><input id="ms-carrure" type="number"></div>
-          <div><label>Long. chemise</label><input id="ms-longchemise" type="number"></div>
-          <div><label>Long. manche courte</label><input id="ms-manchecourte" type="number"></div>
+          <div><label>Carrure dos</label><input id="ms-carrure" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+          <div><label>Long. chemise</label><input id="ms-longchemise" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+          <div><label>Long. manche courte</label><input id="ms-manchecourte" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
         </div>
         <div class="row3">
-          <div><label>Long. veste</label><input id="ms-longveste" type="number"></div>
-          <div><label>Long. boubou</label><input id="ms-longboubou" type="number"></div>
-          <div><label>Tour de tête</label><input id="ms-tourtete" type="number"></div>
+          <div><label>Long. veste</label><input id="ms-longveste" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+          <div><label>Long. boubou</label><input id="ms-longboubou" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+          <div><label>Tour de tête</label><input id="ms-tourtete" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
         </div>
         <div class="row3">
-          <div><label>Entrejambe</label><input id="ms-entrejambe" type="number"></div>
-          <div><label>Montant (fourche)</label><input id="ms-montant" type="number"></div>
-          <div><label>Tour de mollet</label><input id="ms-mollet" type="number"></div>
+          <div><label>Entrejambe</label><input id="ms-entrejambe" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+          <div><label>Montant (fourche)</label><input id="ms-montant" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+          <div><label>Tour de mollet</label><input id="ms-mollet" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
         </div>
       </div>
       <div class="row2" id="ms-champs-femme" style="display:none;">
-        <div><label>Longueur de robe</label><input id="ms-longrobe" type="number"></div>
-        <div><label>Longueur de jupe</label><input id="ms-longjupe" type="number"></div>
+        <div><label>Longueur de robe</label><input id="ms-longrobe" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
+        <div><label>Longueur de jupe</label><input id="ms-longjupe" type="text" inputmode="decimal" placeholder="ex: 96 ou 96 - 101"></div>
       </div>
       <input type="hidden" id="ms-edit-id" value="">
       <button class="btn" id="btn-mesure" onclick="enregistrerMesure()">Enregistrer la fiche</button>
@@ -4997,6 +4997,21 @@ function tailleClient(f){
 /* 19/08 — Djamil veut aussi CONSULTER sa grille telle quelle, pour
    confectionner du pret-a-porter en serie sans partir des mesures d'une
    cliente. Simple lecture : rien n'est calcule ici. */
+/* 20/08 — Djamil ecrit ses pinces d'un seul jet : « 30 - 40 » (pointe de sein
+   puis dessous de sein). Les cases etaient en type=number : le tiret etait
+   refuse et la saisie s'effaçait. Elles sont donc passees en texte, et ce qui
+   suit repartit automatiquement la deuxieme valeur dans la case du dessous. */
+function separerPince(){
+  var a = document.getElementById('ms-pince');
+  var b = document.getElementById('ms-pincebas');
+  if(!a || !b) return;
+  var m = String(a.value||'').match(/(-?\d+(?:[.,]\d+)?)\s*[-\/–]\s*(-?\d+(?:[.,]\d+)?)/);
+  if(m){
+    a.value = m[1].replace(',', '.');
+    b.value = m[2].replace(',', '.');
+  }
+}
+
 function ouvrirTableauTailles(){
   var tableau = function(genre){
     var G = GRILLE_TAILLES[genre];
@@ -7045,7 +7060,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-20-pince';
+const APP_VERSION = 'v2026-08-20-deux-valeurs';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7355,7 +7370,17 @@ function appliquerImportMesures(mapping){
     var valeurs = {};
     Object.keys(f.codes).forEach(function(code){
       var cibles = mapping[code] || [];
-      (f.codes[code] || []).forEach(function(v, i){
+      var listeV = f.codes[code] || [];
+      /* 20/08 — Djamil note souvent deux valeurs pour une meme mesure (pres
+         du corps puis avec l'aisance) : « P = 110 - 115 ». Si le code n'a
+         qu'une destination, on garde les deux dans la meme case au lieu de
+         jeter la seconde ; les calculs lisent le premier nombre. */
+      if(cibles.length === 1 && listeV.length > 1){
+        var cle1 = cibles[0];
+        if(cle1 && MS_MAP[cle1]) valeurs[cle1] = listeV.join(' - ');
+        return;
+      }
+      listeV.forEach(function(v, i){
         var cle = cibles[i];
         if(cle && MS_MAP[cle]) valeurs[cle] = v;
       });
