@@ -924,9 +924,10 @@ function traduireNoeud(node){
       <div class="row3">
         <div><label>Ceinture</label><input id="ms-ceinture" type="number"></div>
         <div><label>Tour bassin</label><input id="ms-bassin" type="number"></div>
-        <div id="champ-pince-mesures"><label>Longueur de pince</label><input id="ms-pince" type="number"></div>
+        <div id="champ-pince-mesures"><label>Long. pince (pointe sein)</label><input id="ms-pince" type="number"></div>
       </div>
       <div class="row3">
+        <div id="champ-pincebas-mesures"><label>Long. pince (dessous sein)</label><input id="ms-pincebas" type="number"></div>
         <div><label>Tour de cuisse</label><input id="ms-cuisse" type="number"></div>
         <div><label>Tour de genou</label><input id="ms-tourgenou" type="number"></div>
         <div><label>Bas du pantalon</label><input id="ms-baspantalon" type="number"></div>
@@ -7044,7 +7045,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-19-codes-import';
+const APP_VERSION = 'v2026-08-20-pince';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -7101,7 +7102,7 @@ var MS_MAP = {
   longManche:'ms-longmanche', tourManche:'ms-tourmanche', poignet:'ms-poignet',
   tourTaille:'ms-tourtaille', longTaille:'ms-longtaille',
   ceinture:'ms-ceinture', bassin:'ms-bassin', cuisse:'ms-cuisse',
-  pince:'ms-pince', tourGenou:'ms-tourgenou', basPantalon:'ms-baspantalon',
+  pince:'ms-pince', pinceBas:'ms-pincebas', tourGenou:'ms-tourgenou', basPantalon:'ms-baspantalon',
   longHaut:'ms-longhaut', longPantalon:'ms-longpantalon',
   longRobe:'ms-longrobe', longJupe:'ms-longjupe',
   /* carnet homme, ajouté le 04/08 */
@@ -7114,7 +7115,8 @@ var MS_LIBELLES = {
   longManche:'Long. manche', tourManche:'Tour manche', poignet:'Poignet',
   tourTaille:'Tour de taille', longTaille:'Longueur de taille',
   ceinture:'Ceinture', bassin:'Tour bassin', cuisse:'Tour de cuisse',
-  pince:'Long. pince', tourGenou:'Tour de genou', basPantalon:'Bas du pantalon',
+  pince:'Long. pince (pointe sein)', pinceBas:'Long. pince (dessous sein)',
+  tourGenou:'Tour de genou', basPantalon:'Bas du pantalon',
   longHaut:'Long. haut', longPantalon:'Long. pantalon',
   longRobe:'Long. robe', longJupe:'Long. jupe',
   carrure:'Carrure dos', longChemise:'Long. chemise', mancheCourte:'Long. manche courte',
@@ -7122,7 +7124,7 @@ var MS_LIBELLES = {
   entrejambe:'Entrejambe', montant:'Montant (fourche)', mollet:'Tour de mollet'
 };
 /* Mesures propres à chaque carnet : le reste est commun aux deux. */
-var MS_CLES_FEMME = ['longRobe','longJupe','pince'];
+var MS_CLES_FEMME = ['longRobe','longJupe','pince','pinceBas'];
 var MS_CLES_HOMME = ['carrure','longChemise','mancheCourte','longVeste','longBoubou','tourTete','entrejambe','montant','mollet'];
 
 /* ============ IMPORT DE MESURES DEPUIS UNE FEUILLE (06/08) ============
@@ -7141,7 +7143,10 @@ var IMPORT_CODES_DEFAUT = {
   CEINT:['ceinture'], CEINTURE:['ceinture'],
   BSIN:['bassin'], BASSIN:['bassin'], HANCHE:['bassin'],
   CUIS:['cuisse'], CUISSE:['cuisse'],
-  LP:['longPantalon'], LONGPANT:['longPantalon'],
+  /* 20/08 — confirme par Djamil : dans SA feuille, LP = longueur de PINCE
+     (epaule -> pointe de sein, puis epaule -> dessous de sein), et non la
+     longueur de pantalon. Indispensable pour couper un bustier. */
+  LP:['pince','pinceBas'], LONGPANT:['longPantalon'], LPANT:['longPantalon'],
   BAS:['basPantalon'], BP:['basPantalon'],
   TT:['tourTaille'], TAILLE:['tourTaille'], LT:['longTaille'],
   GEN:['tourGenou'], GENOU:['tourGenou'],
@@ -7580,6 +7585,8 @@ function choisirGenreMesures(genre){
   if(champLongTaille) champLongTaille.style.display = genre==='Femme' ? 'block' : 'none';
   const champPince = document.getElementById('champ-pince-mesures');
   if(champPince) champPince.style.display = genre==='Femme' ? 'block' : 'none';
+  const champPinceBas = document.getElementById('champ-pincebas-mesures');
+  if(champPinceBas) champPinceBas.style.display = genre==='Femme' ? 'block' : 'none';
 }
 choisirGenreMesures('Homme');
 try { surveillerSaisieMesures(); } catch(e){}
