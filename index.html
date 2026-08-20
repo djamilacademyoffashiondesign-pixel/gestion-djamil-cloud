@@ -975,6 +975,7 @@ function traduireNoeud(node){
       </div>
       <button class="btn secondary" onclick="ouvrirTableauTailles()" style="margin:8px 0 0;">📐 Tableau des tailles standard</button>
       <button class="btn secondary" onclick="ouvrirCodesImport()" style="margin:8px 0 0;">🔤 Correspondance des codes d'import</button>
+      <button class="btn secondary" onclick="reparerPincesImportees()" style="margin:8px 0 0;">🩹 Corriger les pinces mal rangées</button>
       <button class="btn secondary" onclick="reclasserGenresParNom()" style="margin:8px 0;">👥 Corriger le genre d'après les noms</button>
       <button class="btn secondary" onclick="fusionnerDoublonsMesures()" style="margin:0 0 8px;">🧹 Repérer et fusionner les doublons</button>
       <div id="mesures-liste"></div>
@@ -5001,6 +5002,45 @@ function tailleClient(f){
    puis dessous de sein). Les cases etaient en type=number : le tiret etait
    refuse et la saisie s'effaçait. Elles sont donc passees en texte, et ce qui
    suit repartit automatiquement la deuxieme valeur dans la case du dessous. */
+/* 20/08 — Les imports faits AVANT la correction du code LP ont range la
+   longueur de PINCE dans « Long. pantalon » (d'ou des valeurs comme 30 sur
+   des fiches femme). Cet outil deplace la valeur au bon endroit. */
+function reparerPincesImportees(){
+  var fiches = (CACHE.clients_mesures||[]).filter(function(f){
+    var lp = f.longPantalon;
+    return lp != null && String(lp).trim() !== '';
+  });
+  var deplacables = fiches.filter(function(f){ return !f.pince || String(f.pince).trim() === ''; });
+  var bloquees = fiches.length - deplacables.length;
+  if(!fiches.length){ afficherInfo("Aucune fiche ne porte de longueur de pantalon : rien a corriger.", '🩹 Correction'); return; }
+  var apercu = deplacables.slice(0,10).map(function(f){
+    return '• ' + f.nom + ' : ' + f.longPantalon + ' → pince';
+  }).join('<br>');
+  ouvrirModale('🩹 Corriger les pinces mal rangées',
+    '<p><b>' + deplacables.length + '</b> fiche(s) dont la « Long. pantalon » sera déplacée vers « Long. pince (pointe sein) », puis vidée.</p>'
+    + (bloquees ? '<p style="font-size:.85rem;color:var(--or);">' + bloquees + ' fiche(s) ont déjà une pince renseignée : elles ne sont pas touchées.</p>' : '')
+    + '<p style="font-size:.85rem;color:var(--gris);">' + apercu
+    + (deplacables.length > 10 ? '<br>… et ' + (deplacables.length - 10) + ' autre(s)' : '') + '</p>',
+    [
+      {texte:'Corriger', action:function(){
+        var faites = 0;
+        deplacables.forEach(function(f){
+          var maj = { pince: String(f.longPantalon), longPantalon: '' };
+          Object.assign(f, maj);
+          faites++;
+          if(!String(f.id).startsWith('local_')){
+            db.collection('clients_mesures').doc(f.id).update(maj)
+              .catch(function(err){ echecEcriture('la correction de ' + f.nom, err, function(){}); });
+          }
+        });
+        noter('Pinces : ' + faites + ' fiche(s) corrigee(s)');
+        try { rendreMesures(); } catch(e){}
+        afficherInfo(faites + ' fiche(s) corrigee(s).', '✅ Correction');
+      }},
+      {texte:'Annuler', style:'secondary'}
+    ]);
+}
+
 function separerPince(){
   var a = document.getElementById('ms-pince');
   var b = document.getElementById('ms-pincebas');
@@ -7060,7 +7100,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-20-pince-visible';
+const APP_VERSION = 'v2026-08-20-reparer-pinces';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
