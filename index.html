@@ -3,6 +3,9 @@
 (function(){
   "use strict";
   var PAIRS = [
+    ["✏️ Corriger / supprimer une avance","✏️ Edit / delete an advance"],
+    ["✅ Avances corrigees","✅ Advances corrected"],
+    ["Mois deja regle","Month already settled"],
     ["Gestion Atelier · Pressing · Boutique","Workshop · Dry Cleaning · Boutique Management"],
     ["En ligne — synchronisé","Online — synced"],
     ["Messages clients :","Client messages:"],
@@ -306,6 +309,45 @@ function traduireNoeud(node){
   }
   .liste-item .nom{font-weight:700;color:var(--blanc);font-size:0.95rem;}
   .liste-item .meta{color:var(--gris);font-size:0.78rem;margin-top:3px;}
+  /* ---- Fiches de paie (22/08) : un box par employe, lisible d'un coup d'oeil.
+         La couleur de la barre de gauche dit l'etat du mois sans lire un mot :
+         vert = paye, or = avances notees, rouge = avances superieures au
+         salaire, gris = rien encore. ---- */
+  .paie-carte{
+    background:#1f1f23;
+    border:1px solid #2e2e33;
+    border-left:5px solid var(--gris);
+    border-radius:10px;
+    padding:12px 12px 10px;
+    margin-bottom:12px;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  .paie-carte.est-paye{border-left-color:var(--vert);background:#1b241d;}
+  .paie-carte.est-avance{border-left-color:var(--or);}
+  .paie-carte.est-alerte{border-left-color:var(--rouge);background:#241b1b;}
+  .paie-tete{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .paie-nom{font-weight:700;font-size:1.02rem;color:var(--blanc);}
+  .paie-etat{font-size:0.68rem;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:12px;white-space:nowrap;}
+  .paie-etat.vert{background:rgba(63,174,92,.18);color:#7ede97;}
+  .paie-etat.or{background:rgba(201,162,39,.18);color:var(--or-clair);}
+  .paie-etat.rouge{background:rgba(193,71,59,.22);color:#ff9d93;}
+  .paie-etat.gris{background:rgba(138,138,143,.18);color:#bdbdc2;}
+  .paie-sous{color:var(--gris);font-size:0.76rem;margin-top:2px;}
+  .paie-chiffres{display:flex;gap:6px;margin:10px 0 8px;text-align:center;}
+  .paie-chiffres > div{flex:1;background:rgba(255,255,255,.04);border-radius:8px;padding:7px 4px;}
+  .paie-chiffres .lab{display:block;font-size:0.6rem;letter-spacing:.05em;color:var(--gris);}
+  .paie-chiffres .val{display:block;font-size:1.05rem;font-weight:700;margin-top:2px;}
+  .paie-chiffres .val.or{color:var(--or-clair);}
+  .paie-chiffres .val.vert{color:#7ede97;}
+  .paie-chiffres .val.rouge{color:#ff9d93;}
+  .paie-jauge{height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .paie-jauge > span{display:block;height:100%;background:var(--or);}
+  .paie-jauge.pleine > span{background:var(--vert);}
+  .paie-jauge.trop > span{background:var(--rouge);}
+  .paie-note{font-size:0.74rem;color:var(--gris);margin-top:6px;}
+  .paie-jours{display:flex;align-items:center;gap:8px;margin-top:10px;}
+  .paie-jours label{margin:0;font-size:0.74rem;color:var(--gris);flex:1;}
+  .paie-jours input{margin:0;width:78px;text-align:center;}
   .badge{
     display:inline-block;
     padding:2px 8px;
@@ -7100,7 +7142,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-20-reparer-pinces';
+const APP_VERSION = 'v2026-08-22-avances-corrigeables';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -8587,6 +8629,205 @@ async function annulerPaiementSalaire(nomEncode, mois){
 function trouverSalaireMensuel(employeId, mois){
   return CACHE.salaires_mensuel.find(s=>s.employeId===employeId && s.mois===mois) || null;
 }
+/* ====================================================================
+   AVANCES DE SALAIRE — CORRIGER / SUPPRIMER  (ajoute le 22/08/2026)
+   Avant ce jour, une avance n'existait que sous la forme d'un TOTAL cumule
+   (montantVerse) : un montant mal tape ne pouvait plus etre ni corrige ni
+   retire, et rien ne disait de quelles avances ce total etait fait. C'est
+   aussi ce qui explique les montantVerse superieurs au salaire mensuel.
+   Desormais chaque avance est notee LIGNE PAR LIGNE dans le tableau
+   `avances` du document salaires_mensuel ; montantVerse reste la somme de
+   reference utilisee partout ailleurs (aucun autre calcul n'est touche).
+   Les avances saisies AVANT ce jour n'ont pas de detail : elles
+   apparaissent en une seule ligne "avances notees avant le detail",
+   corrigible en bloc.
+   ==================================================================== */
+function avancesDetail(enreg){
+  return (enreg && Array.isArray(enreg.avances)) ? enreg.avances.slice() : [];
+}
+function sommeAvancesDetail(enreg){
+  return avancesDetail(enreg).reduce(function(t,a){ return t + (parseFloat(a.montant)||0); }, 0);
+}
+/* Reliquat = ce que le total contient EN PLUS des lignes detaillees. */
+function reliquatAvances(enreg){
+  const total = (enreg && enreg.montantVerse) || 0;
+  return Math.max(0, Math.round((total - sommeAvancesDetail(enreg))*100)/100);
+}
+/* Point d'ecriture unique : cache, ecran, puis Firestore SANS await
+   (regle absolue de ce fichier : un await sur une ecriture peut ne jamais
+   revenir sur le reseau gambien et figer la fonction). */
+function appliquerAvances(enreg, lignes, nouveauTotal){
+  enreg.avances = lignes;
+  enreg.montantVerse = nouveauTotal;
+  rendreSalaires();
+  if(!String(enreg.id).startsWith('local_')){
+    db.collection('salaires_mensuel').doc(enreg.id).update({
+      avances: lignes,
+      montantVerse: nouveauTotal,
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(err){ echecEcriture('Correction des avances de salaire', err); });
+  }
+}
+/* Fenetre de fin : dit ce qui a change et propose de prevenir l'employe,
+   car il avait recu un message WhatsApp annoncant l'ancien montant. */
+function finCorrectionAvance(employe, nomEmploye, mois, ancien, nouveau, salaireMensuel){
+  const solde = Math.max(salaireMensuel - nouveau, 0);
+  let corps = '<p>Avances de <strong>' + nomEmploye + '</strong> pour ' + moisAffichage(mois) + ' :</p>'
+    + '<p style="font-size:1.1rem;">' + ancien + ' D &nbsp;→&nbsp; <strong style="color:var(--or-clair);">' + nouveau + ' D</strong></p>'
+    + '<p style="opacity:.85;">Solde prevu en fin de mois : ' + solde + ' D</p>';
+  const boutons = [{texte:'Fermer', style:'secondary'}];
+  if(employe && employe.tel){
+    boutons.unshift({texte:'💬 Prevenir l\'employe', action:function(){
+      const msg = texteMsg(
+        'Bonjour ' + nomEmploye + ', correction sur votre salaire de ' + moisAffichage(mois) + ' : le total des avances notees est maintenant de ' + nouveau + ' D (au lieu de ' + ancien + ' D). Solde prevu en fin de mois : ' + solde + ' D.',
+        'Hello ' + nomEmploye + ', correction on your ' + moisAffichage(mois) + ' salary: total advances noted is now ' + nouveau + ' D (instead of ' + ancien + ' D). Expected balance at month end: ' + solde + ' D.'
+      );
+      ouvrirLienWhatsApp(nomEmploye, lienWhatsApp(employe.tel, msg), 'Correction avance ' + moisAffichage(mois));
+    }});
+  }
+  ouvrirModale('✅ Avances corrigees', corps, boutons);
+}
+/* Fenetre principale : liste les avances du mois, une par une. */
+async function ouvrirAvancesSalaire(employeId, nomEmploye){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  const salaireMensuel = (employe && employe.salaireMensuel) || (enreg && enreg.salaireMensuel) || 0;
+  if(!enreg || !((enreg.montantVerse||0) > 0)){
+    afficherInfo('Aucune avance n\'est notee pour ' + nomEmploye + ' en ' + moisAffichage(mois) + '.<br><br>Verifiez le mois choisi en haut de l\'ecran Salaires : une avance tapee par erreur peut se trouver sur un autre mois.', 'Avances de salaire');
+    return;
+  }
+  if(enreg.paye===true){
+    ouvrirModale('Mois deja regle', '<p>Le salaire de <strong>' + nomEmploye + '</strong> est marque PAYE pour ' + moisAffichage(mois) + ' : le salaire complet est deja passe en depense.</p><p>Les avances ne se corrigent plus a ce stade. Pour revenir en arriere, annulez d\'abord le paiement, puis rouvrez cette fenetre.</p>', [
+      {texte:'↩️ Annuler le paiement', action:function(){ annulerPaiementSalaire(encodeURIComponent(nomEmploye), mois); }},
+      {texte:'Fermer', style:'secondary'}
+    ]);
+    return;
+  }
+  const lignes = avancesDetail(enreg);
+  const reliquat = reliquatAvances(enreg);
+  const total = enreg.montantVerse||0;
+  let corps = '<p style="margin:0 0 8px;">' + nomEmploye + ' — ' + moisAffichage(mois)
+    + '<br><span style="opacity:.8;">Salaire mensuel : ' + salaireMensuel + ' D</span></p>'
+    + '<p style="font-size:1.15rem;margin:0 0 12px;">Total des avances notees : <strong style="color:var(--or-clair);">' + total + ' D</strong></p>';
+  if(salaireMensuel>0 && total>salaireMensuel){
+    corps += '<p style="color:#ffb3b3;margin:0 0 12px;">⚠️ Ce total DEPASSE le salaire mensuel. C\'est le signe d\'une avance tapee en trop, ou notee deux fois.</p>';
+  }
+  if(reliquat>0){
+    corps += '<div style="border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;margin-bottom:8px;">'
+      + '<div><strong>' + reliquat + ' D</strong> — avances notees avant le detail</div>'
+      + '<div style="opacity:.75;font-size:.85rem;margin:4px 0 8px;">Ces avances ont ete saisies avant la mise en place du detail : elles ne peuvent se corriger qu\'en bloc.</div>'
+      + '<button class="btn secondary" onclick="corrigerReliquatAvances(\'' + employeId + '\')">✏️ Corriger ce montant</button>'
+      + '</div>';
+  }
+  lignes.forEach(function(a){
+    const m = parseFloat(a.montant)||0;
+    corps += '<div style="border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;margin-bottom:8px;">'
+      + '<div><strong>' + m + ' D</strong>' + (a.date ? ' <span style="opacity:.7;">— ' + a.date + '</span>' : '') + '</div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">'
+      + '<button class="btn secondary" style="flex:1;" onclick="corrigerLigneAvance(\'' + employeId + '\',' + a.ms + ')">✏️ Corriger</button>'
+      + '<button class="btn secondary" style="flex:1;" onclick="supprimerLigneAvance(\'' + employeId + '\',' + a.ms + ')">🗑️ Supprimer</button>'
+      + '</div></div>';
+  });
+  corps += '<p style="opacity:.75;font-size:.85rem;margin-top:10px;">Corriger une avance ne touche NI les recettes NI les depenses : une avance est seulement notee, le salaire n\'entre en depense qu\'au paiement du solde.</p>';
+  ouvrirModale('💰 Avances de ' + nomEmploye, corps, [
+    {texte:'✏️ Corriger le total', action:function(){ corrigerTotalAvances(employeId, nomEmploye); }},
+    {texte:'🗑️ Tout effacer', action:function(){ effacerToutesAvances(employeId, nomEmploye); }},
+    {texte:'Fermer', style:'secondary'}
+  ]);
+}
+/* Corrige UNE ligne. Le champ s'ouvre VIDE (piege deja vecu : preremplir
+   fait garder l'ancienne valeur quand on tape sans effacer). 0 = supprimer. */
+async function corrigerLigneAvance(employeId, ms){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  if(!enreg) return;
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  const nomEmploye = enreg.employeNom || (employe && employe.nom) || '';
+  const lignes = avancesDetail(enreg);
+  const ligne = lignes.find(function(a){ return String(a.ms)===String(ms); });
+  if(!ligne){ toast('Avance introuvable'); return; }
+  if(!await demanderCodeAdmin('Corriger une avance de salaire')) return;
+  const saisie = await demanderTexte('Avance actuelle : ' + (parseFloat(ligne.montant)||0) + ' D.\nNouveau montant en D (0 pour la supprimer) :');
+  if(saisie===null) return;
+  const nouveau = parseFloat(saisie);
+  if(isNaN(nouveau) || nouveau<0){ toast('Montant invalide'); return; }
+  const ancienTotal = enreg.montantVerse||0;
+  const restantes = (nouveau===0) ? lignes.filter(function(a){ return String(a.ms)!==String(ms); })
+                                  : lignes.map(function(a){ return String(a.ms)===String(ms) ? Object.assign({}, a, {montant:nouveau, corrigeLe:dateAujourdhui()}) : a; });
+  const nouveauTotal = Math.max(0, Math.round((reliquatAvances(enreg) + restantes.reduce(function(t,a){ return t+(parseFloat(a.montant)||0); },0))*100)/100);
+  appliquerAvances(enreg, restantes, nouveauTotal);
+  finCorrectionAvance(employe, nomEmploye, mois, ancienTotal, nouveauTotal, (employe && employe.salaireMensuel)||0);
+}
+async function supprimerLigneAvance(employeId, ms){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  if(!enreg) return;
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  const nomEmploye = enreg.employeNom || (employe && employe.nom) || '';
+  const lignes = avancesDetail(enreg);
+  const ligne = lignes.find(function(a){ return String(a.ms)===String(ms); });
+  if(!ligne){ toast('Avance introuvable'); return; }
+  if(!await demanderCodeAdmin('Supprimer une avance de salaire')) return;
+  if(!await confirmerModale('Supprimer cette avance ?', 'Avance de <strong>' + (parseFloat(ligne.montant)||0) + ' D</strong>' + (ligne.date ? ' du ' + ligne.date : '') + ' pour ' + nomEmploye + '.<br><br>Elle sera retiree du total des avances du mois. Aucune recette ni depense n\'est touchee.', '🗑️ Supprimer', 'Non, la garder')) return;
+  const ancienTotal = enreg.montantVerse||0;
+  const restantes = lignes.filter(function(a){ return String(a.ms)!==String(ms); });
+  const nouveauTotal = Math.max(0, Math.round((reliquatAvances(enreg) + restantes.reduce(function(t,a){ return t+(parseFloat(a.montant)||0); },0))*100)/100);
+  appliquerAvances(enreg, restantes, nouveauTotal);
+  finCorrectionAvance(employe, nomEmploye, mois, ancienTotal, nouveauTotal, (employe && employe.salaireMensuel)||0);
+}
+/* Corrige le bloc des avances anterieures au detail. */
+async function corrigerReliquatAvances(employeId){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  if(!enreg) return;
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  const nomEmploye = enreg.employeNom || (employe && employe.nom) || '';
+  if(!await demanderCodeAdmin('Corriger les avances de salaire')) return;
+  const saisie = await demanderTexte('Avances notees avant le detail : ' + reliquatAvances(enreg) + ' D.\nNouveau montant en D (0 pour les effacer) :');
+  if(saisie===null) return;
+  const nouveauReliquat = parseFloat(saisie);
+  if(isNaN(nouveauReliquat) || nouveauReliquat<0){ toast('Montant invalide'); return; }
+  const lignes = avancesDetail(enreg);
+  const ancienTotal = enreg.montantVerse||0;
+  const nouveauTotal = Math.max(0, Math.round((nouveauReliquat + lignes.reduce(function(t,a){ return t+(parseFloat(a.montant)||0); },0))*100)/100);
+  appliquerAvances(enreg, lignes, nouveauTotal);
+  finCorrectionAvance(employe, nomEmploye, mois, ancienTotal, nouveauTotal, (employe && employe.salaireMensuel)||0);
+}
+/* Fixe directement le total du mois : remplace tout le detail par une
+   seule ligne, pour que total et detail restent d'accord. */
+async function corrigerTotalAvances(employeId, nomEmploye){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  if(!enreg) return;
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  if(!await demanderCodeAdmin('Corriger le total des avances')) return;
+  const saisie = await demanderTexte('Total actuel des avances : ' + (enreg.montantVerse||0) + ' D.\nTotal exact a retenir pour ' + moisAffichage(mois) + ' (en D) :');
+  if(saisie===null) return;
+  const nouveau = parseFloat(saisie);
+  if(isNaN(nouveau) || nouveau<0){ toast('Montant invalide'); return; }
+  const ancienTotal = enreg.montantVerse||0;
+  const lignes = nouveau>0 ? [{ms:Date.now(), montant:nouveau, date:dateAujourdhui(), note:'total corrige'}] : [];
+  appliquerAvances(enreg, lignes, nouveau);
+  finCorrectionAvance(employe, nomEmploye, mois, ancienTotal, nouveau, (employe && employe.salaireMensuel)||0);
+}
+async function effacerToutesAvances(employeId, nomEmploye){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  if(!enreg) return;
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  if(!await demanderCodeAdmin('Effacer les avances de salaire')) return;
+  if(!await confirmerModale('Tout effacer ?', 'Toutes les avances de <strong>' + nomEmploye + '</strong> pour ' + moisAffichage(mois) + ' (' + (enreg.montantVerse||0) + ' D) seront remises a zero.<br><br>Le salaire du mois redeviendra du en entier. Aucune recette ni depense n\'est touchee.', '🗑️ Tout effacer', 'Non, garder')) return;
+  const ancienTotal = enreg.montantVerse||0;
+  appliquerAvances(enreg, [], 0);
+  finCorrectionAvance(employe, nomEmploye, mois, ancienTotal, 0, (employe && employe.salaireMensuel)||0);
+}
 async function ajouterAvanceSalaire(employeId, nomEmploye){
   const saisie = await demanderTexte('Montant de l\'avance/versement pour '+nomEmploye+' (D) :');
   if(saisie===null) return;
@@ -8599,28 +8840,33 @@ async function ajouterAvanceSalaire(employeId, nomEmploye){
 
   if(enreg){
     enreg.montantVerse = (enreg.montantVerse||0) + montant;
+    /* 22/08 : chaque avance est aussi notee ligne par ligne, pour pouvoir
+       la corriger ou la supprimer ensuite (ouvrirAvancesSalaire). */
+    enreg.avances = avancesDetail(enreg).concat([{ms:Date.now(), montant:montant, date:dateAujourdhui()}]);
     montantVerseTotal = enreg.montantVerse;
     rendreSalaires();
     if(!String(enreg.id).startsWith('local_')){
       db.collection('salaires_mensuel').doc(enreg.id).update({
+        avances: enreg.avances,
         montantVerse: enreg.montantVerse,
         misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
       }).catch(err=>echecEcriture('Mise à jour avance salaire', err));
     }
   } else {
     montantVerseTotal = montant;
+    const detailInitial = [{ms:Date.now(), montant:montant, date:dateAujourdhui()}];
     const nouveau = {
       id:'local_'+Date.now(),
       employeId, employeNom: nomEmploye,
       mois, salaireMensuel: employe?employe.salaireMensuel:0,
-      montantVerse: montant, joursPresents: 0
+      montantVerse: montant, joursPresents: 0, avances: detailInitial
     };
     CACHE.salaires_mensuel.push(nouveau);
     rendreSalaires();
     db.collection('salaires_mensuel').add({
       employeId, employeNom: nomEmploye, mois,
       salaireMensuel: nouveau.salaireMensuel,
-      montantVerse: montant, joursPresents: 0,
+      montantVerse: montant, joursPresents: 0, avances: detailInitial,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
     }).catch(err=>echecEcriture('Ajout salaire mensuel', err));
   }
@@ -8795,28 +9041,56 @@ function rendreSalaires(){
     const joursPresents = enreg ? (enreg.joursPresents||0) : 0;
     const paye = enreg ? (enreg.paye===true || avances>=salaireMensuel) : false;
     const solde = Math.max(salaireMensuel - avances, 0);
+    const trop = salaireMensuel>0 && avances>salaireMensuel && enreg && enreg.paye!==true;
     totalSalaires += salaireMensuel;
     totalAvances += Math.min(avances, salaireMensuel);
     if(!paye) totalRestant += solde;
 
-    let ligneSolde;
-    if(paye){
-      ligneSolde = '✅ Payé en totalité pour '+moisAffichage(mois);
+    /* Etat du mois : une couleur, un mot. */
+    let classeCarte, classeEtat, texteEtat;
+    if(trop){ classeCarte='est-alerte'; classeEtat='rouge'; texteEtat='\u26a0\ufe0f \u00c0 V\u00c9RIFIER'; }
+    else if(paye){ classeCarte='est-paye'; classeEtat='vert'; texteEtat='\u2705 PAY\u00c9'; }
+    else if(avances>0){ classeCarte='est-avance'; classeEtat='or'; texteEtat='\ud83d\udcb0 AVANCES'; }
+    else { classeCarte=''; classeEtat='gris'; texteEtat='\u23f3 RIEN NOT\u00c9'; }
+
+    const pourcent = salaireMensuel>0 ? Math.min(Math.round(avances/salaireMensuel*100),100) : 0;
+    const classeJauge = trop ? 'trop' : (paye ? 'pleine' : '');
+    const classeSolde = trop ? 'rouge' : (paye ? 'vert' : '');
+
+    let note;
+    if(trop){
+      note = 'Les avances d\u00e9passent le salaire mensuel de ' + (avances-salaireMensuel) + ' D \u2014 une avance a d\u00fb \u00eatre tap\u00e9e en trop.';
+    } else if(paye){
+      note = 'Salaire de ' + moisAffichage(mois) + ' r\u00e9gl\u00e9 en totalit\u00e9.';
     } else if(deductionActive){
-      ligneSolde = 'Avances déduites: '+avances+' D · <strong>Solde à payer: '+solde+' D</strong>';
+      note = 'Fin de mois : le solde de ' + solde + ' D est \u00e0 verser maintenant.';
+    } else if(avances===0){
+      note = 'Aucune avance not\u00e9e \u2014 salaire entier d\u00fb en fin de mois.';
     } else {
-      ligneSolde = 'Avances notées: '+avances+' D · Déduction en fin de mois (à partir du 30) — solde prévu: '+solde+' D';
+      note = 'Avances not\u00e9es \u2014 d\u00e9duction en fin de mois (\u00e0 partir du 30).';
     }
 
-    return `<div class="liste-item">
-      <div class="nom">${e.nom} ${e.poste ? '<span class="badge attente">'+e.poste+'</span>' : ''}</div>
-      <div class="meta">Salaire mensuel: ${salaireMensuel} D — ${moisAffichage(mois)} ${e.tel ? '· 📞 '+e.tel : ''}</div>
-      <div class="meta">${ligneSolde}</div>
-      <label style="margin-top:8px;">Jours présents ce mois</label>
-      <input type="number" min="0" max="31" value="${joursPresents}" onchange="mettreAJourJoursPresents('${e.id}','${e.nom.replace(/'/g,"\\'")}',this.value)">
+    return `<div class="paie-carte ${classeCarte}">
+      <div class="paie-tete">
+        <div class="paie-nom">${e.nom}</div>
+        <span class="paie-etat ${classeEtat}">${texteEtat}</span>
+      </div>
+      <div class="paie-sous">${e.poste ? e.poste+' · ' : ''}${moisAffichage(mois)}${e.tel ? ' · 📞 '+e.tel : ''}</div>
+      <div class="paie-chiffres">
+        <div><span class="lab">SALAIRE</span><span class="val">${salaireMensuel}</span></div>
+        <div><span class="lab">AVANCES</span><span class="val or">${avances}</span></div>
+        <div><span class="lab">${trop ? 'EN TROP' : (paye ? 'PAYÉ' : 'RESTE')}</span><span class="val ${classeSolde}">${trop ? (avances-salaireMensuel) : (paye ? salaireMensuel : solde)}</span></div>
+      </div>
+      <div class="paie-jauge ${classeJauge}"><span style="width:${paye?100:pourcent}%;"></span></div>
+      <div class="paie-note">${note}</div>
+      <div class="paie-jours">
+        <label>Jours présents ce mois</label>
+        <input type="number" min="0" max="31" value="${joursPresents}" onchange="mettreAJourJoursPresents('${e.id}','${e.nom.replace(/'/g,"\\'")}',this.value)">
+      </div>
       <div class="item-actions">
-        <button onclick="ajouterAvanceSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Noter une avance</button>
-        ${(!paye && deductionActive) ? `<button onclick="payerSoldeMois('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--vert);border-color:rgba(63,250,92,0.35);">✅ Payer le solde du mois</button>` : ''}
+        ${!paye ? `<button onclick="ajouterAvanceSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Noter une avance</button>` : ''}
+        ${avances>0 ? `<button onclick="ouvrirAvancesSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')">✏️ Corriger / supprimer</button>` : ''}
+        ${(!paye && deductionActive) ? `<button onclick="payerSoldeMois('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">✅ Payer le solde</button>` : ''}
       </div>
     </div>`;
   }).join('');
