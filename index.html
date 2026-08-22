@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -1105,6 +1105,7 @@ function traduireNoeud(node){
       <h2>Bilan — Recettes, Dépenses, Solde</h2>
       <div class="item-actions" style="margin-bottom:10px;">
         <button onclick="diagnostiquerRecettes()">🔎 Pourquoi une recette n'apparaît pas ?</button>
+        <button onclick="ouvrirCorrectionsFinances()">➖ D'où viennent les corrections ?</button>
         <button onclick="fichesAPointer()">🧾 Clients payés mais restés en impayé</button>
       </div>
       <div id="finances-bilan"></div>
@@ -2618,6 +2619,52 @@ function avertirSiJourneeDejaCloturee(){
 /* ================= VERIFICATION DES RECETTES DU JOUR =================
    Permet de voir, rayon par rayon, ce qui est compte aujourd'hui et d'enlever
    une ligne mal rangee, meme apres la cloture. */
+/* ====================================================================
+   D'OU VIENNENT LES CORRECTIONS ? (22/08/2026)
+   Une ligne d'argent NEGATIVE (annulation, avance corrigee a la baisse,
+   remboursement) est enregistree comme une recette negative. Melangee aux
+   vraies recettes, elle pouvait faire afficher "-35 000 D" a l'Atelier un
+   jour ou la caisse avait bien encaisse de l'argent. Cette fenetre les
+   sort une par une, avec leur date et leur libelle, pour retrouver
+   laquelle a ete saisie par erreur — et la supprimer si besoin.
+   ==================================================================== */
+function ouvrirCorrectionsFinances(){
+  const negatives = (CACHE.transactions||[]).filter(function(t){ return (Number(t.montant)||0) < 0; });
+  if(!negatives.length){
+    afficherInfo('Aucune correction négative n\'est enregistrée. Les recettes affichées sont uniquement de l\'argent encaissé.', 'Corrections');
+    return;
+  }
+  negatives.sort(function(a,b){ return String(b.dateISO||'').localeCompare(String(a.dateISO||'')); });
+  const iso = dateISOAujourdhui();
+  const total = negatives.reduce(function(s,t){ return s - (Number(t.montant)||0); }, 0);
+  const duJour = negatives.filter(function(t){ return t.dateISO===iso; });
+  let corps = '<div class="liste-item"><div class="nom">' + negatives.length + ' correction(s) — ' + total + ' D retirés au total</div>'
+    + (duJour.length ? '<div class="meta" style="color:var(--rouge);margin-top:4px;">Dont ' + duJour.length + ' aujourd\'hui : ' + duJour.reduce(function(s,t){ return s-(Number(t.montant)||0); },0) + ' D retirés du jour</div>' : '')
+    + '<div class="meta" style="margin-top:6px;">Ce sont des lignes d\'argent NÉGATIVES : annulation, avance corrigée à la baisse, remboursement. Si l\'une a été saisie par erreur, supprimez-la : les recettes du jour remonteront d\'autant.</div></div>';
+  corps += negatives.slice(0,40).map(function(t){
+    const dujour = t.dateISO===iso;
+    return '<div class="liste-item" style="border-left:3px solid var(--rouge);">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span>' + (t.source||'Général') + (dujour ? ' · aujourd\'hui' : '') + '</span>'
+      +   '<span style="color:var(--rouge);">' + t.montant + ' D</span></div>'
+      + '<div class="meta">' + (t.date || t.dateISO || '') + ' — ' + (t.description||'sans description') + '</div>'
+      + '<div style="margin-top:7px;"><button class="del" onclick="supprimerCorrectionFinance(\'' + t.id + '\')">🗑️ Supprimer cette correction</button></div>'
+      + '</div>';
+  }).join('');
+  ouvrirModale('➖ Corrections enregistrées', corps);
+}
+async function supprimerCorrectionFinance(id){
+  const t = (CACHE.transactions||[]).find(function(x){ return x.id === id; });
+  if(!t) return;
+  if(!await demanderCodeAdmin('Supprimer une correction')) return;
+  if(!await confirmerModale('Supprimer cette correction ?',
+      '<p>' + t.montant + ' D — ' + (t.description||'') + '</p>'
+      + '<p style="font-size:.85rem;color:var(--gris);">Les recettes de ' + (t.date||t.dateISO||'ce jour') + ' remonteront de ' + Math.abs(Number(t.montant)||0) + ' D. À faire uniquement si cette correction était une erreur.</p>',
+      '🗑️ Supprimer', 'Non, la garder')) return;
+  document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
+  await supprimerRecettes([t]);
+  ouvrirCorrectionsFinances();
+}
 function ouvrirRecettesDuJour(){
   const iso = dateISOAujourdhui();
   const dujour = (CACHE.transactions||[]).filter(function(t){ return t.dateISO === iso; });
@@ -2775,6 +2822,7 @@ async function corrigerAvanceAtelier(id){
      et ne pouvait pas remettre une fiche a zero. */
   const saisie = await demanderTexte('Nouveau montant de l\'avance pour '+c.nom+' — actuellement '+c.acompte+' D.\n\nTape le montant total reçu (0 si le client n\'a rien versé) :');
   if(saisie===null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
   /* 03/08 — cas signale par Djamil : un paiement peut avoir DEJA ete compte
@@ -2792,6 +2840,15 @@ async function corrigerAvanceAtelier(id){
     dateSaisie = d;
   }
   const difference = nouveauMontant - c.acompte;
+  /* Une correction a la BAISSE retire de l'argent des recettes du jour : on
+     le dit clairement avant, sinon le bilan devient negatif sans explication. */
+  if(!dejaCompte && difference < 0){
+    if(!await confirmerModale('⚠️ Cette correction retire de l\'argent',
+        '<p>L\'avance passe de <b>' + c.acompte + ' D</b> à <b>' + nouveauMontant + ' D</b>.</p>'
+        + '<p style="color:#ffb3b3;">Une ligne de <b>' + difference + ' D</b> sera écrite dans les recettes : le total du jour BAISSERA de ' + Math.abs(difference) + ' D.</p>'
+        + '<p style="font-size:.85rem;color:var(--gris);">À faire seulement si cet argent n\'a jamais été reçu. Si le client a bien payé, annulez.</p>',
+        'Oui, retirer cet argent', 'Non, annuler')) return;
+  }
   c.acompte = nouveauMontant;
   rendreAtelier();
   db.collection('commandes_couture').doc(id).update({acompte:nouveauMontant})
@@ -2909,6 +2966,7 @@ async function corrigerPrixAtelier(id){
   if(!c) return;
   const saisie = await demanderTexte('Nouveau prix total pour '+c.nom+' (actuellement '+c.prix+' D) :', c.prix);
   if(saisie===null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const nouveauPrix = Number(saisie);
   if(isNaN(nouveauPrix) || nouveauPrix<0){ toast('Montant invalide'); return; }
   if(nouveauPrix < c.acompte){ toast('⚠️ Ce prix est inférieur à l\'acompte déjà reçu ('+c.acompte+' D) — corrigez d\'abord l\'acompte si besoin'); return; }
@@ -3536,6 +3594,7 @@ async function ajouterContrat(){
   if(tel===null) return;
   const saisie = await demanderTexte('Montant fixe à payer chaque mois (D) :', '12000');
   if(saisie===null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const montant = Number(saisie);
   if(isNaN(montant) || montant<=0){ toast('Montant invalide'); return; }
   const activite = await confirmerModale('Confirmation', 'Ce contrat concerne-t-il le PRESSING ?\n\nOK = Pressing · Annuler = Atelier') ? 'Pressing' : 'Atelier';
@@ -3556,6 +3615,7 @@ async function encaisserContrat(id){
   if(paiementContrat(id, mois)){ toast('Ce mois est déjà réglé'); return; }
   const saisie = await demanderTexte('Montant reçu de ' + c.nom + ' pour ' + moisAffichage(mois) + ' (D) :', c.montantMensuel);
   if(saisie===null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const montant = Number(saisie);
   if(isNaN(montant) || montant<=0){ toast('Montant invalide'); return; }
   const rep = await demanderTexte('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
@@ -3596,6 +3656,7 @@ async function modifierContrat(id){
   if(!c) return;
   const saisie = await demanderTexte('Montant mensuel de ' + c.nom + ' (D) — mettez 0 pour arrêter l\'abonnement :', c.montantMensuel);
   if(saisie===null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const montant = Number(saisie);
   if(isNaN(montant) || montant<0){ toast('Montant invalide'); return; }
   const modifs = montant===0 ? {actif:false} : {montantMensuel:montant};
@@ -4343,6 +4404,7 @@ async function corrigerAvancePressing(id){
   if(!t) return;
   const saisie = await demanderTexte('Corriger le montant de l\'avance reçue pour '+t.nom+' (actuellement '+t.avance+' D) :', t.avance);
   if(saisie===null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const nouveauMontant = Number(saisie);
   if(isNaN(nouveauMontant) || nouveauMontant<0){ toast('Montant invalide'); return; }
   const dateSaisie = await demanderTexte('Date à laquelle cet argent a réellement été reçu (AAAA-MM-JJ) — laissez tel quel si c\'est aujourd\'hui :', dateISOAujourdhui());
@@ -4389,6 +4451,7 @@ async function corrigerPrixPressing(id){
   if(!t) return;
   const saisie = await demanderTexte('Nouveau prix total pour '+t.nom+' (actuellement '+t.prix+' D) :', t.prix);
   if(saisie===null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const nouveauPrix = Number(saisie);
   if(isNaN(nouveauPrix) || nouveauPrix<0){ toast('Montant invalide'); return; }
   if(nouveauPrix < t.avance){ toast('⚠️ Ce prix est inférieur à l\'avance déjà reçue ('+t.avance+' D) — corrigez d\'abord l\'avance si besoin'); return; }
@@ -7331,7 +7394,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-22-recette-avant-ecran';
+const APP_VERSION = 'v2026-08-22-champ-vide-protege';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -8417,6 +8480,7 @@ async function rattraperRecette(source, code, montant, nomEncode){
   if(!await demanderCodeAdmin('Enregistrer une recette manquante')) return;
   const saisie = await demanderTexte('Montant réellement reçu (D) :', montant);
   if(saisie === null) return;
+  if(String(saisie).trim()===''){ toast('Aucun montant tapé — rien n\'a changé'); return; }   /* 22/08 : Number('') vaut 0, pas une erreur : valider un champ VIDE remettait le montant à zéro et écrivait une correction négative dans les Finances (cas Youssouf −52 000 D). */
   const m = Number(saisie);
   if(isNaN(m) || m<=0){ toast('Montant invalide'); return; }
   const rep = await demanderTexte('Date de réception (AAAA-MM-JJ) :', dateISOAujourdhui());
@@ -9373,12 +9437,23 @@ function rendreBilanFinances(){
 
   function totauxParActivite(filtreFn, sortirSalaires){
     const lignes = ACTIVITES.map(a=>{
-      const recettes = transactions.filter(t=>filtreFn(t.dateISO) && (t.source||'Général')===a.cle).reduce((s,t)=>s+(t.montant||0),0);
+      /* 22/08 : "Recettes" additionnait l'argent REELLEMENT encaisse et les
+         corrections negatives (annulation, avance corrigee a la baisse,
+         remboursement). Une seule correction rendait la ligne negative alors
+         que la caisse avait bien recu de l'argent : le bilan ne montrait plus
+         les vrais chiffres. Les deux sont desormais separes A L'ECRAN ; le
+         solde, lui, ne change pas d'un franc. */
+      const mouvements  = transactions.filter(t=>filtreFn(t.dateISO) && (t.source||'Général')===a.cle);
+      const encaisse    = mouvements.filter(t=>(t.montant||0)>0).reduce((s,t)=>s+t.montant,0);
+      const corrections = mouvements.filter(t=>(t.montant||0)<0).reduce((s,t)=>s-t.montant,0);
+      const recettes = encaisse - corrections;
       const sorties  = depenses.filter(d=>filtreFn(dateComptable(d)) && (d.activite||'Général')===a.cle && !(sortirSalaires && estSalaire(d))).reduce((s,d)=>s+(d.montant||0),0);
-      return {...a, recettes, sorties, solde: recettes-sorties};
+      return {...a, recettes, encaisse, corrections, sorties, solde: recettes-sorties};
     });
     const total = {
       recettes: lignes.reduce((s,l)=>s+l.recettes,0),
+      encaisse: lignes.reduce((s,l)=>s+l.encaisse,0),
+      corrections: lignes.reduce((s,l)=>s+l.corrections,0),
       sorties:  lignes.reduce((s,l)=>s+l.sorties,0)
     };
     total.solde = total.recettes-total.sorties;
@@ -9413,7 +9488,7 @@ function rendreBilanFinances(){
        "Général" n'apparaît que s'il y a réellement des mouvements. */
     const detail = res.lignes
       .filter(l => l.cle!=='Général' || l.recettes || l.sorties)
-      .map(l=>`<div class="meta">${l.icone} ${l.cle} — Recettes: ${l.recettes} D · Dépenses: ${l.sorties} D · <span style="color:${l.solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${l.solde} D</span></div>`)
+      .map(l=>`<div class="meta">${l.icone} ${l.cle} — Encaissé: ${l.encaisse} D${l.corrections ? ` · <span style="color:var(--rouge);">Corrections: −${l.corrections} D</span>` : ''} · Dépenses: ${l.sorties} D · <span style="color:${l.solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${l.solde} D</span></div>`)
       .join('');
     /* Les salaires sortis du calcul sont tout de même annoncés, pour que
        l'argent ne disparaisse jamais de l'écran sans explication. */
@@ -9424,7 +9499,7 @@ function rendreBilanFinances(){
       <div class="nom">${titre}</div>
       ${detail}
       ${ligneSalaires}
-      <div class="meta" style="border-top:1px solid rgba(255,255,255,0.18);margin-top:6px;padding-top:6px;font-weight:800;color:${res.total.solde>=0?'var(--vert)':'var(--rouge)'};">TOTAL — Recettes: ${res.total.recettes} D · Dépenses: ${res.total.sorties} D · Solde: ${res.total.solde} D</div>
+      <div class="meta" style="border-top:1px solid rgba(255,255,255,0.18);margin-top:6px;padding-top:6px;font-weight:800;color:${res.total.solde>=0?'var(--vert)':'var(--rouge)'};">TOTAL — Encaissé: ${res.total.encaisse} D${res.total.corrections ? ` · Corrections: −${res.total.corrections} D` : ''} · Dépenses: ${res.total.sorties} D · Solde: ${res.total.solde} D</div>
     </div>`;
   }
   const libelleAnnee = 'Année en cours ('+maintenant.getFullYear()+') — bilan annuel';
