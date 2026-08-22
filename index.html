@@ -2379,6 +2379,47 @@ async function enregistrerContactSansEcraserMesures(nom, tel, genre){
   await db.collection('clients_mesures').add(Object.assign({}, fiche, {misAJourLe: firebase.firestore.FieldValue.serverTimestamp()}));
 }
 
+/* Envoie les photos APRES que la commande soit enregistree, sans bloquer
+   l'ecran. Quand elles arrivent, on retrouve la commande par son code et on
+   les raccroche. Si le reseau ne suit pas, la commande reste valable : les
+   boutons « 📷 Photo tissu » et « 📷 Photo modèle » permettent de les
+   ajouter plus tard. */
+function televerserPhotosCommandeEnFond(code, fichiersTissu, fichiersModele){
+  fichiersTissu = fichiersTissu||[]; fichiersModele = fichiersModele||[];
+  if(!fichiersTissu.length && !fichiersModele.length) return;
+  toast('Commande enregistrée — envoi des photos en arrière-plan…');
+  (async function(){
+    const tissu = [], modele = [];
+    for(let i=0;i<fichiersTissu.length;i++){
+      try{ const u = await televerserPhoto(fichiersTissu[i], 'atelier/'+code+'_tissu_'+(i+1)+'.jpg'); if(u) tissu.push(u); }catch(e){}
+    }
+    for(let i=0;i<fichiersModele.length;i++){
+      try{ const u = await televerserPhoto(fichiersModele[i], 'atelier/'+code+'_modele_'+(i+1)+'.jpg'); if(u) modele.push(u); }catch(e){}
+    }
+    if(!tissu.length && !modele.length){
+      toast('⚠️ Photos non envoyées (réseau faible) — ajoutez-les depuis la commande, code '+code);
+      return;
+    }
+    /* La commande vient d'etre ecrite : l'ecouteur temps reel peut mettre
+       quelques secondes a la faire apparaitre dans le cache. On reessaie. */
+    let essais = 0;
+    (function raccrocher(){
+      const c = (CACHE.commandes_couture||[]).find(function(x){ return x.code===code; });
+      if(!c){
+        if(++essais > 12){ toast('⚠️ Photos envoyées mais non rattachées — code '+code); return; }
+        setTimeout(raccrocher, 1500);
+        return;
+      }
+      const maj = {};
+      if(tissu.length){ c.photosTissuURLs = tissu; maj.photosTissuURLs = tissu; }
+      if(modele.length){ c.photosModeleURLs = modele; maj.photosModeleURLs = modele; }
+      rendreAtelier();
+      db.collection('commandes_couture').doc(c.id).update(maj)
+        .then(function(){ toast('📷 Photos ajoutées à la commande '+code); })
+        .catch(function(err){ echecEcriture('Photos de la commande', err); });
+    })();
+  })();
+}
 async function ajouterCommande(){
   const nom=document.getElementById('a-nom').value.trim();
   if(!nom){ toast('Entrez le nom du client'); return; }
@@ -2423,19 +2464,13 @@ async function ajouterCommande(){
     const code = await genererCode('commandes_couture');
     const fichiersTissu = Array.from(document.getElementById('a-photo-tissu').files||[]);
     const fichiersModele = Array.from(document.getElementById('a-photo-modele').files||[]);
+    /* 22/08 : les photos etaient envoyees AVANT d'ecrire la commande, une par
+       une, chacune avec 20 s d'attente maximum. Avec 3 photos sur un reseau
+       faible, l'ecran restait fige jusqu'a une minute — et si Djamil quittait
+       l'ecran, ni la commande ni la recette n'etaient enregistrees. La
+       commande part maintenant TOUT DE SUITE ; les photos suivent en
+       arriere-plan et viennent se raccrocher a la commande par son code. */
     let photosTissuURLs = [], photosModeleURLs = [];
-    try{
-      for(let i=0;i<fichiersTissu.length;i++){
-        const url = await televerserPhoto(fichiersTissu[i], 'atelier/'+code+'_tissu_'+(i+1)+'.jpg');
-        if(url) photosTissuURLs.push(url);
-      }
-      for(let i=0;i<fichiersModele.length;i++){
-        const url = await televerserPhoto(fichiersModele[i], 'atelier/'+code+'_modele_'+(i+1)+'.jpg');
-        if(url) photosModeleURLs.push(url);
-      }
-    } catch(errPhoto){
-      toast('⚠️ Certaines photos n\'ont pas pu être envoyées (réseau faible) — commande créée quand même');
-    }
     const desc=document.getElementById('a-desc').value.trim();
     const articles = articlesValides.map(l=>{
       const a = {nom:l.nom.trim(), prix:Number(l.prix)};
@@ -2468,16 +2503,22 @@ async function ajouterCommande(){
       creeLe: firebase.firestore.FieldValue.serverTimestamp()
     };
     ecrireAvecSecours('commandes_couture', cmd, 'La commande n\'a pas pu être synchronisée en ligne');
-    const caseCadeau = document.getElementById('a-cadeau');
-    if(caseCadeau){ caseCadeau.checked = false; basculerBlocCadeau(); }
-    const caseFait = document.getElementById('a-deja-fait');
-    if(caseFait){ caseFait.checked = false; basculerDejaFait(); }
-    /* CORRECTIF : la recette est datée du JOUR OÙ L'ARGENT EST ENCAISSÉ, pas de
-       la "Date de dépôt" du vêtement. Avant, passer cmd.depot ici datait l'avance
-       au jour du dépôt : si ce n'était pas aujourd'hui, l'argent disparaissait de
-       l'Aperçu, de la Clôture du jour et du Bilan du jour. Pour saisir une avance
-       reçue un autre jour, utiliser « Corriger l'avance » qui demande la vraie date. */
+    /* 22/08, ARGENT D'ABORD. La recette etait enregistree APRES plusieurs
+       remises a zero de l'ecran. Si l'une d'elles echouait (un element absent
+       suffit), on sautait au catch : la commande existait avec son avance,
+       mais l'argent n'entrait JAMAIS dans les recettes du jour — le cas
+       Youssoufa. La recette part desormais juste apres la commande, et le
+       nettoyage de l'ecran ne peut plus rien emporter avec lui.
+       La recette est datee du JOUR DE L'ENCAISSEMENT, pas de la date de depot :
+       pour une avance recue un autre jour, utiliser « Corriger l'avance ». */
     enregistrerTransaction(acompte, 'Atelier', nom+' — '+code);
+    televerserPhotosCommandeEnFond(code, fichiersTissu, fichiersModele);
+    try{
+      const caseCadeau = document.getElementById('a-cadeau');
+      if(caseCadeau){ caseCadeau.checked = false; basculerBlocCadeau(); }
+      const caseFait = document.getElementById('a-deja-fait');
+      if(caseFait){ caseFait.checked = false; basculerDejaFait(); }
+    }catch(errEcran){ console.error('Nettoyage écran commande', errEcran); }
     if(typeCommandeActuel!=='Retouche'){
       /* Les mesures appartiennent a la personne qui PORTE le vetement. */
       synchroniserCarnetAdresses(estCadeau ? nomBeneficiaire : nom,
@@ -7290,7 +7331,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-22-anglais-complet';
+const APP_VERSION = 'v2026-08-22-recette-avant-ecran';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
