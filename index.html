@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -2813,6 +2813,67 @@ async function corrigerTelephoneAtelier(id){
   db.collection('commandes_couture').doc(id).update({tel:c.tel}).catch(err=>echecEcriture('Correction téléphone', err));
   toast('Téléphone corrigé');
 }
+/* ====================================================================
+   RENVOYER LE RECU (22/08/2026)
+   Le recu WhatsApp ne partait qu'une seule fois, a la creation, dans la
+   langue ou l'application se trouvait a cet instant. Recu en francais alors
+   que le client lisait l'anglais, il n'y avait AUCUN moyen de le renvoyer :
+   revalider le depot refusait (le ticket existe deja). On peut desormais le
+   renvoyer a tout moment, et choisir la langue AU MOMENT DE L'ENVOI, sans
+   changer la langue de toute l'application.
+   ==================================================================== */
+function ligneSoldeRecu(reste, en){
+  if(reste > 0) return en ? ('Balance due: ' + reste + ' D') : ('Reste à payer: ' + reste + ' D');
+  return en ? '✅ Paid in full — thank you!' : '✅ Payé intégralement — merci !';
+}
+function messageRecuAtelier(c, en){
+  let articles = c.articles;
+  if(typeof articles === 'string'){ try{ articles = JSON.parse(articles); }catch(e){ articles = null; } }
+  const detail = Array.isArray(articles) && articles.length
+    ? articles.map(function(a){ return '  • ' + a.nom + ': ' + a.prix + ' D'; }).join('\n')
+    : ('  • ' + (c.desc || '-'));
+  const prix = Number(c.prix)||0, acompte = Number(c.acompte)||0;
+  const photos = Array.isArray(c.photosModeleURLs) ? c.photosModeleURLs : [];
+  const base = en
+    ? 'Hello ' + c.nom + ', here is the invoice for your order at Chez Djamil.\nCode: ' + c.code + '\n\nDetails:\n' + detail + '\n\nTotal: ' + prix + ' D\nDeposit paid: ' + acompte + ' D\n' + ligneSoldeRecu(prix-acompte, true)
+    : 'Bonjour ' + c.nom + ', voici la facture de votre commande chez Chez Djamil.\nCode: ' + c.code + '\n\nDétail:\n' + detail + '\n\nTotal: ' + prix + ' D\nAvance payée: ' + acompte + ' D\n' + ligneSoldeRecu(prix-acompte, false);
+  const livraison = c.livraison ? (en ? '\nDelivery date: ' + c.livraison : '\nLivraison prévue: ' + c.livraison) : '';
+  const modeles = photos.length ? (en ? '\nChosen design(s): ' + photos.join(' , ') : '\nModèle(s) choisi(s): ' + photos.join(' , ')) : '';
+  return base + livraison + modeles;
+}
+function messageRecuPressing(t, en){
+  const prix = Number(t.prix)||0, avance = Number(t.avance)||0;
+  const base = en
+    ? 'Hello ' + t.nom + ', here is your drop-off receipt from Chez Djamil Pressing.\nCode: ' + t.code + '\nItems: ' + (t.resume||'-') + '\nTotal: ' + prix + ' D\nDeposit: ' + avance + ' D\n' + ligneSoldeRecu(prix-avance, true)
+    : 'Bonjour ' + t.nom + ', voici votre reçu de dépôt chez Chez Djamil Pressing.\nCode: ' + t.code + '\nArticles: ' + (t.resume||'-') + '\nTotal: ' + prix + ' D\nAvance: ' + avance + ' D\n' + ligneSoldeRecu(prix-avance, false);
+  const retrait = t.retrait ? (en ? '\nPickup date: ' + t.retrait : '\nRetrait prévu: ' + t.retrait) : '';
+  const photo = t.photoURL ? (en ? '\nPhoto of your items: ' + t.photoURL : '\nPhoto de vos articles: ' + t.photoURL) : '';
+  return base + retrait + photo;
+}
+/* Fenetre commune : on choisit la langue, puis WhatsApp s'ouvre. Rien n'est
+   modifie dans la fiche, ni dans les finances : c'est un simple renvoi. */
+function renvoyerRecu(activite, id){
+  const c = activite==='pressing'
+    ? (CACHE.depots_pressing||[]).find(function(x){ return x.id===id; })
+    : (CACHE.commandes_couture||[]).find(function(x){ return x.id===id; });
+  if(!c) return;
+  if(!c.tel){
+    afficherInfo('Aucun numéro de téléphone n\'est enregistré pour ' + (c.nom||'ce client') + '. Ajoutez-le avec le bouton « ✏️ Téléphone », puis renvoyez le reçu.', 'Reçu non envoyé');
+    return;
+  }
+  const envoyer = function(en){
+    const msg = activite==='pressing' ? messageRecuPressing(c, en) : messageRecuAtelier(c, en);
+    ouvrirLienWhatsApp(c.nom, lienWhatsApp(c.tel, msg), (en ? 'Receipt' : 'Reçu') + ' — Code ' + c.code);
+  };
+  ouvrirModale('💬 Renvoyer le reçu',
+    '<p>Reçu de <b>' + (c.nom||'') + '</b> — Code ' + (c.code||'') + '.</p>'
+    + '<p style="font-size:.85rem;color:var(--gris);">Choisissez la langue du client. La langue de l\'application ne change pas, et la fiche n\'est pas modifiée : c\'est le même reçu, renvoyé.</p>',
+    [
+      {texte:'🇬🇧 English', action:function(){ envoyer(true); }},
+      {texte:'🇫🇷 Français', action:function(){ envoyer(false); }},
+      {texte:'Fermer', style:'secondary'}
+    ]);
+}
 async function corrigerAvanceAtelier(id){
   if(!await demanderCodeAdmin('Corriger l\'avance d\'un client')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
@@ -3444,6 +3505,7 @@ function carteCommandeAtelier(c){
       ${c.statut==='Livré' && c.tel ? `<button onclick="notifierRemerciementAtelier('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">🙏 Remerciement</button>` : ''}
       ${(c.articles && c.articles.length) ? `<button onclick="ouvrirSuiviVetements('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">🧷 Vêtements</button>` : ''}
       <button onclick="corrigerTelephoneAtelier('${c.id}')">✏️ Tél.</button>
+      <button onclick="renvoyerRecu('atelier','${c.id}')">💬 Renvoyer le reçu</button>
       <button onclick="corrigerAvanceAtelier('${c.id}')">✏️ Avance</button>
       <button onclick="corrigerLivraisonAtelier('${c.id}')">📅 Date livraison</button>
       <button onclick="corrigerNomAtelier('${c.id}')">✏️ Nom</button>
@@ -4581,6 +4643,7 @@ function rendrePressing(){
           ${t.statut==='Prêt' && t.tel ? `<button onclick="notifierVetementsPrets('${t.id}')" style="color:var(--vert);border-color:rgba(63,174,92,0.4);">🟢 Vêtements Prêts</button>` : ''}
           ${t.statut==='Récupéré' && t.tel ? `<button onclick="notifierRemerciementPressing('${t.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">🙏 Remerciement</button>` : ''}
           <button onclick="corrigerTelephonePressing('${t.id}')">✏️ Tél.</button>
+          <button onclick="renvoyerRecu('pressing','${t.id}')">💬 Renvoyer le reçu</button>
           <button onclick="corrigerAvancePressing('${t.id}')">✏️ Avance</button>
           <button onclick="corrigerRetraitPressing('${t.id}')">📅 Date retrait</button>
           <button onclick="corrigerNomPressing('${t.id}')">✏️ Nom</button>
@@ -7394,7 +7457,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-22-champ-vide-protege';
+const APP_VERSION = 'v2026-08-22-renvoyer-recu';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
