@@ -81,15 +81,90 @@ CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collec
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
 CHUNKS.push(["Moyenne des 7 derniers jours actifs :","Average of the last 7 active days:"],["Historique des clôtures — 14 derniers jours","Closing history — last 14 days"],["Historique des clôtures","Closing history"],["Clôturer la journée ?","Close the day?"],["Confirmer la clôture","Confirm closing"],["Cette action est définitive et envoie le résumé au propriétaire.","This action is final and sends the summary to the owner."],["Dépenses du jour :","Today's expenses:"],["Total reçu :","Total received:"],["Solde net :","Net balance:"],["Envoyer le résumé","Send the summary"],["Touchez le bouton pour ouvrir WhatsApp :","Tap the button to open WhatsApp:"],["Ouvrir WhatsApp","Open WhatsApp"],["La journée n'a pas encore été clôturée.","The day has not been closed yet."],["clôturée","closed"],["non clôturée","not closed"],["Reçu :","Received:"],["Dépenses :","Expenses:"],["Solde :","Balance:"],["Annuler","Cancel"],["Fermer","Close"]);
 PHX.push(["Nom de la catégorie","Category name"],["Nom de l'article","Item name"],["Prix","Price"]);
+/* ====================================================================
+   TRADUCTION — DEUX DEFAUTS CORRIGES LE 22/08/2026
+   1) Les remplacements se faisaient au milieu des mots : "mai" dans
+      "semaine" donnait "seMayne", "Cou" dans "Couturier" donnait
+      "Neckturier" (d'ou les rustines "Neckturiere" plus haut). Les cles
+      faites uniquement de lettres ne remplacent desormais QUE des mots
+      entiers.
+   2) Des textes n'avaient aucune traduction : les statuts de l'atelier
+      (Pris, En coupe, Essayage, Annule (tissu recupere)) et plusieurs
+      boutons restaient en francais au milieu de l'anglais.
+   Les phrases longues sont placees EN TETE de la liste : sinon une cle
+   courte les coupe en deux ("Commande Prete" devenait "Commande Ready").
+   ==================================================================== */
+CHUNKS.unshift(
+  ["Annulé (tissu récupéré)","Cancelled (fabric returned)"],
+  ["(tissu récupéré)","(fabric returned)"],
+  ["Commande Prête","Order ready"],
+  ["Rappel Essayage","Fitting reminder"],
+  ["Travail commencé","Work started"],
+  ["Solde payé","Balance paid"],
+  ["Payer le solde","Pay the balance"],
+  ["Noter une avance","Record an advance"],
+  ["Ajouter un vêtement","Add a garment"],
+  ["Corriger / supprimer","Edit / delete"],
+  ["Envoyer le reçu à jour","Send the updated receipt"],
+  ["Vêtement ajouté","Garment added"],
+  ["Prix / Réduction","Price / Discount"],
+  ["Photo tissu","Fabric photo"],
+  ["Photo modèle","Model photo"],
+  ["Date livraison","Delivery date"],
+  ["Jours présents ce mois","Days present this month"],
+  ["Aucune avance notée","No advance recorded"],
+  ["Livraison dans","Delivery in"],
+  ["Retrait dans","Pickup in"],
+  ["cette semaine","this week"],
+  ["la semaine prochaine","next week"],
+  ["semaine prochaine","next week"],
+  ["En coupe","Cutting"],
+  ["RIEN NOTÉ","NOTHING RECORDED"],
+  ["À VÉRIFIER","TO CHECK"],
+  ["EN TROP","OVERPAID"],
+  ["AVANCES","ADVANCES"],
+  ["SALAIRE","SALARY"],
+  ["RESTE","REMAINING"]
+);
+CHUNKS.push(
+  ["Pris","Received"],
+  ["Essayage","Fitting"],
+  ["Reste","Remaining"],
+  ["Avances","Advances"],
+  ["semaine","week"],
+  ["Semaine","Week"]
+);
+/* Une cle faite uniquement de lettres (accents compris) ne doit toucher
+   qu'un mot entier. Les cles avec ponctuation, chiffres ou emoji gardent
+   le remplacement simple : elles ne risquent pas de couper un mot. */
+var LETTRES = "A-Za-zÀ-ÖØ-öø-ÿ";
+var BORNES = null;
+function bornesChunks(){
+  if(BORNES) return BORNES;
+  BORNES = CHUNKS.map(function(p){
+    var cle = p[0];
+    if(!new RegExp("^["+LETTRES+"][" + LETTRES + " '\\-]*["+LETTRES+"]$").test(cle)) return null;
+    try{
+      return new RegExp("(?<!["+LETTRES+"])" + cle.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + "(?!["+LETTRES+"])", "g");
+    }catch(e){ return null; }  /* navigateur sans lookbehind : on garde l'ancien comportement */
+  });
+  return BORNES;
+}
 function traduireNoeud(node){
     var val = node.nodeValue, trimmed = val.trim();
     if(!trimmed) return;
     for(var i=0;i<PAIRS.length;i++){
       if(trimmed === PAIRS[i][0]){ node.nodeValue = val.replace(PAIRS[i][0], PAIRS[i][1]); return; }
     }
-    var out = val, changed = false;
+    var out = val, changed = false, bornes = bornesChunks();
     for(var j=0;j<CHUNKS.length;j++){
-      if(out.indexOf(CHUNKS[j][0]) >= 0){ out = out.split(CHUNKS[j][0]).join(CHUNKS[j][1]); changed = true; }
+      if(out.indexOf(CHUNKS[j][0]) < 0) continue;
+      if(bornes[j]){
+        var apres = out.replace(bornes[j], CHUNKS[j][1]);
+        if(apres !== out){ out = apres; changed = true; }
+      } else {
+        out = out.split(CHUNKS[j][0]).join(CHUNKS[j][1]); changed = true;
+      }
     }
     if(changed) node.nodeValue = out;
   }
@@ -2728,6 +2803,65 @@ async function corrigerNomAtelier(id){
    Ne touche jamais à l'acompte déjà versé : seul le total change, donc le
    "Reste à payer" se recalcule automatiquement. Protégé par le code admin
    car ça change ce que le client doit payer au final. */
+/* ====================================================================
+   AJOUTER UN VETEMENT A UNE COMMANDE DEJA ENREGISTREE (22/08/2026)
+   Cas reel : une cliente commande 5 ensembles, le recu est deja fait et
+   envoye, puis elle rappelle et en ajoute un 6eme. Il fallait jusqu'ici
+   creer une 2e commande (donc un 2e recu) ou retaper le prix a la main
+   sans trace de ce qui a ete ajoute. Cette fonction ajoute la piece a la
+   MEME commande : le detail s'allonge, le prix total monte tout seul, et
+   la cliente recoit la mise a jour du meme recu (meme code).
+   ==================================================================== */
+async function ajouterArticleCommande(id){
+  const c = CACHE.commandes_couture.find(x=>x.id===id);
+  if(!c) return;
+  if(c.statut==='Livré'){
+    if(!await confirmerModale('Commande déjà livrée',
+      '<p>La commande de <b>'+c.nom+'</b> est marquée LIVRÉ.</p><p>Ajouter une pièce ici va rouvrir le montant à payer. S\'il s\'agit d\'une nouvelle demande sans rapport, il vaut mieux enregistrer une nouvelle commande.</p>',
+      'Ajouter quand même', 'Non, annuler')) return;
+  }
+  const nom = await demanderTexte('Quel vêtement ajouter à la commande de '+c.nom+' ?\n(ex : Ensemble bazin, Costume, Boubou)');
+  if(nom===null) return;
+  if(!String(nom).trim()){ toast('Nom du vêtement manquant'); return; }
+  const saisiePrix = await demanderTexte('Prix de ce vêtement en D :');
+  if(saisiePrix===null) return;
+  const prixArticle = Number(saisiePrix);
+  if(isNaN(prixArticle) || prixArticle<0){ toast('Montant invalide'); return; }
+
+  const ancienPrix = Number(c.prix)||0;
+  let articles = Array.isArray(c.articles) ? c.articles.slice() : [];
+  /* Si la commande n'avait pas encore de detail piece par piece, on garde
+     l'existant en une ligne pour que le compteur "prets/total" reste juste. */
+  if(!articles.length){
+    articles.push({nom:(c.desc||'Commande initiale'), prix:ancienPrix, etat:'a_faire'});
+  }
+  articles.push({nom:String(nom).trim(), prix:prixArticle, etat:'a_faire', ajouteLe:dateAujourdhui()});
+  const nouveauPrix = ancienPrix + prixArticle;
+
+  c.articles = articles;
+  c.prix = nouveauPrix;
+  rendreAtelier();
+  db.collection('commandes_couture').doc(id).update({articles:articles, prix:nouveauPrix})
+    .catch(err=>echecEcriture('Ajout d\'un vêtement à la commande', err));
+
+  const reste = nouveauPrix - (Number(c.acompte)||0);
+  const corps = '<p><b>'+String(nom).trim()+'</b> ajouté à la commande de '+c.nom+(c.code ? ' (Code '+c.code+')' : '')+'.</p>'
+    + '<p>Total : '+ancienPrix+' D → <b style="color:var(--or-clair);">'+nouveauPrix+' D</b><br>'
+    + 'Acompte reçu : '+(Number(c.acompte)||0)+' D<br>Reste à payer : <b>'+Math.max(reste,0)+' D</b></p>'
+    + '<p style="font-size:.85rem;color:var(--gris);">Aucun nouveau reçu : c\'est le même dossier, le même code. Le reçu envoyé à la cliente est simplement mis à jour.</p>';
+  const boutons = [{texte:'Fermer', style:'secondary'}];
+  if(c.tel){
+    boutons.unshift({texte:'💬 Envoyer le reçu à jour', action:function(){
+      const detail = (c.articles||[]).map(function(a){ return a.nom+' : '+a.prix+' D'; }).join('\n');
+      const msg = texteMsg(
+        'Bonjour '+c.nom+', votre commande'+(c.code ? ' (Code '+c.code+')' : '')+' a été mise à jour — ajout de : '+String(nom).trim()+'.\n\n'+detail+'\n\nNouveau total : '+nouveauPrix+' D\nAcompte reçu : '+(Number(c.acompte)||0)+' D\nReste à payer : '+Math.max(reste,0)+' D'+(c.livraison ? '\nLivraison prévue : '+c.livraison : ''),
+        'Hello '+c.nom+', your order'+(c.code ? ' (Code '+c.code+')' : '')+' has been updated — added: '+String(nom).trim()+'.\n\n'+detail+'\n\nNew total: '+nouveauPrix+' D\nDeposit received: '+(Number(c.acompte)||0)+' D\nBalance due: '+Math.max(reste,0)+' D'+(c.livraison ? '\nDelivery date: '+c.livraison : '')
+      );
+      ouvrirLienWhatsApp(c.nom, lienWhatsApp(c.tel, msg), 'Reçu mis à jour — total '+nouveauPrix+' D');
+    }});
+  }
+  ouvrirModale('➕ Vêtement ajouté', corps, boutons);
+}
 async function corrigerPrixAtelier(id){
   if(!await demanderCodeAdmin('Corriger le prix / accorder une réduction')) return;
   const c = CACHE.commandes_couture.find(x=>x.id===id);
@@ -2792,16 +2926,29 @@ function recetteSimilaireRecente(nomClient, montant, jours){
 }
 
 async function confirmerSiDoublon(nomClient, montant){
-  var trouvees = recetteSimilaireRecente(nomClient, montant, 10);
+  /* 22/08 : la fenetre etait de 10 JOURS. Au pressing, la meme cliente paie
+     souvent le meme montant rond d'une semaine a l'autre : l'app criait au
+     doublon sur un paiement bien reel, et en repondant "ne pas recompter"
+     l'argent n'entrait jamais dans les recettes du jour. Ramene a 2 jours,
+     et on ne part plus sans une derniere chance de compter l'argent. */
+  var trouvees = recetteSimilaireRecente(nomClient, montant, 2);
   if(trouvees.length === 0) return true;
   var lignes = trouvees.slice(0,4).map(function(t){
     return '<div class="meta">• ' + (t.dateISO||'') + ' — ' + (t.description||'') + ' — ' + t.montant + ' D</div>';
   }).join('');
-  return await confirmerModale('⚠️ Cet argent semble déjà encaissé',
+  var compter = await confirmerModale('⚠️ Cet argent semble déjà encaissé',
     '<p>Une recette de <b>' + montant + ' D</b> existe déjà pour <b>' + (nomClient||'') + '</b> :</p>'
     + lignes
     + '<p style="font-size:.85rem;color:var(--gris);margin-top:8px;">Si c\'est le même paiement, réponds NON : la fiche client sera corrigée sans recompter l\'argent.</p>',
     'Enregistrer quand même', 'Non, ne pas recompter');
+  if(compter) return true;
+  /* Sortie de secours : on dit NOIR SUR BLANC que rien n'entrera dans la
+     caisse du jour, et on laisse revenir en arriere en une pression. */
+  var quandMeme = await confirmerModale('Aucune recette ne sera enregistrée',
+    '<p>Les <b>' + montant + ' D</b> de <b>' + (nomClient||'') + '</b> <u>n\'apparaîtront pas</u> dans les recettes d\'aujourd\'hui : la fiche du client sera seulement mise à jour.</p>'
+    + '<p style="font-size:.85rem;color:var(--gris);">À choisir uniquement si cet argent a DEJA été compté dans la caisse. Si la cliente vient de payer maintenant, il faut l\'enregistrer.</p>',
+    'Finalement, enregistrer la recette', 'Non, c\'était déjà compté');
+  return quandMeme === true;
 }
 
 async function marquerSoldePayeAtelier(id){
@@ -3201,6 +3348,7 @@ function carteCommandeAtelier(c){
       <button onclick="corrigerAvanceAtelier('${c.id}')">✏️ Avance</button>
       <button onclick="corrigerLivraisonAtelier('${c.id}')">📅 Date livraison</button>
       <button onclick="corrigerNomAtelier('${c.id}')">✏️ Nom</button>
+      <button onclick="ajouterArticleCommande('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">➕ Ajouter un vêtement</button>
       <button onclick="corrigerPrixAtelier('${c.id}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Prix / Réduction</button>
       <button onclick="remplacerPhotoAtelier('${c.id}','tissu')">📷 Photo tissu</button>
       <button onclick="remplacerPhotoAtelier('${c.id}','modele')">📷 Photo modèle</button>
@@ -7142,7 +7290,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-22-avances-corrigeables';
+const APP_VERSION = 'v2026-08-22-anglais-complet';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
