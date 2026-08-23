@@ -870,13 +870,15 @@ function traduireNoeud(node){
       <div id="atelier-liste"></div>
     </div>
     <div class="panel" style="border-color:var(--or);">
-      <h2>✂️ Retouches en cours</h2>
+      <h2>✂️ Retouches</h2>
       <div id="retouches-mois" class="meta"></div>
+      <div id="retouches-filtre"></div>
       <div id="retouches-liste"></div>
     </div>
     <div class="panel" style="border-color:var(--or);">
-      <h2>🛍️ Prêt-à-porter en cours</h2>
+      <h2>🛍️ Prêt-à-porter</h2>
       <div id="pap-mois" class="meta"></div>
+      <div id="pap-filtre"></div>
       <div id="pap-liste"></div>
     </div>
   </section>
@@ -3575,6 +3577,14 @@ let FILTRE_ATELIER = 'encours';
 let FILTRE_PRESSING = 'encours';
 let RECH_ATELIER = '';
 let RECH_PRESSING = '';
+/* 22/08 : le prêt-à-porter et les retouches n'avaient AUCUN filtre — tout
+   s'empilait dans une seule liste sans fin, les pièces déjà vendues et
+   récupérées restant mélangées aux commandes en cours. Ils ont maintenant
+   les mêmes quatre groupes que la confection. */
+let FILTRE_PAP = 'encours';
+let RECH_PAP = '';
+let FILTRE_RETOUCHES = 'encours';
+let RECH_RETOUCHES = '';
 
 function dossierTermine(o, type){
   const paye = ((Number(o.prix)||0) - (Number(type==='Atelier' ? o.acompte : o.avance)||0)) <= 0;
@@ -3610,11 +3620,16 @@ function categorieDossier(o, type){
   return 'encours';
 }
 function messageGroupeVide(filtre, type){
-  const objet = type==='Atelier' ? 'commande' : 'ticket';
-  if(filtre==='pret')    return 'Aucun vêtement prêt en attente du client.';
+  if(filtre==='pret')    return type==='Prêt-à-porter' ? 'Aucune pièce mise de côté en attente du client.' : 'Aucun vêtement prêt en attente du client.';
   if(filtre==='impaye')  return 'Aucun impayé — tout ce qui est parti a été réglé.';
   if(filtre==='termine') return 'Aucun dossier terminé.';
-  if(filtre==='tout')    return 'Aucune ' + objet + ' enregistrée.';
+  if(filtre==='tout'){
+    if(type==='Prêt-à-porter') return 'Aucun prêt-à-porter enregistré.';
+    if(type==='Retouche')      return 'Aucune retouche enregistrée.';
+    return type==='Atelier' ? 'Aucune commande enregistrée.' : 'Aucun ticket enregistré.';
+  }
+  if(type==='Prêt-à-porter') return 'Aucun prêt-à-porter en cours.';
+  if(type==='Retouche')      return 'Aucune retouche en cours.';
   return type==='Atelier' ? 'Aucune commande en cours de confection.' : 'Aucun ticket en cours.';
 }
 function comptesParCategorie(liste, type){
@@ -3634,6 +3649,10 @@ function appliquerFiltre(liste, type, filtre, requete){
 }
 
 function changerFiltreAtelier(f){ FILTRE_ATELIER = f; rendreAtelier(); }
+function changerFiltrePap(f){ FILTRE_PAP = f; rendreAtelier(); }
+function chercherPap(v){ RECH_PAP = v; rendreAtelier(); }
+function changerFiltreRetouches(f){ FILTRE_RETOUCHES = f; rendreAtelier(); }
+function chercherRetouches(v){ RECH_RETOUCHES = v; rendreAtelier(); }
 function changerFiltrePressing(f){ FILTRE_PRESSING = f; rendrePressing(); }
 function chercherAtelier(v){ RECH_ATELIER = v; rendreAtelier(); }
 function chercherPressing(v){ RECH_PRESSING = v; rendrePressing(); }
@@ -4043,18 +4062,26 @@ function rendreAtelier(){
     ? '<div class="vide">' + (RECH_ATELIER ? 'Aucun résultat pour cette recherche.' : messageGroupeVide(FILTRE_ATELIER, 'Atelier')) + '</div>'
     : trierParEcheance(confections).map(carteCommandeAtelier).join('');
 
+  const focusRech = document.activeElement && document.activeElement.type === 'search';
+
+  const retouchesVues = appliquerFiltre(retouches, 'Atelier', FILTRE_RETOUCHES, RECH_RETOUCHES);
+  const zoneR = document.getElementById('retouches-filtre');
+  if(zoneR && !focusRech) zoneR.innerHTML = barreFiltre('Retouches', FILTRE_RETOUCHES, RECH_RETOUCHES, comptesParCategorie(retouches, 'Atelier'));
   const listeRetouches=document.getElementById('retouches-liste');
   if(listeRetouches){
-    listeRetouches.innerHTML = retouches.length===0
-      ? '<div class="vide">Aucune retouche en cours.</div>'
-      : trierParEcheance(retouches).map(carteCommandeAtelier).join('');
+    listeRetouches.innerHTML = retouchesVues.length===0
+      ? '<div class="vide">' + (RECH_RETOUCHES ? 'Aucun résultat pour cette recherche.' : messageGroupeVide(FILTRE_RETOUCHES, 'Retouche')) + '</div>'
+      : trierParEcheance(retouchesVues).map(carteCommandeAtelier).join('');
   }
 
+  const papVus = appliquerFiltre(pap, 'Atelier', FILTRE_PAP, RECH_PAP);
+  const zoneP = document.getElementById('pap-filtre');
+  if(zoneP && !focusRech) zoneP.innerHTML = barreFiltre('Pap', FILTRE_PAP, RECH_PAP, comptesParCategorie(pap, 'Atelier'));
   const listePap=document.getElementById('pap-liste');
   if(listePap){
-    listePap.innerHTML = pap.length===0
-      ? '<div class="vide">Aucun prêt-à-porter en cours.</div>'
-      : trierParEcheance(pap).map(carteCommandeAtelier).join('');
+    listePap.innerHTML = papVus.length===0
+      ? '<div class="vide">' + (RECH_PAP ? 'Aucun résultat pour cette recherche.' : messageGroupeVide(FILTRE_PAP, 'Prêt-à-porter')) + '</div>'
+      : trierParEcheance(papVus).map(carteCommandeAtelier).join('');
   }
 
   const mC=document.getElementById('atelier-mois');
@@ -7491,7 +7518,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-22-quatre-groupes';
+const APP_VERSION = 'v2026-08-23-groupes-pap-retouches';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
