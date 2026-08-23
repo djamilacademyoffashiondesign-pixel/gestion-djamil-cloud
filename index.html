@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -3589,12 +3589,44 @@ function texteRecherche(o){
           (o.articles||[]).map(a=>a.nom).join(' ')].join(' ').toLowerCase();
 }
 
+/* ====================================================================
+   QUATRE GROUPES AU LIEU DE DEUX (22/08/2026)
+   "En cours" melangeait les vetements encore sous la machine et ceux qui
+   attendaient, finis, sur le portant. Djamil devait relire toute la liste
+   pour savoir quoi coudre, qui appeler, et qui devait encore de l'argent.
+   Chaque dossier tombe maintenant dans UN seul groupe :
+     encours  — le vetement se fait encore (Pris, En coupe, Essayage / Reçu…)
+     pret     — fini, le client ne l'a pas encore recupere
+     impaye   — parti avec le client, mais il reste de l'argent a encaisser
+     termine  — paye ET recupere : le dossier est clos
+   ==================================================================== */
+function categorieDossier(o, type){
+  const reste = (Number(o.prix)||0) - (Number(type==='Atelier' ? o.acompte : o.avance)||0);
+  const rendu = (type==='Atelier')
+    ? (o.statut === 'Livré' || o.statut === 'Annulé' || o.statut === 'Annulé (tissu récupéré)')
+    : (o.statut === 'Récupéré' || o.statut === 'Annulé');
+  if(rendu) return reste > 0 ? 'impaye' : 'termine';
+  if(o.statut === 'Prêt') return 'pret';
+  return 'encours';
+}
+function messageGroupeVide(filtre, type){
+  const objet = type==='Atelier' ? 'commande' : 'ticket';
+  if(filtre==='pret')    return 'Aucun vêtement prêt en attente du client.';
+  if(filtre==='impaye')  return 'Aucun impayé — tout ce qui est parti a été réglé.';
+  if(filtre==='termine') return 'Aucun dossier terminé.';
+  if(filtre==='tout')    return 'Aucune ' + objet + ' enregistrée.';
+  return type==='Atelier' ? 'Aucune commande en cours de confection.' : 'Aucun ticket en cours.';
+}
+function comptesParCategorie(liste, type){
+  const n = {encours:0, pret:0, impaye:0, termine:0};
+  liste.forEach(function(o){ n[categorieDossier(o, type)]++; });
+  n.tout = liste.length;
+  return n;
+}
 function appliquerFiltre(liste, type, filtre, requete){
   let r = liste.filter(function(o){
-    const fini = dossierTermine(o, type);
-    if(filtre === 'encours') return !fini;
-    if(filtre === 'termine') return fini;
-    return true;
+    if(filtre === 'tout' || !filtre) return true;
+    return categorieDossier(o, type) === filtre;
   });
   const q = (requete||'').trim().toLowerCase();
   if(q) r = r.filter(function(o){ return texteRecherche(o).indexOf(q) >= 0; });
@@ -3606,19 +3638,25 @@ function changerFiltrePressing(f){ FILTRE_PRESSING = f; rendrePressing(); }
 function chercherAtelier(v){ RECH_ATELIER = v; rendreAtelier(); }
 function chercherPressing(v){ RECH_PRESSING = v; rendrePressing(); }
 
-function barreFiltre(prefixe, filtreActuel, valeurRech, compteEnCours, compteTermine){
-  const b = function(cle, libelle, n){
+function barreFiltre(prefixe, filtreActuel, valeurRech, n){
+  /* Chaque groupe a sa couleur : on repere l'onglet sans lire le mot. */
+  const b = function(cle, libelle, nb, couleur){
     const actif = (filtreActuel === cle);
-    return '<button onclick="changerFiltre' + prefixe + '(\'' + cle + '\')" style="flex:1;'
-      + (actif ? 'background:var(--or);color:#1a1a1a;border-color:var(--or);font-weight:700;' : '')
-      + '">' + libelle + ' (' + n + ')</button>';
+    return '<button onclick="changerFiltre' + prefixe + '(\'' + cle + '\')" style="flex:1 1 46%;min-width:0;'
+      + (actif ? 'background:' + couleur + ';color:#14140f;border-color:' + couleur + ';font-weight:700;'
+               : 'color:' + couleur + ';border-color:' + couleur + '55;')
+      + '">' + libelle + ' (' + nb + ')</button>';
   };
   return '<input type="search" placeholder="Rechercher : nom, code, téléphone, vêtement…" value="' + (valeurRech||'').replace(/"/g,'&quot;') + '" '
        + 'oninput="chercher' + prefixe + '(this.value)" style="margin-bottom:8px;">'
+       + '<div class="item-actions" style="margin-bottom:4px;flex-wrap:wrap;">'
+       + b('encours', '🧵 En cours', n.encours, 'var(--or-clair)')
+       + b('pret',    '✅ Prêts',    n.pret,    '#7ede97')
+       + b('impaye',  '💰 Impayés',  n.impaye,  '#ff9d93')
+       + b('termine', '📦 Terminés', n.termine, '#bdbdc2')
+       + '</div>'
        + '<div class="item-actions" style="margin-bottom:10px;">'
-       + b('encours', '🧵 En cours', compteEnCours)
-       + b('termine', '✅ Terminés', compteTermine)
-       + b('tout', 'Tout', compteEnCours + compteTermine)
+       + b('tout', 'Tout voir', n.tout, '#bdbdc2')
        + '</div>';
 }
 
@@ -3996,15 +4034,13 @@ function rendreAtelier(){
   /* Barre de filtre au-dessus des commandes de confection */
   const zoneF = document.getElementById('atelier-filtre');
   if(zoneF){
-    const nEnCours = tousConfections.filter(c=>!dossierTermine(c,'Atelier')).length;
-    const nTermine = tousConfections.length - nEnCours;
     const focus = document.activeElement && document.activeElement.type === 'search';
-    if(!focus) zoneF.innerHTML = barreFiltre('Atelier', FILTRE_ATELIER, RECH_ATELIER, nEnCours, nTermine);
+    if(!focus) zoneF.innerHTML = barreFiltre('Atelier', FILTRE_ATELIER, RECH_ATELIER, comptesParCategorie(tousConfections, 'Atelier'));
   }
 
   const liste=document.getElementById('atelier-liste');
   liste.innerHTML = confections.length===0
-    ? '<div class="vide">' + (RECH_ATELIER ? 'Aucun résultat pour cette recherche.' : (FILTRE_ATELIER==='termine' ? 'Aucun dossier terminé.' : 'Aucune commande en cours.')) + '</div>'
+    ? '<div class="vide">' + (RECH_ATELIER ? 'Aucun résultat pour cette recherche.' : messageGroupeVide(FILTRE_ATELIER, 'Atelier')) + '</div>'
     : trierParEcheance(confections).map(carteCommandeAtelier).join('');
 
   const listeRetouches=document.getElementById('retouches-liste');
@@ -4608,14 +4644,12 @@ function rendrePressing(){
   const data=appliquerFiltre(tous, 'Pressing', FILTRE_PRESSING, RECH_PRESSING);
   const zoneFP = document.getElementById('pressing-filtre');
   if(zoneFP){
-    const nEnCours = tous.filter(t=>!dossierTermine(t,'Pressing')).length;
-    const nTermine = tous.length - nEnCours;
     const focus = document.activeElement && document.activeElement.type === 'search';
-    if(!focus) zoneFP.innerHTML = barreFiltre('Pressing', FILTRE_PRESSING, RECH_PRESSING, nEnCours, nTermine);
+    if(!focus) zoneFP.innerHTML = barreFiltre('Pressing', FILTRE_PRESSING, RECH_PRESSING, comptesParCategorie(tous, 'Pressing'));
   }
   const liste=document.getElementById('pressing-liste');
   if(data.length===0){
-    liste.innerHTML='<div class="vide">' + (RECH_PRESSING ? 'Aucun résultat pour cette recherche.' : (FILTRE_PRESSING==='termine' ? 'Aucun dossier terminé.' : 'Aucun ticket en cours.')) + '</div>';
+    liste.innerHTML='<div class="vide">' + (RECH_PRESSING ? 'Aucun résultat pour cette recherche.' : messageGroupeVide(FILTRE_PRESSING, 'Pressing')) + '</div>';
   } else {
     liste.innerHTML=data.slice().reverse().map(t=>{
       const reste=t.prix-t.avance;
@@ -7457,7 +7491,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-22-renvoyer-recu';
+const APP_VERSION = 'v2026-08-22-quatre-groupes';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
