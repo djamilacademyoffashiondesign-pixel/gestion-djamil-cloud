@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -6875,6 +6875,13 @@ function messageRelance(x){
   return texteMsg(fr, en);
 }
 
+/* 23/08 : couture et pressing etaient melanges dans une seule liste
+   d'impayes. Djamil regarde pourtant les deux separement : le pressing se
+   relance en quelques jours, la couture se joue sur des semaines. Les
+   impayes sont desormais ranges PAR RAYON, avec le total du a chacun, et un
+   onglet pour n'afficher qu'un rayon a la fois. */
+let RAYON_IMPAYES = 'tous';
+function changerRayonImpayes(r){ RAYON_IMPAYES = r; rendreImpayes(); }
 function basculerFiltreImpayes(){
   filtreImpayes = (filtreImpayes === 'retard') ? 'tout' : 'retard';
   rendrePlanTravail();
@@ -6887,14 +6894,42 @@ function rendreImpayes(){
   if(!zone) return;
   const toutes = listerImpayes();
   const enRetard = toutes.filter(function(x){ return x.retard !== null && x.retard > 0; });
-  const affichees = (filtreImpayes === 'retard') ? enRetard : toutes;
+  const selonRetard = (filtreImpayes === 'retard') ? enRetard : toutes;
+  const affichees = (RAYON_IMPAYES === 'tous') ? selonRetard : selonRetard.filter(function(x){ return x.rayon === RAYON_IMPAYES; });
+  /* Regroupe par rayon en conservant, DANS chaque rayon, le tri par retard
+     puis par montant deja fait par listerImpayes(). */
+  affichees.sort(function(a,b){ return a.rayon === b.rayon ? 0 : (a.rayon === 'Atelier' ? -1 : 1); });
 
-  const totalDu = toutes.reduce(function(s,x){ return s + x.reste; }, 0);
-  const totalRetard = enRetard.reduce(function(s,x){ return s + x.reste; }, 0);
+  const somme = function(l){ return l.reduce(function(s,x){ return s + x.reste; }, 0); };
+  const duAtelier  = somme(toutes.filter(function(x){ return x.rayon === 'Atelier'; }));
+  const duPressing = somme(toutes.filter(function(x){ return x.rayon === 'Pressing'; }));
+  const totalDu = somme(toutes);
+  const totalRetard = somme(enRetard);
 
+  /* Chaque rayon a son chiffre : on sait tout de suite ou dort l'argent. */
   let html = '<div class="stats-grid" style="margin-top:4px;">'
+    + '<div class="stat"><div class="val">' + duAtelier + '</div><div class="lab">✂️ COUTURE (D)</div></div>'
+    + '<div class="stat"><div class="val">' + duPressing + '</div><div class="lab">👔 PRESSING (D)</div></div>'
+    + '</div>'
+    + '<div class="stats-grid" style="margin-top:6px;">'
     + '<div class="stat"><div class="val" style="color:var(--rouge);">' + totalRetard + '</div><div class="lab">EN RETARD (D)</div></div>'
     + '<div class="stat"><div class="val">' + totalDu + '</div><div class="lab">TOTAL DÛ (D)</div></div>'
+    + '</div>';
+
+  /* Onglets de rayon : un seul rayon a l'ecran quand on le veut. */
+  const nAtelier  = selonRetard.filter(function(x){ return x.rayon === 'Atelier'; }).length;
+  const nPressing = selonRetard.filter(function(x){ return x.rayon === 'Pressing'; }).length;
+  const ongletRayon = function(cle, libelle, nb, couleur){
+    const actif = (RAYON_IMPAYES === cle);
+    return '<button onclick="changerRayonImpayes(\'' + cle + '\')" style="flex:1;'
+      + (actif ? 'background:' + couleur + ';color:#14140f;border-color:' + couleur + ';font-weight:700;'
+               : 'color:' + couleur + ';border-color:' + couleur + '55;')
+      + '">' + libelle + ' (' + nb + ')</button>';
+  };
+  html += '<div class="item-actions" style="margin-top:10px;">'
+    + ongletRayon('tous', 'Tous', selonRetard.length, '#bdbdc2')
+    + ongletRayon('Atelier', '✂️ Couture', nAtelier, 'var(--or-clair)')
+    + ongletRayon('Pressing', '👔 Pressing', nPressing, '#7ec8ff')
     + '</div>';
 
   html += '<div class="meta" style="margin-top:8px;">'
@@ -6904,9 +6939,28 @@ function rendreImpayes(){
     + '</div>';
 
   if(!affichees.length){
-    html += '<div class="vide" style="margin-top:8px;">' + (filtreImpayes === 'retard' ? 'Aucun retard de paiement.' : 'Aucun impayé.') + '</div>';
+    html += '<div class="vide" style="margin-top:8px;">'
+      + (filtreImpayes === 'retard'
+          ? (RAYON_IMPAYES === 'tous' ? 'Aucun retard de paiement.' : 'Aucun retard de paiement dans ce rayon.')
+          : (RAYON_IMPAYES === 'tous' ? 'Aucun impayé.' : 'Aucun impayé dans ce rayon.'))
+      + '</div>';
   } else {
+    /* Titre de rayon avec son sous-total, insere quand le rayon change. */
+    let rayonEnCours = null;
     html += affichees.map(function(x){
+      let entete = '';
+      if(x.rayon !== rayonEnCours){
+        rayonEnCours = x.rayon;
+        const duRayon = somme(affichees.filter(function(y){ return y.rayon === x.rayon; }));
+        const nbRayon = affichees.filter(function(y){ return y.rayon === x.rayon; }).length;
+        const couleur = (x.rayon === 'Atelier') ? 'var(--or-clair)' : '#7ec8ff';
+        entete = '<div style="margin:14px 0 6px;padding:7px 10px;border-left:4px solid ' + couleur + ';background:rgba(255,255,255,.04);border-radius:6px;">'
+          + '<span style="font-weight:700;color:' + couleur + ';">' + x.icone + ' ' + (x.rayon === 'Atelier' ? 'Couture' : 'Pressing') + '</span>'
+          + '<span style="float:right;font-weight:700;">' + duRayon + ' D</span>'
+          + '<div class="meta" style="margin-top:2px;">' + nbRayon + ' client(s)</div>'
+          + '</div>';
+      }
+      return entete + (function(){
       const lien = (typeof lienWhatsApp === 'function' && x.tel) ? lienWhatsApp(x.tel, messageRelance(x)) : null;
       let badge = '';
       if(x.retard === null) badge = '<span style="color:var(--gris);">date non renseignée</span>';
@@ -6935,6 +6989,7 @@ function rendreImpayes(){
               : '<span class="meta" style="color:var(--gris);">Pas de téléphone enregistré</span>')
         + '</div>'
         + '</div>';
+      })();
     }).join('');
   }
   zone.innerHTML = html;
@@ -7518,7 +7573,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-23-groupes-pap-retouches';
+const APP_VERSION = 'v2026-08-23-impayes-par-rayon';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
