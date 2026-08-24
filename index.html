@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["Qui a payé — nom par nom","Who paid — name by name"],["Cette semaine","This week"],["Ce mois","This month"],["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -1111,6 +1111,13 @@ function traduireNoeud(node){
         <button onclick="fichesAPointer()">🧾 Clients payés mais restés en impayé</button>
       </div>
       <div id="finances-bilan"></div>
+    </div>
+    <div class="panel">
+      <h2>Qui a payé — nom par nom</h2>
+      <p style="color:var(--gris);font-size:0.8rem;font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">
+        Chaque encaissement avec le nom du client, jour par jour. Choisissez la période et le rayon.
+      </p>
+      <div id="finances-qui-a-paye"></div>
     </div>
     <div class="panel">
       <h2>Détail jour par jour (mois en cours)</h2>
@@ -7573,7 +7580,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-23-impayes-par-rayon';
+const APP_VERSION = 'v2026-08-23-qui-a-paye';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -9685,12 +9692,115 @@ function rendreBilanFinances(){
   zone.innerHTML = blocPeriode(libelleJour, jour) + blocPeriode(libelleSemaine, semaine) + blocPeriode(libelleMois, mois) + blocPeriode(libelleAnnee, annee);
   rendreDetailJoursMois();
   rendreRecapMoisAnnee();
+  rendreQuiAPaye();
 }
 
 /* ===== DÉTAIL JOUR PAR JOUR DU MOIS EN COURS =====
    Chaque journée écoulée du mois avec ses comptes séparés par activité —
    ainsi, à la fin du mois, on voit exactement ce que l'Atelier, le Pressing
    et la Boutique ont donné, jour après jour. */
+/* ====================================================================
+   QUI A PAYE — NOM PAR NOM (23/08/2026)
+   Les Finances ne donnaient que des TOTAUX : \"Atelier 30 000 D\" sans dire
+   de qui venait cet argent. Pour retrouver qui avait paye le 12, il fallait
+   ouvrir les commandes une par une. Cet ecran deplie le meme argent, ligne
+   par ligne, avec le nom du client, le rayon et le jour. Aucun calcul
+   nouveau : ce sont exactement les memes ecritures que le bilan.
+   ==================================================================== */
+let PERIODE_PAIEMENTS = 'semaine';
+let RAYON_PAIEMENTS = 'tous';
+function changerPeriodePaiements(p){ PERIODE_PAIEMENTS = p; rendreQuiAPaye(); }
+function changerRayonPaiements(r){ RAYON_PAIEMENTS = r; rendreQuiAPaye(); }
+/* Le libelle d'une ecriture est du genre \"Mendy Adam — 036 (solde final)\" :
+   le nom est ce qui precede le tiret, le reste est la precision. */
+function nomDepuisDescription(desc){
+  const t = String(desc||'').split('—');
+  return (t[0]||'').trim() || 'Sans nom';
+}
+function precisionDepuisDescription(desc){
+  const t = String(desc||'').split('—');
+  return t.length > 1 ? t.slice(1).join('—').trim() : '';
+}
+function rendreQuiAPaye(){
+  const zone = document.getElementById('finances-qui-a-paye');
+  if(!zone) return;
+
+  const filtreFn = PERIODE_PAIEMENTS === 'jour'    ? function(d){ return d === dateISOAujourdhui(); }
+                 : PERIODE_PAIEMENTS === 'semaine' ? dansLaSemaineEnCours
+                 :                                   dansLeMoisEnCours;
+
+  let lignes = (CACHE.transactions||[]).filter(function(t){
+    return t.dateISO && filtreFn(t.dateISO) && (Number(t.montant)||0) > 0;
+  });
+  if(RAYON_PAIEMENTS !== 'tous'){
+    lignes = lignes.filter(function(t){ return (t.source||'Général') === RAYON_PAIEMENTS; });
+  }
+  lignes.sort(function(a,b){ return String(b.dateISO).localeCompare(String(a.dateISO)); });
+
+  const total = lignes.reduce(function(s,t){ return s + (Number(t.montant)||0); }, 0);
+  const tous = (CACHE.transactions||[]).filter(function(t){ return t.dateISO && filtreFn(t.dateISO) && (Number(t.montant)||0) > 0; });
+  const nb = function(src){ return tous.filter(function(t){ return (t.source||'Général') === src; }).length; };
+
+  const onglet = function(action, cle, actuel, libelle, nbOu, couleur){
+    const actif = (actuel === cle);
+    return '<button onclick="' + action + '(\'' + cle + '\')" style="flex:1;'
+      + (actif ? 'background:' + couleur + ';color:#14140f;border-color:' + couleur + ';font-weight:700;'
+               : 'color:' + couleur + ';border-color:' + couleur + '55;')
+      + '">' + libelle + (nbOu===null ? '' : ' (' + nbOu + ')') + '</button>';
+  };
+
+  let html = '<div class="item-actions" style="margin-bottom:6px;">'
+    + onglet('changerPeriodePaiements','jour',    PERIODE_PAIEMENTS, "Aujourd'hui", null, 'var(--or-clair)')
+    + onglet('changerPeriodePaiements','semaine', PERIODE_PAIEMENTS, 'Cette semaine', null, 'var(--or-clair)')
+    + onglet('changerPeriodePaiements','mois',    PERIODE_PAIEMENTS, 'Ce mois', null, 'var(--or-clair)')
+    + '</div>'
+    + '<div class="item-actions" style="margin-bottom:10px;flex-wrap:wrap;">'
+    + onglet('changerRayonPaiements','tous',    RAYON_PAIEMENTS, 'Tous', tous.length, '#bdbdc2')
+    + onglet('changerRayonPaiements','Atelier', RAYON_PAIEMENTS, '✂️ Couture', nb('Atelier'), 'var(--or-clair)')
+    + onglet('changerRayonPaiements','Pressing',RAYON_PAIEMENTS, '👔 Pressing', nb('Pressing'), '#7ec8ff')
+    + onglet('changerRayonPaiements','Boutique',RAYON_PAIEMENTS, '🛍️ Boutique', nb('Boutique'), '#7ede97')
+    + '</div>';
+
+  html += '<div class="stats-grid" style="margin-bottom:8px;">'
+    + '<div class="stat"><div class="val">' + lignes.length + '</div><div class="lab">PAIEMENTS</div></div>'
+    + '<div class="stat"><div class="val" style="color:var(--vert);">' + total + '</div><div class="lab">ENCAISSÉ (D)</div></div>'
+    + '</div>';
+
+  if(!lignes.length){
+    html += '<div class="vide">Aucun encaissement sur cette période' + (RAYON_PAIEMENTS==='tous' ? '' : ' dans ce rayon') + '.</div>';
+    zone.innerHTML = html;
+    return;
+  }
+
+  /* Un bandeau par journee, avec le total du jour : c'est la lecture que
+     Djamil fait le soir, et celle qu'il compare a la caisse. */
+  let jourEnCours = null;
+  html += lignes.map(function(t){
+    let entete = '';
+    if(t.dateISO !== jourEnCours){
+      jourEnCours = t.dateISO;
+      const duJour = lignes.filter(function(x){ return x.dateISO === t.dateISO; });
+      const totalJour = duJour.reduce(function(s,x){ return s + (Number(x.montant)||0); }, 0);
+      entete = '<div style="margin:14px 0 6px;padding:7px 10px;background:rgba(255,255,255,.05);border-radius:6px;">'
+        + '<span style="font-weight:700;">' + dateDepuisISO(t.dateISO).toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}) + '</span>'
+        + '<span style="float:right;font-weight:700;color:var(--vert);">' + totalJour + ' D</span>'
+        + '<div class="meta" style="margin-top:2px;">' + duJour.length + ' paiement(s)</div>'
+        + '</div>';
+    }
+    const src = t.source || 'Général';
+    const couleur = src === 'Atelier' ? 'var(--or-clair)' : (src === 'Pressing' ? '#7ec8ff' : (src === 'Boutique' ? '#7ede97' : '#bdbdc2'));
+    const precision = precisionDepuisDescription(t.description);
+    return entete
+      + '<div class="liste-item" style="border-left:3px solid ' + couleur + ';">'
+      + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
+      +   '<span>' + nomDepuisDescription(t.description) + '</span>'
+      +   '<span style="color:var(--vert);">' + t.montant + ' D</span></div>'
+      + '<div class="meta"><span style="color:' + couleur + ';">' + src + '</span>' + (precision ? ' · ' + precision : '') + '</div>'
+      + '</div>';
+  }).join('');
+
+  zone.innerHTML = html;
+}
 function rendreDetailJoursMois(){
   const zone = document.getElementById('finances-detail-jours');
   if(!zone) return;
