@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["Qui a payé — nom par nom","Who paid — name by name"],["Cette semaine","This week"],["Ce mois","This month"],["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["Laissez vide pour aujourd'hui.","Leave empty for today."],["Qui a payé — nom par nom","Who paid — name by name"],["Cette semaine","This week"],["Ce mois","This month"],["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -1149,7 +1149,8 @@ function traduireNoeud(node){
       <label>Description (optionnel)</label>
       <input id="dep-description" placeholder="Détail de la dépense">
       <label>Date de la dépense</label>
-      <input id="dep-date" type="date">
+      <input id="dep-date" type="date" onchange="majAvisDateDepense()">
+      <div id="dep-avis-date" class="meta" style="margin:-4px 0 10px;"></div>
       <button class="btn" id="btn-depense" onclick="ajouterDepense()">Enregistrer la dépense</button>
     </div>
     <div class="panel">
@@ -7580,7 +7581,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-23-qui-a-paye';
+const APP_VERSION = 'v2026-08-24-depenses-rattrapage';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -8387,6 +8388,31 @@ function ajouterDepenseRapide(activite, prefixId){
   toast('Dépense '+activite+' enregistrée');
 }
 
+/* ====================================================================
+   DEPENSES DE RATTRAPAGE (24/08/2026)
+   Quand le manager s'absente une ou deux semaines, les depenses sont
+   saisies toutes en meme temps, apres coup. Chacune doit garder SA vraie
+   date : sinon le bilan du jour de la saisie s'effondre et les journees
+   passees restent faussement vides. Le champ date existait deja mais se
+   vidait a chaque enregistrement — il fallait le retaper a chaque ligne.
+   Il reste maintenant en place, avec un rappel visible du jour choisi.
+   ==================================================================== */
+function majAvisDateDepense(){
+  const champ = document.getElementById('dep-date');
+  const avis = document.getElementById('dep-avis-date');
+  if(!champ || !avis) return;
+  const iso = champ.value;
+  if(!iso || iso === dateISOAujourdhui()){
+    avis.innerHTML = 'Laissez vide pour aujourd\'hui.';
+    avis.style.color = 'var(--gris)';
+    return;
+  }
+  const jours = Math.round((new Date(dateISOAujourdhui()) - new Date(iso)) / 86400000);
+  const quand = jours > 0 ? ('il y a ' + jours + ' jour(s)') : ('dans ' + Math.abs(jours) + ' jour(s)');
+  avis.innerHTML = '📅 Cette dépense sera datée du <b>' + new Date(iso).toLocaleDateString('fr-FR') + '</b> — ' + quand
+    + '.<br>Elle ira dans le bilan de ce jour-là, pas dans celui d\'aujourd\'hui.';
+  avis.style.color = jours > 0 ? 'var(--or-clair)' : 'var(--rouge)';
+}
 function ajouterDepense(){
   const montant=Number(document.getElementById('dep-montant').value)||0;
   if(montant<=0){ toast('Entrez un montant valide'); return; }
@@ -8402,8 +8428,11 @@ function ajouterDepense(){
   };
   basculerChargement('btn-depense', true, 'Enregistrer la dépense');
   ecrireAvecSecours('depenses', depense, 'La dépense n\'a pas pu être synchronisée en ligne');
-  viderChamps(['dep-categorie','dep-montant','dep-description','dep-date']);
-  toast('Dépense enregistrée');
+  /* La DATE et l'ACTIVITE ne sont PAS effacees : quand on rattrape une
+     semaine de depenses, elles s'enchainent sans avoir a retaper le jour. */
+  viderChamps(['dep-categorie','dep-montant','dep-description']);
+  toast('Dépense du ' + depense.date + ' enregistrée');
+  majAvisDateDepense();
   basculerChargement('btn-depense', false, 'Enregistrer la dépense');
 }
 /* Corriger un montant mal saisi sans avoir a supprimer puis ressaisir. */
@@ -8699,6 +8728,7 @@ function rendreRecettes(){
   `).join('');
 }
 function rendreDepenses(){
+  majAvisDateDepense();
   const data = CACHE.depenses||[];
   const liste=document.getElementById('depenses-liste');
   if(!liste) return;
