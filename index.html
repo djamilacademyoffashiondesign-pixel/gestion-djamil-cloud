@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["Photo du modèle","Model photo"],["Changer la photo","Change photo"],["Modèle choisi — touchez pour agrandir","Chosen model — tap to enlarge"],["Avant-hier","Day before yesterday"],["Date de la dépense","Expense date"],["Qui a payé — nom par nom","Who paid — name by name"],["Cette semaine","This week"],["Ce mois","This month"],["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["Catalogue de","Catalog of"],["Ajouter un modèle","Add a model"],["Retirer ce modèle du catalogue ?","Remove this model from the catalog?"],["Dernier modèle","Latest model"],["voir les","see the"],["modèles","models"],["Avant-hier","Day before yesterday"],["Date de la dépense","Expense date"],["Qui a payé — nom par nom","Who paid — name by name"],["Cette semaine","This week"],["Ce mois","This month"],["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -5642,10 +5642,14 @@ function reglagesCoupe(id, modele){
 /* Bandeau photo, insere en tete de la fenetre de coupe quand la fiche en a
    une : le modele choisi reste sous les yeux pendant tout le calcul. */
 function bandeauPhotoModele(f){
-  if(!f || !f.photoModeleURL) return '';
+  const photos = (f && Array.isArray(f.catalogueModeles)) ? f.catalogueModeles : [];
+  if(!photos.length) return '';
+  const dernier = photos[photos.length-1];
   return '<div style="text-align:center;margin-bottom:10px;">'
-    + '<img src="' + f.photoModeleURL + '" style="max-width:100%;max-height:220px;border-radius:10px;border:1px solid rgba(255,255,255,.15);" onclick="window.open(\'' + f.photoModeleURL + '\',\'_blank\')">'
-    + '<div class="meta" style="margin-top:4px;">📷 Modèle choisi — touchez pour agrandir</div></div>';
+    + '<img src="' + dernier.url + '" style="max-width:100%;max-height:220px;border-radius:10px;border:1px solid rgba(255,255,255,.15);" onclick="window.open(\'' + dernier.url + '\',\'_blank\')">'
+    + '<div class="meta" style="margin-top:4px;">📷 Dernier modèle — ' + (dernier.date||'') + (dernier.note ? ' — ' + dernier.note : '')
+    + (photos.length>1 ? ' · <a href="#" onclick="ouvrirCatalogueModeles(\'' + (f.id||'') + '\');return false;" style="color:var(--or-clair);">voir les ' + photos.length + ' modèles</a>' : '')
+    + '</div></div>';
 }
 function ouvrirFicheCoupe(id, modele){
   var f = CACHE.clients_mesures.find(function(x){ return x.id === id; });
@@ -7595,7 +7599,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-25-photo-modele-mesures';
+const APP_VERSION = 'v2026-08-28-catalogue-modeles';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -8286,16 +8290,66 @@ function rendreMesures(){
       <button onclick="definirGenreFiche('${f.id}','Femme')">Femme</button></div>` : ''}
     <div class="meta">Cou ${f.cou||'-'} · Poitrine ${f.poitrine||'-'} · Taille ${f.tourTaille||'-'} · Ceinture ${f.ceinture||'-'} · Bassin ${f.bassin||'-'}</div>
     <div id="detail-mesure-${f.id}" style="display:none;margin-top:8px;">${detailMesuresHTML(f)}</div>
-    ${f.photoModeleURL ? '<div style="margin-top:6px;"><img src="'+f.photoModeleURL+'" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid rgba(255,255,255,.15);" onclick="window.open(\''+f.photoModeleURL+'\',\'_blank\')"></div>' : ''}
+    ${catalogueModelesApercu(f)}
     <div class="item-actions">
       <button onclick="ouvrirFicheCoupe('${f.id}')">✂️ Coupe</button>
       <button onclick="ouvrirPatron('${f.id}')">🧵 Patron</button>
       <button onclick="comparerAuStandard('${f.id}')">📏 Standard</button>
-      <button onclick="choisirPhotoModeleMesure('${f.id}')">${f.photoModeleURL ? '📷 Changer la photo' : '📷 Photo du modèle'}</button>
+      <button onclick="ouvrirCatalogueModeles('${f.id}')">🖼️ Catalogue (${(f.catalogueModeles||[]).length})</button>
       <button onclick="modifierMesure('${f.id}')">Modifier</button>
       <button class="del" onclick="supprimerMesure('${f.id}')">Supprimer</button>
     </div>
   </div>`).join('');
+}
+/* ====================================================================
+   CATALOGUE DE MODELES PAR CLIENT (25/08/2026, remplace la photo unique)
+   Une seule photo ecrasait la precedente : Djamil perdait ce qu'une
+   cliente avait deja choisi. Le but exprime est d'eviter de refaire le
+   MEME modele a une cliente sans le savoir. La fiche garde desormais
+   TOUTE la liste, chacune datee, jamais effacee sauf suppression a la main.
+   ==================================================================== */
+function catalogueModelesApercu(f){
+  const photos = Array.isArray(f.catalogueModeles) ? f.catalogueModeles : [];
+  if(!photos.length) return '';
+  const vues = photos.slice(-4).reverse();
+  return '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">' + vues.map(function(p){
+    return '<img src="' + p.url + '" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15);" onclick="event.stopPropagation();window.open(\'' + p.url + '\',\'_blank\')">';
+  }).join('') + (photos.length>4 ? '<div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;color:var(--gris);font-size:.75rem;border:1px dashed rgba(255,255,255,.2);border-radius:8px;">+' + (photos.length-4) + '</div>' : '') + '</div>';
+}
+/* Fenetre complete : chaque modele avec sa date, une note libre ("boubou
+   brode vert, commande de mars"), et une suppression si besoin. */
+function ouvrirCatalogueModeles(id){
+  const f = CACHE.clients_mesures.find(function(x){ return x.id===id; });
+  if(!f) return;
+  const photos = (Array.isArray(f.catalogueModeles) ? f.catalogueModeles.slice() : []).reverse();
+  let corps = '<p style="font-size:.8rem;color:var(--gris);margin:0 0 10px;">Tous les modèles déjà choisis par <b>' + (f.nom||'') + '</b>, du plus récent au plus ancien. Sert à ne pas reproduire deux fois le même vêtement.</p>';
+  if(!photos.length){
+    corps += '<div class="vide">Aucun modèle enregistré pour le moment.</div>';
+  } else {
+    corps += photos.map(function(p){
+      return '<div class="liste-item">'
+        + '<img src="' + p.url + '" style="max-width:100%;max-height:260px;border-radius:10px;border:1px solid rgba(255,255,255,.15);display:block;margin-bottom:6px;" onclick="window.open(\'' + p.url + '\',\'_blank\')">'
+        + '<div class="meta">📅 ' + (p.date||'') + (p.note ? ' — ' + p.note : '') + '</div>'
+        + '<div style="margin-top:6px;"><button class="del" onclick="supprimerModeleCatalogue(\'' + id + '\',\'' + p.ms + '\')">🗑️ Retirer</button></div>'
+        + '</div>';
+    }).join('');
+  }
+  ouvrirModale('🖼️ Catalogue de ' + (f.nom||''), corps, [
+    {texte:'📷 Ajouter un modèle', action:function(){ choisirPhotoModeleMesure(id); }},
+    {texte:'Fermer', style:'secondary'}
+  ]);
+}
+async function supprimerModeleCatalogue(id, ms){
+  const f = CACHE.clients_mesures.find(function(x){ return x.id===id; });
+  if(!f) return;
+  if(!await confirmerModale('Retirer ce modèle du catalogue ?', 'La photo sera retirée du catalogue de ' + (f.nom||'') + '. Cela ne touche à aucune commande ni fiche de coupe.', '🗑️ Retirer', 'Non, garder')) return;
+  const restants = (f.catalogueModeles||[]).filter(function(p){ return String(p.ms)!==String(ms); });
+  f.catalogueModeles = restants;
+  rendreMesures();
+  db.collection('clients_mesures').doc(id).update({catalogueModeles:restants})
+    .catch(function(err){ echecEcriture('Catalogue de modèles', err); });
+  document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
+  ouvrirCatalogueModeles(id);
 }
 /* ====================================================================
    PHOTO DU MODELE SUR LA FICHE DE MESURES (25/08/2026)
@@ -8308,7 +8362,9 @@ function rendreMesures(){
    tableau de coupe pendant qu'on craie sur le tissu — au lieu de jongler
    entre la galerie et l'application.
    ==================================================================== */
-function choisirPhotoModeleMesure(id){
+async function choisirPhotoModeleMesure(id){
+  const note = await demanderTexte('Note sur ce modèle (facultatif — ex : boubou brodé vert) :');
+  if(note===null) return;
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'image/*';
   input.onchange = async function(){
@@ -8320,10 +8376,16 @@ function choisirPhotoModeleMesure(id){
     catch(err){ toast('⚠️ Photo non envoyée (réseau faible) — réessayez'); return; }
     if(!url){ toast('⚠️ Photo non envoyée'); return; }
     const f = CACHE.clients_mesures.find(function(x){ return x.id===id; });
-    if(f){ f.photoModeleURL = url; rendreMesures(); }
-    db.collection('clients_mesures').doc(id).update({photoModeleURL:url})
-      .catch(function(err){ echecEcriture('Photo du modèle', err); });
-    toast('📷 Photo enregistrée sur la fiche');
+    if(!f) return;
+    const catalogue = Array.isArray(f.catalogueModeles) ? f.catalogueModeles.slice() : [];
+    catalogue.push({ms:Date.now(), url:url, date:dateAujourdhui(), note:String(note||'').trim()});
+    f.catalogueModeles = catalogue;
+    rendreMesures();
+    db.collection('clients_mesures').doc(id).update({catalogueModeles:catalogue})
+      .catch(function(err){ echecEcriture('Catalogue de modèles', err); });
+    toast('📷 Ajouté au catalogue (' + catalogue.length + ' modèle(s))');
+    document.querySelectorAll('.modale-cd').forEach(function(m){ m.remove(); });
+    ouvrirCatalogueModeles(id);
   };
   input.click();
 }
