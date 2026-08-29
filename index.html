@@ -75,7 +75,7 @@ CHUNKS.push(["commande(s) à finir dans les 3 jours","order(s) to finish within 
 CHUNKS.push(["prêt — à récupérer","ready — to collect"],["déjà prêt(s)","already ready"]);
 CHUNKS.push(["Vêtements","Garments"],["Suivi des vêtements","Garment tracking"],["À faire","To do"],["Prêt","Ready"],["Annulé","Cancelled"],["Argent versé en trop","Overpayment"],["À rembourser :","To refund:"],["Enregistrer le remboursement","Record the refund"],["Plus tard","Later"],["prêt(s)","ready"],["annulé(s)","cancelled"],["à faire","to do"]);
 CHUNKS.push(["Plan de travail proposé","Suggested work plan"],["Répartition automatique de la couture, échéance la plus proche d'abord.","Automatic sewing schedule, earliest deadline first."],["Voir tout le plan","See the full plan"],["Voir la semaine seulement","See this week only"],["Aucun vêtement en attente de couture.","No garment waiting to be sewn."],["vêtement(s)","garment(s)"],["jour(s) de retard","day(s) late"]);
-CHUNKS.push(["Catalogue de","Catalog of"],["Ajouter un modèle","Add a model"],["Retirer ce modèle du catalogue ?","Remove this model from the catalog?"],["Dernier modèle","Latest model"],["voir les","see the"],["modèles","models"],["Avant-hier","Day before yesterday"],["Date de la dépense","Expense date"],["Qui a payé — nom par nom","Who paid — name by name"],["Cette semaine","This week"],["Ce mois","This month"],["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
+CHUNKS.push(["Prévenir le client du changement","Notify the customer of the change"],["Ne pas envoyer","Do not send"],["Catalogue de","Catalog of"],["Ajouter un modèle","Add a model"],["Retirer ce modèle du catalogue ?","Remove this model from the catalog?"],["Dernier modèle","Latest model"],["voir les","see the"],["modèles","models"],["Avant-hier","Day before yesterday"],["Date de la dépense","Expense date"],["Qui a payé — nom par nom","Who paid — name by name"],["Cette semaine","This week"],["Ce mois","This month"],["Couture","Tailoring"],["client(s)","client(s)"],["Tout voir","See all"],["Impayés","Unpaid"],["Terminés","Completed"],["Prêts","Ready"],["Renvoyer le reçu","Resend the receipt"],["Choisissez la langue du client","Choose the client's language"],["D'où viennent les corrections ?","Where do the corrections come from?"],["Corrections enregistrées","Recorded corrections"],["Supprimer cette correction","Delete this correction"],["Encaissé:","Received:"],["Vérifier les recettes du jour","Check today's income"],["Recettes du jour — vérification","Today's income — check"],["Supprimer cette ligne","Delete this entry"],["Garder les recettes","Keep the income"],["Et l'argent déjà encaissé ?","What about the money already received?"],["Total du jour :","Today's total:"],["Aucune recette enregistrée aujourd'hui.","No income recorded today."]);
 CHUNKS.push(["Corriger","Edit"],["Vérifier les doublons","Check for duplicates"],["Doublons détectés","Duplicates found"],["Aucun doublon détecté dans les dépenses.","No duplicate found in expenses."],["Ne garder qu'une seule ligne","Keep only one entry"],["Article corrigé","Item updated"],["Dépense corrigée","Expense updated"]);
 CHUNKS.push(["Impayés & vêtements à récupérer","Unpaid & garments to collect"],["EN RETARD (D)","OVERDUE (D)"],["TOTAL DÛ (D)","TOTAL OWED (D)"],["Voir tous les impayés","See all unpaid"],["Voir seulement les retards","See overdue only"],["Aucun retard de paiement.","No overdue payment."],["Aucun impayé.","No unpaid balance."],["Relancer","Send reminder"],["en retard de","overdue by"],["échéance aujourd'hui","due today"],["date non renseignée","no date set"],["Pas de téléphone enregistré","No phone saved"],["prévu le","due on"],["Payé","Paid"]);
 CHUNKS.push(["Planning de l'atelier","Workshop planning"],["Semaine précédente","Previous week"],["Semaine suivante","Next week"],["Nombre de vêtements par jour","Garments per day"],["Journée complète","Day full"],["Jour de fermeture","Closing day"],["Dimanche — atelier fermé","Sunday — workshop closed"],["Utiliser ce jour","Use this day"],["Forcer quand même","Force anyway"],["— libre —","— free —"],["livraison(s) dans les 3 jours","delivery(ies) within 3 days"],["aujourd'hui","today"],["demain","tomorrow"]);
@@ -2950,15 +2950,52 @@ async function corrigerAvanceAtelier(id){
 /* Permet de changer la date de livraison prévue quand un client rappelle
    pour avancer ou reculer son rendez-vous (ex: "je veux ma robe dans 3 jours
    au lieu d'une semaine"). Ne touche ni au statut ni aux finances. */
+/* ====================================================================
+   PREVENIR LE CLIENT QUAND ON DEPLACE UN RENDEZ-VOUS A LA MAIN (28/08/2026)
+   Changer une date de livraison/retrait etait jusqu'ici silencieux : le
+   client ne l'apprenait qu'en se presentant. Le seul message d'excuse
+   existant (proposerMessageReport) etait reserve au circuit automatique
+   des retards. Desormais, TOUT changement manuel de date — Atelier,
+   Pressing, et donc aussi Retouches et Pret-a-porter qui partagent les
+   memes fonctions — propose d'envoyer un message poli avant de fermer.
+   ==================================================================== */
+function proposerMessageReportManuel(nom, tel, code, ancienneISO, nouvelleISO, activite){
+  if(!tel) return;
+  const nomCommerce = (typeof NOM_COMMERCE !== 'undefined' && NOM_COMMERCE) ? NOM_COMMERCE : 'Chez Djamil';
+  const jour   = dateDepuisISO(nouvelleISO).toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'});
+  const jourEn = dateDepuisISO(nouvelleISO).toLocaleDateString('en-GB', {weekday:'long', day:'2-digit', month:'long'});
+  const motFr = activite==='Pressing' ? 'dépôt' : 'commande';
+  const motEn = activite==='Pressing' ? 'drop-off' : 'order';
+  const msg = texteMsg(
+    'Bonjour ' + nom + ', nous sommes désolés de vous informer que la date de votre ' + motFr
+      + (code ? ' (Code ' + code + ')' : '') + ' a été modifiée. Le nouveau rendez-vous est fixé au '
+      + jour + '. Merci pour votre compréhension — ' + nomCommerce + '.',
+    'Hello ' + nom + ', we are sorry to let you know that the date for your ' + motEn
+      + (code ? ' (Code ' + code + ')' : '') + ' has been changed. The new appointment is set for '
+      + jourEn + '. Thank you for your understanding — ' + nomCommerce + '.'
+  );
+  ouvrirModale('Prévenir le client du changement',
+    '<div class="liste-item"><div class="nom">' + nom + '</div>'
+    + '<div class="meta" style="margin-top:5px;">Nouveau rendez-vous : ' + jour + '</div></div>'
+    + '<div class="meta" style="margin-top:10px;">Un petit message avant qu\'il/elle se déplace pour rien.</div>',
+    [
+      {texte:'💬 Envoyer sur WhatsApp', action:function(){ ouvrirLienWhatsApp(nom, lienWhatsApp(tel, msg), 'Rendez-vous déplacé'); }},
+      {texte:'Ne pas envoyer', style:'secondary'}
+    ]);
+}
 async function corrigerLivraisonAtelier(id){
   const c = CACHE.commandes_couture.find(x=>x.id===id);
   if(!c) return;
   const nouvelleDate = await demanderTexte('Nouvelle date de livraison pour '+c.nom+' (AAAA-MM-JJ) :', c.livraison||dateISOAujourdhui());
   if(nouvelleDate===null) return;
+  const ancienne = c.livraison;
   c.livraison = nouvelleDate.trim();
   rendreAtelier();
   db.collection('commandes_couture').doc(id).update({livraison:c.livraison}).catch(err=>echecEcriture('Correction date de livraison', err));
   toast('Date de livraison mise à jour');
+  if(c.tel && ancienne && c.livraison && ancienne !== c.livraison){
+    proposerMessageReportManuel(c.nom, c.tel, c.code, ancienne, c.livraison, 'Atelier');
+  }
 }
 /* Corrige une faute de frappe dans le nom du client, sans rien effacer
    d'autre dans la commande (articles, photos, paiements restent intacts). */
@@ -4566,10 +4603,14 @@ async function corrigerRetraitPressing(id){
   if(!t) return;
   const nouvelleDate = await demanderTexte('Nouvelle date de retrait pour '+t.nom+' (AAAA-MM-JJ) :', t.retrait||dateISOAujourdhui());
   if(nouvelleDate===null) return;
+  const ancienne = t.retrait;
   t.retrait = nouvelleDate.trim();
   rendrePressing();
   db.collection('depots_pressing').doc(id).update({retrait:t.retrait}).catch(err=>echecEcriture('Correction date de retrait', err));
   toast('Date de retrait mise à jour');
+  if(t.tel && ancienne && t.retrait && ancienne !== t.retrait){
+    proposerMessageReportManuel(t.nom, t.tel, t.code, ancienne, t.retrait, 'Pressing');
+  }
 }
 async function corrigerNomPressing(id){
   const t = CACHE.depots_pressing.find(x=>x.id===id);
@@ -7599,7 +7640,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-08-28-catalogue-modeles';
+const APP_VERSION = 'v2026-08-28-prevenir-changement-rdv';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
