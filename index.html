@@ -7644,7 +7644,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-09-01-courbe-tendance';
+const APP_VERSION = 'v2026-09-01-courbe-pro';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -9993,27 +9993,66 @@ function rendreTendanceRecettes(){
   const valeurs = jours.map(j=>transactions.filter(t=>t.dateISO===j).reduce((s,t)=>s+(t.montant||0),0));
   const max = Math.max.apply(null, valeurs.concat([1]));
   const min = Math.min.apply(null, valeurs.concat([0]));
-  const largeur = 320, hauteur = 110, marge = 6;
-  const echelleY = (v)=> hauteur - marge - ((v-min)/((max-min)||1))*(hauteur-2*marge);
-  const pas = valeurs.length>1 ? (largeur-2*marge)/(valeurs.length-1) : 0;
-  const pointsListe = valeurs.map((v,i)=> (marge+i*pas).toFixed(1)+','+echelleY(v).toFixed(1));
-  const ligne = pointsListe.join(' ');
-  const aire = marge+','+(hauteur-marge)+' '+ligne+' '+(largeur-marge)+','+(hauteur-marge);
+  const largeur = 340, hauteur = 150, mG = 4, mD = 42, mH = 12, mB = 14;
+  const largeurTrace = largeur - mG - mD, hauteurTrace = hauteur - mH - mB;
+  const x = (i)=> mG + (valeurs.length>1 ? i*(largeurTrace/(valeurs.length-1)) : 0);
+  const y = (v)=> mH + hauteurTrace - ((v-min)/((max-min)||1))*hauteurTrace;
+  const pts = valeurs.map((v,i)=>({x:x(i), y:y(v)}));
+  /* Courbe LISSÉE (Catmull-Rom → Bézier cubique) : un écran boursier ne
+     trace jamais des segments droits anguleux, toujours une courbe douce. */
+  function cheminLisse(p){
+    if(p.length<2) return `M ${p[0].x},${p[0].y}`;
+    let d = `M ${p[0].x.toFixed(1)},${p[0].y.toFixed(1)}`;
+    for(let i=0;i<p.length-1;i++){
+      const p0 = p[i===0?0:i-1], p1 = p[i], p2 = p[i+1], p3 = p[i+2<p.length?i+2:p.length-1];
+      const c1x = p1.x + (p2.x-p0.x)/6, c1y = p1.y + (p2.y-p0.y)/6;
+      const c2x = p2.x - (p3.x-p1.x)/6, c2y = p2.y - (p3.y-p1.y)/6;
+      d += ` C ${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+    return d;
+  }
+  const cheminCourbe = cheminLisse(pts);
+  const cheminAire = cheminCourbe + ` L ${(largeur-mD).toFixed(1)},${(hauteur-mB).toFixed(1)} L ${mG.toFixed(1)},${(hauteur-mB).toFixed(1)} Z`;
   /* Tendance = moyenne des 7 derniers jours comparée à la moyenne des 7 jours d'avant. */
   const moyenneRecente = valeurs.slice(7).reduce((a,b)=>a+b,0)/7;
   const moyenneAncienne = valeurs.slice(0,7).reduce((a,b)=>a+b,0)/7;
+  const moyenneGenerale = valeurs.reduce((a,b)=>a+b,0)/valeurs.length;
   const enHausse = moyenneRecente >= moyenneAncienne;
   const couleur = enHausse ? 'var(--vert)' : 'var(--rouge)';
   const deltaPct = moyenneAncienne>0 ? Math.round(((moyenneRecente-moyenneAncienne)/moyenneAncienne)*100) : null;
   const dernierJour = valeurs[valeurs.length-1];
+  /* Quadrillage à 3 niveaux (haut / moyenne générale / bas), comme les
+     graduations d'un écran boursier, avec la valeur affichée à droite. */
+  const niveaux = [max, moyenneGenerale, min];
+  const grille = niveaux.map(n=>{
+    const ny = y(n);
+    return `<line x1="${mG}" y1="${ny.toFixed(1)}" x2="${largeur-mD}" y2="${ny.toFixed(1)}" style="stroke:rgba(255,255,255,0.12);stroke-width:1;stroke-dasharray:2,3;"></line>
+      <text x="${largeur-mD+4}" y="${(ny+3).toFixed(1)}" style="font-size:9px;fill:var(--gris);font-family:'Helvetica Neue',Arial,sans-serif;">${Math.round(n)}</text>`;
+  }).join('');
+  /* Étiquette encadrée sur la valeur du jour, au bout de la courbe — comme
+     le prix encadré en bout de graphique boursier. */
+  const dernierPt = pts[pts.length-1];
+  const etiquette = `<g>
+      <circle cx="${dernierPt.x.toFixed(1)}" cy="${dernierPt.y.toFixed(1)}" r="3" style="fill:${couleur};"></circle>
+      <rect x="${(largeur-mD+2).toFixed(1)}" y="${(dernierPt.y-8).toFixed(1)}" width="38" height="16" rx="3" style="fill:rgba(0,0,0,0.35);stroke:${couleur};stroke-width:1;"></rect>
+      <text x="${(largeur-mD+21).toFixed(1)}" y="${(dernierPt.y+3.5).toFixed(1)}" text-anchor="middle" style="font-size:9.5px;font-weight:700;fill:${couleur};font-family:'Helvetica Neue',Arial,sans-serif;">${Math.round(dernierJour)}</text>
+    </g>`;
   zone.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
       <div style="font-size:1.5rem;font-weight:800;color:${couleur};">${dernierJour} D <span style="font-size:0.8rem;color:var(--gris);font-weight:400;">Aujourd'hui</span></div>
       ${deltaPct!==null ? `<div style="font-weight:700;color:${couleur};font-size:1.1rem;">${enHausse?'▲':'▼'} ${Math.abs(deltaPct)}% <span style="font-size:0.75rem;color:var(--gris);font-weight:400;">vs 7 jours précédents</span></div>` : ''}
     </div>
     <svg viewBox="0 0 ${largeur} ${hauteur}" style="width:100%;height:${hauteur}px;display:block;">
-      <polygon points="${aire}" style="fill:${couleur};opacity:0.15;"></polygon>
-      <polyline points="${ligne}" style="fill:none;stroke:${couleur};stroke-width:2.5;"></polyline>
+      <defs>
+        <linearGradient id="degradeTendance" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" style="stop-color:${couleur};stop-opacity:0.28;"></stop>
+          <stop offset="100%" style="stop-color:${couleur};stop-opacity:0;"></stop>
+        </linearGradient>
+      </defs>
+      ${grille}
+      <path d="${cheminAire}" style="fill:url(#degradeTendance);stroke:none;"></path>
+      <path d="${cheminCourbe}" style="fill:none;stroke:${couleur};stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"></path>
+      ${etiquette}
     </svg>
     <div class="meta" style="display:flex;justify-content:space-between;margin-top:2px;">
       <span>${formatCourtDepuisISO(jours[0])}</span>
