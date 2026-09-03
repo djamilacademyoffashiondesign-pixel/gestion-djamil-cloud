@@ -95,6 +95,12 @@ PHX.push(["Nom de la catégorie","Category name"],["Nom de l'article","Item name
    courte les coupe en deux ("Commande Prete" devenait "Commande Ready").
    ==================================================================== */
 CHUNKS.unshift(
+  ["Charges fixes récurrentes (loyer, assurance...)","Recurring fixed charges (rent, insurance...)"],
+  ["Une charge qui revient chaque année (comme le loyer) : réglez-la UNE fois ici, l'app la reconduira et l'étalera sur 12 mois automatiquement, chaque année, sans rien vous redemander.","A charge that repeats every year (like rent): set it up ONCE here, the app will renew it and spread it over 12 months automatically, every year, without asking again."],
+  ["Ajouter une charge fixe","Add a fixed charge"],
+  ["Aucune charge fixe récurrente pour l'instant.","No recurring fixed charge yet."],
+  ["Prochaine échéance :","Next due date:"],
+  ["Étaler sur plusieurs mois (loyer, assurance...)","Spread over several months (rent, insurance...)"],
   ["Annulé (tissu récupéré)","Cancelled (fabric returned)"],
   ["(tissu récupéré)","(fabric returned)"],
   ["Commande Prête","Order ready"],
@@ -1164,6 +1170,16 @@ function traduireNoeud(node){
       <button onclick="etalerDepense()" style="margin-top:6px;">📅 Étaler sur plusieurs mois (loyer, assurance...)</button>
     </div>
     <div class="panel">
+      <h2>🔁 Charges fixes récurrentes (loyer, assurance...)</h2>
+      <p style="color:var(--gris);font-size:0.8rem;font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">
+        Une charge qui revient chaque année (comme le loyer) : réglez-la UNE fois ici, l'app la reconduira et l'étalera sur 12 mois automatiquement, chaque année, sans rien vous redemander.
+      </p>
+      <div class="item-actions" style="margin-bottom:8px;">
+        <button onclick="ajouterChargeFixe()">➕ Ajouter une charge fixe</button>
+      </div>
+      <div id="charges-fixes-liste"></div>
+    </div>
+    <div class="panel">
       <h2>Dépenses récentes</h2>
       <div class="item-actions" style="margin-bottom:8px;">
         <button onclick="chercherDoublonsDepenses()">🔎 Vérifier les doublons</button>
@@ -2011,7 +2027,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 appliquerMode();
 
 /* ================= STOCKAGE LOCAL EN MÉMOIRE (mis à jour par les écouteurs temps réel) ================= */
-let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[], visiteurs:[], contrats:[], paiements_attente:[] };
+let CACHE = { commandes_couture:[], depots_pressing:[], boutique_inventaire:[], boutique_ventes:[], clients_mesures:[], transactions:[], depenses:[], employes:[], salaires_mensuel:[], visiteurs:[], contrats:[], paiements_attente:[], charges_fixes:[] };
 
 /* ================= EXPORT CSV ================= */
 function exporterCSV(collection){
@@ -7645,7 +7661,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-09-01-etaler-depenses';
+const APP_VERSION = 'v2026-09-03-charges-fixes';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -8646,6 +8662,104 @@ async function etalerDepense(){
   toast(montantTotal+' D répartis sur '+nbMois+' mois (~'+montantMensuel+' D/mois)');
   majAvisDateDepense();
   basculerChargement('btn-depense', false, 'Enregistrer la dépense');
+}
+/* ===== CHARGES FIXES RÉCURRENTES (loyer, assurance...) =====
+   Demande de Djamil : ne plus jamais avoir à repenser au loyer chaque année.
+   Une charge fixe est réglée UNE fois (nom, montant annuel, activité,
+   catégorie, date du premier paiement = date d'ancrage jour/mois). Chaque
+   année, à partir de cette même date, l'app génère TOUTE SEULE les 12
+   dépenses mensuelles étalées (même mécanisme que etalerDepense), sans
+   aucune action de sa part. Rien n'est jamais généré deux fois pour un
+   même cycle : verifierChargesFixes() vérifie d'abord, via chargeFixeId +
+   cycleAnnee, qu'aucune dépense de ce cycle n'existe déjà. */
+async function ajouterChargeFixe(){
+  if(!await demanderCodeAdmin('Créer une charge fixe récurrente')) return;
+  const nom = await demanderTexte('Nom de la charge (ex: Loyer atelier) :');
+  if(nom===null || !nom.trim()) return;
+  const montantSaisi = await demanderTexte('Montant TOTAL payé pour un an (D) :', '100000');
+  if(montantSaisi===null) return;
+  const montantAnnuel = Number(montantSaisi);
+  if(isNaN(montantAnnuel) || montantAnnuel<=0){ toast('Montant invalide'); return; }
+  const categorie = await demanderTexte('Catégorie (ex: Loyer, Assurance) :', nom.trim());
+  if(categorie===null) return;
+  const activite = await confirmerModale('Activité concernée', 'Cette charge concerne-t-elle le PRESSING ?\n\nOK = Pressing · Annuler = Général (tout le commerce)') ? 'Pressing' : 'Général';
+  const dateSaisie = await demanderTexte('Date du PREMIER paiement (AAAA-MM-JJ) — sert de date anniversaire chaque année :', dateISOAujourdhui());
+  if(dateSaisie===null) return;
+  const dateAncrage = String(dateSaisie).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dateAncrage)){ toast('Format attendu : AAAA-MM-JJ'); return; }
+  const [aa, mm, jj] = dateAncrage.split('-').map(Number);
+  const charge = {
+    nom: nom.trim(), montantAnnuel, categorie: categorie.trim()||nom.trim(), activite,
+    jour: jj, mois: mm, premiereAnnee: aa, actif: true,
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  ecrireAvecSecours('charges_fixes', charge, 'La charge fixe n\'a pas pu être synchronisée');
+  toast('🔁 ' + nom.trim() + ' créée — ' + montantAnnuel + ' D/an, étalée automatiquement chaque année');
+  setTimeout(verifierChargesFixes, 800);
+}
+function prochaineEcheanceChargeFixe(charge){
+  const aujourdhui = new Date();
+  let annee = aujourdhui.getFullYear();
+  let dateAnniv = new Date(annee, charge.mois-1, charge.jour);
+  if(dateAnniv < aujourdhui) annee += 1;
+  return annee + '-' + String(charge.mois).padStart(2,'0') + '-' + String(charge.jour).padStart(2,'0');
+}
+function genererCycleChargeFixe(charge, anneeCycle){
+  const dateISO = anneeCycle + '-' + String(charge.mois).padStart(2,'0') + '-' + String(charge.jour).padStart(2,'0');
+  const montantMensuel = Math.round(charge.montantAnnuel/12);
+  for(let i=0;i<12;i++){
+    let m = (charge.mois-1) + i;
+    const a = anneeCycle + Math.floor(m/12);
+    m = ((m%12)+12)%12;
+    const moisCouvert = a + '-' + String(m+1).padStart(2,'0');
+    const montant = (i===11) ? (charge.montantAnnuel - montantMensuel*11) : montantMensuel;
+    ecrireAvecSecours('depenses', {
+      activite: charge.activite, categorie: charge.categorie, montant,
+      description: charge.nom + ' ' + anneeCycle + ' — reconduction automatique ' + (i+1) + '/12 (' + moisCouvert + ')',
+      dateISO, date: new Date(dateISO+'T12:00:00').toLocaleDateString('fr-FR'),
+      moisCouvert, chargeFixeId: charge.id, cycleAnnee: anneeCycle,
+      creeLe: firebase.firestore.FieldValue.serverTimestamp()
+    }, 'Une part de "' + charge.nom + '" n\'a pas pu être synchronisée');
+  }
+  toast('🔁 ' + charge.nom + ' ' + anneeCycle + ' généré automatiquement — ' + charge.montantAnnuel + ' D étalés sur 12 mois');
+}
+let _chargesFixesDejaLancees = {};
+function verifierChargesFixes(){
+  const aujourdhui = new Date();
+  (CACHE.charges_fixes||[]).filter(c=>c.actif!==false).forEach(charge=>{
+    let anneeAnniv = aujourdhui.getFullYear();
+    const dateAnniv = new Date(anneeAnniv, charge.mois-1, charge.jour);
+    if(dateAnniv > aujourdhui) anneeAnniv -= 1;
+    if(anneeAnniv < charge.premiereAnnee) return;
+    const cle = charge.id + '_' + anneeAnniv;
+    if(_chargesFixesDejaLancees[cle]) return;
+    const dejaGenere = (CACHE.depenses||[]).some(d=>d.chargeFixeId===charge.id && d.cycleAnnee===anneeAnniv);
+    _chargesFixesDejaLancees[cle] = true;
+    if(!dejaGenere) genererCycleChargeFixe(charge, anneeAnniv);
+  });
+}
+async function arreterChargeFixe(id){
+  if(!await demanderCodeAdmin('Arrêter une charge fixe récurrente')) return;
+  const c = (CACHE.charges_fixes||[]).find(x=>x.id===id);
+  if(!c) return;
+  if(!await confirmerModale('Arrêter "' + c.nom + '"', 'Les dépenses déjà générées restent dans les Finances. Seule la reconduction future s\'arrête.', 'Oui, arrêter')) return;
+  db.collection('charges_fixes').doc(id).update({actif:false})
+    .then(()=>toast(c.nom + ' arrêtée — plus de reconduction future'))
+    .catch(err=>echecEcriture('Arrêt de ' + c.nom, err, ()=>arreterChargeFixe(id)));
+}
+function rendreChargesFixes(){
+  const zone = document.getElementById('charges-fixes-liste');
+  if(!zone) return;
+  const liste = (CACHE.charges_fixes||[]).filter(c=>c.actif!==false);
+  if(!liste.length){ zone.innerHTML = '<div class="vide">Aucune charge fixe récurrente pour l\'instant.</div>'; return; }
+  zone.innerHTML = liste.map(c=>`<div class="liste-item">
+      <div class="nom">${c.nom} — ${c.montantAnnuel} D/an</div>
+      <div class="meta">${c.activite} · ${c.categorie} · ~${Math.round(c.montantAnnuel/12)} D/mois</div>
+      <div class="meta">Prochaine échéance : ${prochaineEcheanceChargeFixe(c).split('-').reverse().join('/')}</div>
+      <div class="item-actions">
+        <button onclick="arreterChargeFixe('${c.id}')" style="color:var(--rouge);">Arrêter</button>
+      </div>
+    </div>`).join('');
 }
 /* Corriger un montant mal saisi sans avoir a supprimer puis ressaisir. */
 async function modifierDepense(id){
@@ -10298,11 +10412,12 @@ attacherEcouteur('visiteurs', rendreVisiteurs);
 attacherEcouteur('boutique_ventes', ()=>{ rendreVentesAConfirmer(); surveillerNouvellesVentes(); });
 attacherEcouteur('clients_mesures', ()=>{ rendreMesures(); mettreAJourListeClients(); });
 attacherEcouteur('transactions', ()=>{ rendreBilanFinances(); rendreRecettes(); rendreApercu(); });
-attacherEcouteur('depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); });
+attacherEcouteur('depenses', ()=>{ rendreDepenses(); rendreBilanFinances(); rendreApercu(); verifierChargesFixes(); });
 attacherEcouteur('employes', ()=>{ rendreEmployes(); rendreSalaires(); });
 attacherEcouteur('salaires_mensuel', rendreSalaires);
 attacherEcouteur('contrats', ()=>{ rendreContrats(); rendreApercu(); });
 attacherEcouteur('paiements_attente', ()=>{ rendrePaiementsAttente(); surveillerNouveauxPaiements(); });
+attacherEcouteur('charges_fixes', ()=>{ rendreChargesFixes(); verifierChargesFixes(); });
 </script>
 
 <!-- === BOUTON INSTALLER L'APPLICATION (PWA) === -->
