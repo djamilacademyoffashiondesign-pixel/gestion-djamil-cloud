@@ -1161,6 +1161,7 @@ function traduireNoeud(node){
       <input id="dep-date" type="date" onchange="majAvisDateDepense()">
       <div id="dep-avis-date" class="meta" style="margin:-4px 0 10px;"></div>
       <button class="btn" id="btn-depense" onclick="ajouterDepense()">Enregistrer la dépense</button>
+      <button onclick="etalerDepense()" style="margin-top:6px;">📅 Étaler sur plusieurs mois (loyer, assurance...)</button>
     </div>
     <div class="panel">
       <h2>Dépenses récentes</h2>
@@ -7644,7 +7645,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-09-01-courbe-pro';
+const APP_VERSION = 'v2026-09-01-etaler-depenses';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -8598,6 +8599,51 @@ function ajouterDepense(){
      semaine de depenses, elles s'enchainent sans avoir a retaper le jour. */
   viderChamps(['dep-categorie','dep-montant','dep-description']);
   toast('Dépense du ' + depense.date + ' enregistrée');
+  majAvisDateDepense();
+  basculerChargement('btn-depense', false, 'Enregistrer la dépense');
+}
+/* ===== ÉTALER UNE DÉPENSE SUR PLUSIEURS MOIS (loyer, assurance...) =====
+   Demande de Djamil (loyer annuel de 100 000 D) : l'argent sort réellement
+   en une fois, mais le bilan mensuel doit rester lisible. On garde donc UNE
+   SEULE date réelle de sortie (dateISO, celle du formulaire) pour que le
+   "Détail jour par jour" montre le vrai mouvement de caisse — mais on écrit
+   N documents 'depenses' (un par mois), chacun avec un moisCouvert distinct
+   et 1/N du montant, pour que le "Bilan annuel — mois par mois" répartisse
+   la charge. Même principe que moisSalaire pour les salaires, généralisé. */
+async function etalerDepense(){
+  const montantTotal = Number(document.getElementById('dep-montant').value)||0;
+  if(montantTotal<=0){ toast('Entrez un montant valide'); return; }
+  const activite = document.getElementById('dep-activite').value;
+  const categorie = document.getElementById('dep-categorie').value.trim() || 'Dépense';
+  const descriptionBase = document.getElementById('dep-description').value.trim();
+  const dateChoisie = document.getElementById('dep-date').value || dateISOAujourdhui();
+  const saisieMois = await demanderTexte('Répartir sur combien de mois ? (ex: 12 pour un loyer annuel)', '12');
+  if(saisieMois === null) return;
+  const nbMois = parseInt(saisieMois, 10);
+  if(!nbMois || nbMois<1 || nbMois>36){ toast('Nombre de mois invalide (1 à 36)'); return; }
+  const [anneeDep, moisDep] = dateChoisie.slice(0,7).split('-').map(Number);
+  const montantMensuel = Math.round(montantTotal/nbMois);
+  basculerChargement('btn-depense', true, 'Enregistrer la dépense');
+  for(let i=0;i<nbMois;i++){
+    let mm = (moisDep-1) + i;
+    const aa = anneeDep + Math.floor(mm/12);
+    mm = ((mm%12)+12)%12;
+    const moisCouvert = aa + '-' + String(mm+1).padStart(2,'0');
+    /* Le dernier mois absorbe l'arrondi pour que la somme des N parts
+       retombe exactement sur le montant total saisi. */
+    const montant = (i===nbMois-1) ? (montantTotal - montantMensuel*(nbMois-1)) : montantMensuel;
+    const depense = {
+      activite, categorie, montant,
+      description: (descriptionBase ? descriptionBase+' — ' : '') + 'Étalé '+(i+1)+'/'+nbMois+' ('+moisCouvert+')',
+      dateISO: dateChoisie,
+      date: new Date(dateChoisie).toLocaleDateString('fr-FR'),
+      moisCouvert,
+      creeLe: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    ecrireAvecSecours('depenses', depense, 'Une partie de la dépense étalée n\'a pas pu être synchronisée en ligne');
+  }
+  viderChamps(['dep-categorie','dep-montant','dep-description']);
+  toast(montantTotal+' D répartis sur '+nbMois+' mois (~'+montantMensuel+' D/mois)');
   majAvisDateDepense();
   basculerChargement('btn-depense', false, 'Enregistrer la dépense');
 }
@@ -9856,6 +9902,7 @@ function rendreBilanFinances(){
      Le champ moisSalaire n'existe que sur les depenses recentes ; sans lui on
      retombe naturellement sur la date de sortie. */
   function dateComptable(d){
+    if(d.moisCouvert) return d.moisCouvert + '-15';
     if(estSalaire(d) && d.moisSalaire) return d.moisSalaire + '-15';
     return d.dateISO;
   }
@@ -10148,7 +10195,7 @@ function rendreDetailJoursMois(){
   const maintenant = new Date();
   const prefixe = maintenant.getFullYear()+'-'+String(maintenant.getMonth()+1).padStart(2,'0');
   const parJour = {};
-  function jourVide(){ return {Atelier:0, Pressing:0, Boutique:0, 'Général':0, dep:0}; }
+  function jourVide(){ return {Atelier:0, Pressing:0, Boutique:0, 'Général':0, dep:0, depDetail:{}}; }
   transactions.forEach(t=>{
     if(!t.dateISO || !t.dateISO.startsWith(prefixe)) return;
     parJour[t.dateISO] = parJour[t.dateISO]||jourVide();
@@ -10159,6 +10206,8 @@ function rendreDetailJoursMois(){
     if(!d.dateISO || !d.dateISO.startsWith(prefixe)) return;
     parJour[d.dateISO] = parJour[d.dateISO]||jourVide();
     parJour[d.dateISO].dep += (d.montant||0);
+    const cat = d.categorie || 'Autre';
+    parJour[d.dateISO].depDetail[cat] = (parJour[d.dateISO].depDetail[cat]||0) + (d.montant||0);
   });
   const jours = Object.keys(parJour).sort().reverse();
   if(!jours.length){ zone.innerHTML='<div class="vide">Aucun mouvement ce mois-ci.</div>'; return; }
@@ -10167,10 +10216,14 @@ function rendreDetailJoursMois(){
     const totalRec = (b.Atelier||0)+(b.Pressing||0)+(b.Boutique||0)+(b['Général']||0);
     const solde = totalRec - b.dep;
     const dateFR = j.split('-').reverse().join('/');
+    /* Détail par catégorie de dépense — pour qu'un salaire ou un loyer
+       versé un jour donné soit NOMMÉ, et pas noyé dans un total muet. */
+    const detailDep = Object.keys(b.depDetail).map(c=>c+': '+b.depDetail[c]+' D').join(' · ');
     return `<div class="liste-item">
       <div class="nom">${dateFR}</div>
       <div class="meta">🧵 Atelier: ${b.Atelier||0} D · 👔 Pressing: ${b.Pressing||0} D · 🛍️ Boutique: ${b.Boutique||0} D${b['Général']?(' · 📋 Autre: '+b['Général']+' D'):''}</div>
       <div class="meta">Total reçu: ${totalRec} D · Dépenses: ${b.dep} D · <span style="color:${solde>=0?'var(--vert)':'var(--rouge)'};font-weight:700;">Solde: ${solde} D</span></div>
+      ${detailDep ? `<div class="meta" style="color:var(--or);">💸 ${detailDep}</div>` : ''}
     </div>`;
   }).join('');
 }
