@@ -109,6 +109,12 @@ CHUNKS.unshift(
   ["Solde payé","Balance paid"],
   ["Payer le solde","Pay the balance"],
   ["Noter une avance","Record an advance"],
+  ["Absence non annoncée","Unannounced absence"],
+  ["Voir les absences","View absences"],
+  ["SALAIRES DUS (D)","SALARIES DUE (D)"],
+  ["Enregistrer une absence non annoncée","Record an unannounced absence"],
+  ["Supprimer une absence","Delete an absence"],
+  ["Absences de","Absences of"],
   ["Ajouter un vêtement","Add a garment"],
   ["Corriger / supprimer","Edit / delete"],
   ["Envoyer le reçu à jour","Send the updated receipt"],
@@ -7661,7 +7667,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-09-03-charges-fixes';
+const APP_VERSION = 'v2026-09-12-absences-salaire';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -9312,10 +9318,14 @@ function totalPaieDuMois(mois){
       const enreg = trouverSalaireMensuel(e.id, mois);
       if(!enreg) return s;
       const salaire = e.salaireMensuel || 0;
+      /* Le salaire réellement dû, après déduction des absences non
+         annoncées : c'est ce montant (pas le salaire mensuel brut) qui
+         est effectivement versé et enregistré en dépense. */
+      const du = (typeof salaireDuMois === 'function') ? salaireDuMois(enreg, salaire, mois) : salaire;
       const verse = enreg.montantVerse || 0;
-      /* On plafonne au salaire mensuel : un cumul superieur vient d'avances
+      /* On plafonne au salaire dû : un cumul superieur vient d'avances
          notees plusieurs fois, pas d'argent reellement sorti en plus. */
-      return s + (enreg.paye ? salaire : Math.min(verse, salaire));
+      return s + (enreg.paye ? du : Math.min(verse, du));
     }, 0);
 }
 
@@ -9352,15 +9362,16 @@ function rendreCoherenceSalaires(){
     const enreg = trouverSalaireMensuel(e.id, mois);
     if(!enreg || !enreg.paye) return;
     const salaire = e.salaireMensuel || 0;
+    const du = salaireDuMois(enreg, salaire, mois);
     const verse = enreg.montantVerse || 0;
     html += '<div class="liste-item">'
       + '<div class="nom" style="display:flex;justify-content:space-between;gap:8px;">'
-      +   '<span>' + (e.nom||'—') + '</span><span style="color:var(--or);">' + salaire + ' D</span></div>'
-      + (verse > salaire
-          ? '<div class="meta" style="color:var(--rouge);">Total versé enregistré : ' + verse + ' D — dépasse le salaire mensuel, des avances ont été notées plusieurs fois</div>'
+      +   '<span>' + (e.nom||'—') + '</span><span style="color:var(--or);">' + du + ' D</span></div>'
+      + (verse > du
+          ? '<div class="meta" style="color:var(--rouge);">Total versé enregistré : ' + verse + ' D — dépasse le salaire dû (' + du + ' D), des avances ont été notées plusieurs fois</div>'
           : '')
       + '<div class="item-actions" style="margin-top:7px;">'
-      +   '<button onclick="reenregistrerDepenseSalaire(\'' + encodeURIComponent(e.nom||'') + '\',\'' + mois + '\',' + salaire + ')">↩️ Enregistrer la dépense</button>'
+      +   '<button onclick="reenregistrerDepenseSalaire(\'' + encodeURIComponent(e.nom||'') + '\',\'' + mois + '\',' + du + ')">↩️ Enregistrer la dépense</button>'
       + '</div></div>';
   });
 
@@ -9692,6 +9703,125 @@ async function ajouterAvanceSalaire(employeId, nomEmploye){
   }
   toast('Versement enregistré');
 }
+/* ====================================================================
+   ABSENCES NON ANNONCÉES — déduites automatiquement du salaire
+   (ajouté le 12/09/2026). Un employé absent sans prévenir est noté ICI,
+   jour par jour, dans le tableau `absences` du document salaires_mensuel
+   — séparé des "Jours présents ce mois" qui restent purement informatifs
+   et ne déduisent rien. En fin de mois, le montant déduit = (salaire
+   mensuel ÷ nombre de jours du mois) x nombre d'absences notées ce
+   mois-ci. Le salaire réellement dû (salaireDuMois) remplace partout
+   e.salaireMensuel comme référence pour verser, comparer et enregistrer
+   la dépense de fin de mois.
+   ==================================================================== */
+function joursDuMois(mois){
+  const parts = String(mois||'').split('-');
+  const annee = parseInt(parts[0],10) || new Date().getFullYear();
+  const moisNum = parseInt(parts[1],10) || (new Date().getMonth()+1);
+  return new Date(annee, moisNum, 0).getDate();
+}
+function tauxJournalier(salaireMensuel, mois){
+  const jours = joursDuMois(mois);
+  return jours>0 ? Math.round((salaireMensuel||0) / jours) : 0;
+}
+function absencesDetail(enreg){
+  return (enreg && Array.isArray(enreg.absences)) ? enreg.absences.slice() : [];
+}
+function montantDeductionAbsences(enreg, mois, salaireMensuel){
+  return absencesDetail(enreg).length * tauxJournalier(salaireMensuel, mois);
+}
+/* Salaire réellement dû ce mois-ci, après déduction des absences non
+   annoncées. C'est CETTE valeur qui doit être payée et enregistrée en
+   dépense — pas le salaire mensuel brut. */
+function salaireDuMois(enreg, salaireMensuel, mois){
+  return Math.max((salaireMensuel||0) - montantDeductionAbsences(enreg, mois, salaireMensuel), 0);
+}
+/* Point d'écriture unique : cache, écran, puis Firestore SANS await
+   (règle absolue de ce fichier : un await sur une écriture peut ne
+   jamais revenir sur le réseau gambien et figer la fonction). */
+function appliquerAbsences(enreg, lignes){
+  enreg.absences = lignes;
+  rendreSalaires();
+  if(!String(enreg.id).startsWith('local_')){
+    db.collection('salaires_mensuel').doc(enreg.id).update({
+      absences: lignes,
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(err){ echecEcriture('Mise à jour des absences', err); });
+  }
+}
+async function ajouterAbsence(employeId, nomEmploye){
+  const mois = document.getElementById('salaires-mois').value || moisAujourdhui();
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  let enreg = trouverSalaireMensuel(employeId, mois);
+  if(enreg && enreg.paye===true){
+    ouvrirModale('Mois déjà réglé', '<p>Le salaire de <strong>' + nomEmploye + '</strong> est déjà marqué PAYÉ pour ' + moisAffichage(mois) + '.</p><p>Pour ajouter une absence sur ce mois, annulez d\'abord le paiement.</p>', [
+      {texte:'↩️ Annuler le paiement', action:function(){ annulerPaiementSalaire(encodeURIComponent(nomEmploye), mois); }},
+      {texte:'Fermer', style:'secondary'}
+    ]);
+    return;
+  }
+  if(!await demanderCodeAdmin('Enregistrer une absence non annoncée')) return;
+  const saisieDate = await demanderTexte('Date de l\'absence non annoncée de ' + nomEmploye + ' (JJ/MM/AAAA) :', dateAujourdhui());
+  if(saisieDate===null) return;
+  const dateAbsence = saisieDate.trim() || dateAujourdhui();
+  const note = await demanderTexte('Motif (facultatif) — laisser vide si aucun :', '');
+  const salaireMensuel = (employe && employe.salaireMensuel) || (enreg && enreg.salaireMensuel) || 0;
+
+  if(!enreg){
+    enreg = {
+      id:'local_'+Date.now(),
+      employeId, employeNom: nomEmploye,
+      mois, salaireMensuel, montantVerse: 0, joursPresents: 0, absences: []
+    };
+    CACHE.salaires_mensuel.push(enreg);
+    db.collection('salaires_mensuel').add({
+      employeId, employeNom: nomEmploye, mois, salaireMensuel,
+      montantVerse: 0, joursPresents: 0, absences: [],
+      misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function(ref){ enreg.id = ref.id; }).catch(function(err){ echecEcriture('Ajout salaire mensuel', err); });
+  }
+  const lignes = absencesDetail(enreg).concat([{ms:Date.now(), date:dateAbsence, note: note||''}]);
+  appliquerAbsences(enreg, lignes);
+  const taux = tauxJournalier(salaireMensuel, mois);
+  toast('Absence notée — ' + taux + ' D seront déduits en fin de mois');
+}
+async function supprimerAbsence(employeId, ms){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  if(!enreg) return;
+  const lignes = absencesDetail(enreg);
+  const ligne = lignes.find(function(a){ return String(a.ms)===String(ms); });
+  if(!ligne){ toast('Absence introuvable'); return; }
+  if(!await demanderCodeAdmin('Supprimer une absence')) return;
+  if(!await confirmerModale('Supprimer cette absence ?', 'Absence du <strong>' + (ligne.date||'') + '</strong>' + (ligne.note ? ' (' + ligne.note + ')' : '') + '.<br><br>Elle ne sera plus déduite du salaire de fin de mois.', '🗑️ Supprimer', 'Non, la garder')) return;
+  const restantes = lignes.filter(function(a){ return String(a.ms)!==String(ms); });
+  appliquerAbsences(enreg, restantes);
+  toast('Absence retirée');
+}
+async function ouvrirAbsencesSalaire(employeId, nomEmploye){
+  const champMois = document.getElementById('salaires-mois');
+  const mois = (champMois && champMois.value) || moisAujourdhui();
+  const enreg = trouverSalaireMensuel(employeId, mois);
+  const employe = CACHE.employes.find(function(e){ return e.id===employeId; });
+  const salaireMensuel = (employe && employe.salaireMensuel) || (enreg && enreg.salaireMensuel) || 0;
+  const lignes = absencesDetail(enreg);
+  if(lignes.length===0){
+    afficherInfo('Aucune absence non annoncée n\'est notée pour ' + nomEmploye + ' en ' + moisAffichage(mois) + '.', 'Absences');
+    return;
+  }
+  const taux = tauxJournalier(salaireMensuel, mois);
+  let corps = '<p style="margin:0 0 8px;">' + nomEmploye + ' — ' + moisAffichage(mois)
+    + '<br><span style="opacity:.8;">Taux journalier : ' + taux + ' D (salaire ÷ ' + joursDuMois(mois) + ' jours)</span></p>'
+    + '<p style="font-size:1.15rem;margin:0 0 12px;">' + lignes.length + ' absence(s) — déduction totale : <strong style="color:#ffb3b3;">' + (lignes.length*taux) + ' D</strong></p>';
+  lignes.forEach(function(a){
+    corps += '<div style="border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;margin-bottom:8px;">'
+      + '<div><strong>' + (a.date||'') + '</strong>' + (a.note ? ' <span style="opacity:.7;">— ' + a.note + '</span>' : '') + '</div>'
+      + '<button class="btn secondary" style="margin-top:8px;width:100%;" onclick="supprimerAbsence(\'' + employeId + '\',' + a.ms + ')">🗑️ Supprimer</button>'
+      + '</div>';
+  });
+  ouvrirModale('📅 Absences de ' + nomEmploye, corps, [{texte:'Fermer', style:'secondary'}]);
+}
 function mettreAJourJoursPresents(employeId, nomEmploye, jours){
   const joursNum = parseInt(jours,10)||0;
   const mois = document.getElementById('salaires-mois').value || moisAujourdhui();
@@ -9745,16 +9875,19 @@ async function payerSoldeMois(employeId, nomEmploye){
   let enreg = trouverSalaireMensuel(employeId, mois);
   const salaireMensuel = (enreg && enreg.salaireMensuel) || (employe ? employe.salaireMensuel : 0) || 0;
   const avances = enreg ? (enreg.montantVerse||0) : 0;
-  const solde = salaireMensuel - avances;
+  const deductionAbs = montantDeductionAbsences(enreg, mois, salaireMensuel);
+  const salaireDu = salaireDuMois(enreg, salaireMensuel, mois);
+  const solde = salaireDu - avances;
   if(solde<=0){ toast('Le salaire de '+nomEmploye+' est déjà payé en totalité pour '+moisAffichage(mois)); return; }
-  if(!await confirmerModale('Confirmation', 'Payer le solde de '+nomEmploye+' pour '+moisAffichage(mois)+' ?\n\nSalaire mensuel: '+salaireMensuel+' D\nAvances déduites: '+avances+' D\nSolde à verser maintenant: '+solde+' D\n\nLe salaire complet ('+salaireMensuel+' D) sera enregistré dans les dépenses du mois.')) return;
+  const ligneAbsences = deductionAbs>0 ? ('\nAbsences non annoncées : -'+deductionAbs+' D ('+absencesDetail(enreg).length+' jour(s))\nSalaire dû après déduction: '+salaireDu+' D') : '';
+  if(!await confirmerModale('Confirmation', 'Payer le solde de '+nomEmploye+' pour '+moisAffichage(mois)+' ?\n\nSalaire mensuel: '+salaireMensuel+' D'+ligneAbsences+'\nAvances déduites: '+avances+' D\nSolde à verser maintenant: '+solde+' D\n\nLe salaire dû ('+salaireDu+' D) sera enregistré dans les dépenses du mois.')) return;
 
   if(enreg){
-    enreg.montantVerse = salaireMensuel;
+    enreg.montantVerse = salaireDu;
     enreg.paye = true;
     if(!String(enreg.id).startsWith('local_')){
       db.collection('salaires_mensuel').doc(enreg.id).update({
-        montantVerse: salaireMensuel,
+        montantVerse: salaireDu,
         paye: true,
         misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
       }).catch(err=>echecEcriture('Paiement solde salaire', err));
@@ -9764,20 +9897,21 @@ async function payerSoldeMois(employeId, nomEmploye){
       id:'local_'+Date.now(),
       employeId, employeNom: nomEmploye,
       mois, salaireMensuel,
-      montantVerse: salaireMensuel, joursPresents: 0, paye: true
+      montantVerse: salaireDu, joursPresents: 0, paye: true
     };
     CACHE.salaires_mensuel.push(nouveau);
     db.collection('salaires_mensuel').add({
       employeId, employeNom: nomEmploye, mois,
       salaireMensuel,
-      montantVerse: salaireMensuel, joursPresents: 0, paye: true,
+      montantVerse: salaireDu, joursPresents: 0, paye: true,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
     }).catch(err=>echecEcriture('Ajout paiement solde', err));
   }
   rendreSalaires();
   /* C'est ICI, en fin de mois, que le salaire touche les finances : le salaire
-     COMPLET (avances notées + solde versé) est enregistré en une seule dépense,
-     puisque les avances n'ont pas été comptées au moment où elles ont été notées. */
+     DÛ (avances notées + solde versé, APRÈS déduction des absences non
+     annoncées) est enregistré en une seule dépense, puisque les avances
+     n'ont pas été comptées au moment où elles ont été notées. */
   /* DEUX DATES DIFFERENTES, et c'est voulu :
      - dateISO = le jour ou l'argent sort reellement de la caisse. C'est ce qui
        fait le solde du jour et du mois : si le salaire de juin est paye le
@@ -9789,9 +9923,10 @@ async function payerSoldeMois(employeId, nomEmploye){
   ecrireAvecSecours('depenses', {
     activite:'Général',
     categorie:'Salaire',
-    montant: salaireMensuel,
+    montant: salaireDu,
     moisSalaire: mois,
     description:'Salaire de '+moisAffichage(mois)+' — '+nomEmploye+' : '+avances+' D d\'avances + '+solde+' D de solde'
+                + (deductionAbs>0 ? ' (salaire mensuel '+salaireMensuel+' D moins '+deductionAbs+' D d\'absences non annoncées)' : '')
                 + (enRetard ? ' — payé en retard le '+new Date().toLocaleDateString('fr-FR') : ''),
     dateISO: dateISOAujourdhui(),
     date: new Date().toLocaleDateString('fr-FR'),
@@ -9800,9 +9935,13 @@ async function payerSoldeMois(employeId, nomEmploye){
   if(enRetard) toast('Salaire de '+moisAffichage(mois)+' réglé — la sortie d\'argent est datée d\'aujourd\'hui');
 
   if(employe && employe.tel){
+    const ligneAbsMsg = deductionAbs>0 ? texteMsg(
+      ` (dont ${deductionAbs} D déduits pour ${absencesDetail(enreg).length} jour(s) d'absence non annoncée)`,
+      ` (including ${deductionAbs} D deducted for ${absencesDetail(enreg).length} day(s) of unannounced absence)`
+    ) : '';
     const msg = texteMsg(
-      `Bonjour ${nomEmploye}, votre salaire de ${moisAffichage(mois)} a été réglé en totalité: ${salaireMensuel} D (dont ${avances} D d'avances déjà reçues, solde versé: ${solde} D). Merci pour votre travail ce mois-ci ! 🙏`,
-      `Hello ${nomEmploye}, your ${moisAffichage(mois)} salary has been paid in full: ${salaireMensuel} D (including ${avances} D of advances already received, balance paid: ${solde} D). Thank you for your work this month! 🙏`
+      `Bonjour ${nomEmploye}, votre salaire de ${moisAffichage(mois)} a été réglé en totalité: ${salaireDu} D${ligneAbsMsg} (dont ${avances} D d'avances déjà reçues, solde versé: ${solde} D). Merci pour votre travail ce mois-ci ! 🙏`,
+      `Hello ${nomEmploye}, your ${moisAffichage(mois)} salary has been paid in full: ${salaireDu} D${ligneAbsMsg} (including ${avances} D of advances already received, balance paid: ${solde} D). Thank you for your work this month! 🙏`
     );
     const lien = lienWhatsApp(employe.tel, msg);
     ouvrirLienWhatsApp(nomEmploye, lien, 'Salaire ' + moisAffichage(mois) + ' — soldé');
@@ -9832,13 +9971,16 @@ function rendreSalaires(){
   liste.innerHTML = employesActifs.slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(e=>{
     const enreg = trouverSalaireMensuel(e.id, mois);
     const salaireMensuel = e.salaireMensuel||0;
+    const nbAbsences = absencesDetail(enreg).length;
+    const deductionAbs = montantDeductionAbsences(enreg, mois, salaireMensuel);
+    const salaireDu = salaireDuMois(enreg, salaireMensuel, mois);
     const avances = enreg ? (enreg.montantVerse||0) : 0;
     const joursPresents = enreg ? (enreg.joursPresents||0) : 0;
-    const paye = enreg ? (enreg.paye===true || avances>=salaireMensuel) : false;
-    const solde = Math.max(salaireMensuel - avances, 0);
-    const trop = salaireMensuel>0 && avances>salaireMensuel && enreg && enreg.paye!==true;
-    totalSalaires += salaireMensuel;
-    totalAvances += Math.min(avances, salaireMensuel);
+    const paye = enreg ? (enreg.paye===true || avances>=salaireDu) : false;
+    const solde = Math.max(salaireDu - avances, 0);
+    const trop = salaireDu>0 && avances>salaireDu && enreg && enreg.paye!==true;
+    totalSalaires += salaireDu;
+    totalAvances += Math.min(avances, salaireDu);
     if(!paye) totalRestant += solde;
 
     /* Etat du mois : une couleur, un mot. */
@@ -9848,21 +9990,24 @@ function rendreSalaires(){
     else if(avances>0){ classeCarte='est-avance'; classeEtat='or'; texteEtat='\ud83d\udcb0 AVANCES'; }
     else { classeCarte=''; classeEtat='gris'; texteEtat='\u23f3 RIEN NOT\u00c9'; }
 
-    const pourcent = salaireMensuel>0 ? Math.min(Math.round(avances/salaireMensuel*100),100) : 0;
+    const pourcent = salaireDu>0 ? Math.min(Math.round(avances/salaireDu*100),100) : 0;
     const classeJauge = trop ? 'trop' : (paye ? 'pleine' : '');
     const classeSolde = trop ? 'rouge' : (paye ? 'vert' : '');
 
     let note;
     if(trop){
-      note = 'Les avances d\u00e9passent le salaire mensuel de ' + (avances-salaireMensuel) + ' D \u2014 une avance a d\u00fb \u00eatre tap\u00e9e en trop.';
+      note = 'Les avances d\u00e9passent le salaire d\u00fb de ' + (avances-salaireDu) + ' D \u2014 une avance a d\u00fb \u00eatre tap\u00e9e en trop.';
     } else if(paye){
       note = 'Salaire de ' + moisAffichage(mois) + ' r\u00e9gl\u00e9 en totalit\u00e9.';
     } else if(deductionActive){
       note = 'Fin de mois : le solde de ' + solde + ' D est \u00e0 verser maintenant.';
     } else if(avances===0){
-      note = 'Aucune avance not\u00e9e \u2014 salaire entier d\u00fb en fin de mois.';
+      note = 'Aucune avance not\u00e9e \u2014 salaire d\u00fb en fin de mois.';
     } else {
       note = 'Avances not\u00e9es \u2014 d\u00e9duction en fin de mois (\u00e0 partir du 30).';
+    }
+    if(nbAbsences>0){
+      note += ' \u26a0\ufe0f ' + nbAbsences + ' absence(s) non annonc\u00e9e(s) \u2014 ' + deductionAbs + ' D d\u00e9j\u00e0 d\u00e9duits du salaire mensuel de ' + salaireMensuel + ' D.';
     }
 
     return `<div class="paie-carte ${classeCarte}">
@@ -9873,8 +10018,9 @@ function rendreSalaires(){
       <div class="paie-sous">${e.poste ? e.poste+' · ' : ''}${moisAffichage(mois)}${e.tel ? ' · 📞 '+e.tel : ''}</div>
       <div class="paie-chiffres">
         <div><span class="lab">SALAIRE</span><span class="val">${salaireMensuel}</span></div>
+        ${nbAbsences>0 ? `<div><span class="lab">ABSENCES</span><span class="val rouge">-${deductionAbs}</span></div>` : ''}
         <div><span class="lab">AVANCES</span><span class="val or">${avances}</span></div>
-        <div><span class="lab">${trop ? 'EN TROP' : (paye ? 'PAYÉ' : 'RESTE')}</span><span class="val ${classeSolde}">${trop ? (avances-salaireMensuel) : (paye ? salaireMensuel : solde)}</span></div>
+        <div><span class="lab">${trop ? 'EN TROP' : (paye ? 'PAYÉ' : 'RESTE')}</span><span class="val ${classeSolde}">${trop ? (avances-salaireDu) : (paye ? salaireDu : solde)}</span></div>
       </div>
       <div class="paie-jauge ${classeJauge}"><span style="width:${paye?100:pourcent}%;"></span></div>
       <div class="paie-note">${note}</div>
@@ -9883,6 +10029,8 @@ function rendreSalaires(){
         <input type="number" min="0" max="31" value="${joursPresents}" onchange="mettreAJourJoursPresents('${e.id}','${e.nom.replace(/'/g,"\\'")}',this.value)">
       </div>
       <div class="item-actions">
+        ${!paye ? `<button onclick="ajouterAbsence('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:#ffb3b3;border-color:rgba(220,90,90,0.4);">📅 Absence non annoncée</button>` : ''}
+        ${nbAbsences>0 ? `<button onclick="ouvrirAbsencesSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')">📅 Voir les absences (${nbAbsences})</button>` : ''}
         ${!paye ? `<button onclick="ajouterAvanceSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--or-clair);border-color:rgba(201,162,39,0.4);">💰 Noter une avance</button>` : ''}
         ${avances>0 ? `<button onclick="ouvrirAvancesSalaire('${e.id}','${e.nom.replace(/'/g,"\\'")}')">✏️ Corriger / supprimer</button>` : ''}
         ${(!paye && deductionActive) ? `<button onclick="payerSoldeMois('${e.id}','${e.nom.replace(/'/g,"\\'")}')" style="color:var(--vert);border-color:rgba(63,174,92,0.45);">✅ Payer le solde</button>` : ''}
@@ -9891,7 +10039,7 @@ function rendreSalaires(){
   }).join('');
 
   document.getElementById('salaires-stats').innerHTML = `
-    <div class="stat"><div class="val">${totalSalaires}</div><div class="lab">SALAIRES (D)</div></div>
+    <div class="stat"><div class="val">${totalSalaires}</div><div class="lab">SALAIRES DUS (D)</div></div>
     <div class="stat"><div class="val">${totalAvances}</div><div class="lab">AVANCES NOTÉES (D)</div></div>
     <div class="stat"><div class="val">${totalRestant}</div><div class="lab">À PAYER FIN DE MOIS (D)</div></div>
   `;
