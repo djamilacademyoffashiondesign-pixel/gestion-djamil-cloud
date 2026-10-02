@@ -253,6 +253,9 @@
 <div id="zone-impression"></div>
 
 <script>
+if(location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+  location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+}
 /* =====================================================================
    POINTAGE DU PERSONNEL — Chez Djamil
    Page séparée de l'app de gestion (index.html) mais même base Firestore
@@ -434,11 +437,20 @@ async function demarrerCamera(){
   const video = $('video');
   if(video.srcObject && video.srcObject.active) { lancerScan(); return; }
   const msg = $('message-camera');
+  msg.classList.remove('cache');
+  msg.innerHTML = 'Ouverture de la caméra…';
+  /* Sans HTTPS, Chrome retire complètement l'accès à la caméra
+     (navigator.mediaDevices n'existe pas) : on le dit clairement. */
+  if(!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    afficherErreurCamera({name:'PageNonSecurisee'});
+    return;
+  }
   try{
     let flux;
     try{
       flux = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:640}, height:{ideal:480}}, audio:false});
     }catch(e){
+      if(e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
       flux = await navigator.mediaDevices.getUserMedia({video:true, audio:false});
     }
     video.srcObject = flux;
@@ -446,9 +458,34 @@ async function demarrerCamera(){
     msg.classList.add('cache');
     lancerScan();
   }catch(err){
-    msg.classList.remove('cache');
-    msg.innerHTML = 'La caméra n\'est pas autorisée. Touchez ici, puis acceptez l\'accès à la caméra.<br><button class="btn" style="margin-top:10px" onclick="demarrerCamera()">Autoriser la caméra</button>';
+    afficherErreurCamera(err);
   }
+}
+async function afficherErreurCamera(err){
+  const nom = (err && err.name) || 'Inconnue';
+  let etatPermission = '';
+  try{
+    if(navigator.permissions){ etatPermission = (await navigator.permissions.query({name:'camera'})).state; }
+  }catch(e){}
+  let texte;
+  if(nom === 'PageNonSecurisee'){
+    texte = 'La page n\'est pas ouverte en connexion sécurisée (https), Chrome bloque donc la caméra. Ouvrez exactement : <b>https://gestion.chezdjamil.com/pointage.html</b>';
+  } else if(nom === 'NotAllowedError' || nom === 'SecurityError'){
+    texte = etatPermission === 'denied'
+      ? 'Chrome a mémorisé un refus pour la caméra sur ce site. Touchez le cadenas à gauche de l\'adresse, puis Autorisations, puis Caméra : Autoriser. Ou : Chrome, Paramètres, Paramètres des sites, Caméra.'
+      : 'Android refuse la caméra à Chrome. Paramètres du téléphone, Applications, Chrome, Autorisations, Caméra : Autoriser. Puis rechargez la page.';
+  } else if(nom === 'NotReadableError' || nom === 'TrackStartError' || nom === 'AbortError'){
+    texte = 'La caméra est déjà utilisée par une autre application (appareil photo, WhatsApp, appel vidéo…). Fermez-la, puis réessayez.';
+  } else if(nom === 'NotFoundError' || nom === 'OverconstrainedError'){
+    texte = 'Aucune caméra utilisable n\'a été trouvée sur cet appareil.';
+  } else {
+    texte = 'La caméra n\'a pas pu démarrer.';
+  }
+  const msg = $('message-camera');
+  msg.classList.remove('cache');
+  msg.innerHTML = texte +
+    '<div style="color:var(--gris);font-size:.85rem;margin-top:8px">Détail : '+echap(nom)+(etatPermission ? ', autorisation : '+echap(etatPermission) : '')+', '+echap(location.protocol.replace(':',''))+'</div>'+
+    '<button class="btn" style="margin-top:10px" onclick="demarrerCamera()">Réessayer</button>';
 }
 async function preparerDetecteur(){
   try{
