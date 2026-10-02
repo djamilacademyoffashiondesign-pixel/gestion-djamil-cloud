@@ -95,6 +95,9 @@ PHX.push(["Nom de la catégorie","Category name"],["Nom de l'article","Item name
    courte les coupe en deux ("Commande Prete" devenait "Commande Ready").
    ==================================================================== */
 CHUNKS.unshift(
+  ["Voir qui est venu, les retards, le récapitulatif du mois, et imprimer les badges.","See who came in, late arrivals, the monthly summary, and print badges."],
+  ["Pointage du personnel","Staff attendance"],
+  ["Ouvrir les présences","Open attendance"],
   ["Charges fixes récurrentes (loyer, assurance...)","Recurring fixed charges (rent, insurance...)"],
   ["Une charge qui revient chaque année (comme le loyer) : réglez-la UNE fois ici, l'app la reconduira et l'étalera sur 12 mois automatiquement, chaque année, sans rien vous redemander.","A charge that repeats every year (like rent): set it up ONCE here, the app will renew it and spread it over 12 months automatically, every year, without asking again."],
   ["Ajouter une charge fixe","Add a fixed charge"],
@@ -1201,6 +1204,11 @@ function traduireNoeud(node){
 
   <!-- ===================== SALAIRES ===================== -->
   <section class="module" id="salaires">
+    <div class="panel">
+      <h2>🕘 Pointage du personnel</h2>
+      <p style="font-size:.9rem;color:var(--gris);margin:4px 0 10px;">Voir qui est venu, les retards, le récapitulatif du mois, et imprimer les badges.</p>
+      <a href="pointage.html#gestion" style="display:inline-block;background:var(--or);color:#000;padding:11px 16px;border-radius:10px;font-weight:600;text-decoration:none;">Ouvrir les présences</a>
+    </div>
     <div class="panel">
       <h2>Ajouter un employé</h2>
       <label>Nom</label>
@@ -7667,7 +7675,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-10-02-absences-sauvees';
+const APP_VERSION = 'v2026-10-02-pointage-personnel';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
