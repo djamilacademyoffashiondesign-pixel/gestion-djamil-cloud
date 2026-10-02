@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Pointage — Chez Djamil</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕘</text></svg>">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --noir:#000;
+    --noir-doux:#141416;
+    --ligne:#2a2a2e;
+    --or:#c9a227;
+    --or-clair:#e8c75e;
+    --gris:#8a8a8f;
+    --blanc:#f5f3ec;
+    --vert:#2f9e53;
+    --bleu:#2f6fae;
+    --rouge:#c1473b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--noir);color:var(--blanc);
+    font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button{font:inherit;cursor:pointer;}
+  .cache{display:none !important;}
+
+  /* ============ ÉCRAN DE POINTAGE (tablette) ============ */
+  #kiosque{
+    height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3vh;padding:4vh 4vw;text-align:center;user-select:none;
+  }
+  #horloge{
+    font-family:Georgia,"Times New Roman",serif;font-variant-numeric:tabular-nums;
+    font-size:clamp(4rem,16vw,10rem);line-height:1;color:var(--or);letter-spacing:-.02em;
+  }
+  #date-jour{color:var(--gris);font-size:clamp(1rem,2.6vw,1.4rem);margin-top:-1vh;}
+  #cadre-camera{
+    position:relative;width:min(56vw,340px);aspect-ratio:4/3;border-radius:22px;overflow:hidden;
+    border:2px solid #3a3320;background:#0a0a0a;
+  }
+  #cadre-camera video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.55;}
+  #cadre-camera::after{
+    content:"";position:absolute;inset:18%;border:2px dashed rgba(232,199,94,.55);border-radius:12px;
+  }
+  #consigne{font-size:clamp(1.3rem,3.6vw,2rem);color:var(--blanc);}
+  #consigne small{display:block;color:var(--gris);font-size:.62em;margin-top:4px;}
+  #btn-oubli{
+    background:transparent;color:var(--gris);border:1px solid var(--ligne);border-radius:999px;
+    padding:10px 20px;font-size:1rem;
+  }
+  #etat-reseau{
+    position:fixed;left:0;right:0;top:0;padding:calc(6px + env(safe-area-inset-top,0px)) 12px 6px;
+    font-size:.9rem;text-align:center;
+  }
+  #etat-reseau.horsligne{background:#3a2a10;color:var(--or-clair);}
+  #etat-reseau.attente{background:#1c2430;color:#9cc3ea;}
+  #message-camera{color:var(--or-clair);max-width:520px;font-size:1rem;}
+
+  /* Résultat d'un scan */
+  #resultat{
+    position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2vh;text-align:center;padding:5vw;z-index:50;
+  }
+  #resultat.entree{background:var(--vert);}
+  #resultat.sortie{background:var(--bleu);}
+  #resultat.refus{background:var(--rouge);}
+  #resultat.info{background:#3a3320;}
+  #resultat img{width:min(40vw,220px);border-radius:16px;border:3px solid rgba(255,255,255,.7);}
+  #res-type{font-size:clamp(1.4rem,4vw,2.2rem);opacity:.9;}
+  #res-nom{font-size:clamp(2.4rem,8vw,5rem);font-weight:700;line-height:1.05;}
+  #res-heure{font-family:Georgia,serif;font-size:clamp(2rem,7vw,4rem);font-variant-numeric:tabular-nums;}
+  #res-salut{font-size:clamp(1.1rem,3vw,1.6rem);opacity:.9;}
+
+  /* Fenêtres */
+  .fond-modale{
+    position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:80;display:flex;align-items:center;
+    justify-content:center;padding:16px;
+  }
+  .modale{
+    background:var(--noir-doux);border:1px solid var(--ligne);border-radius:16px;padding:20px;
+    width:100%;max-width:560px;max-height:88vh;overflow:auto;
+  }
+  .modale h3{margin:0 0 12px;color:var(--or-clair);font-weight:600;}
+  .grille-noms{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+  .grille-noms button{
+    background:#1d1d21;color:var(--blanc);border:1px solid var(--ligne);border-radius:12px;
+    padding:18px 10px;font-size:1.05rem;
+  }
+  .rangee-boutons{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+  .btn{background:var(--or);color:#000;border:0;border-radius:10px;padding:12px 18px;font-weight:600;}
+  .btn.second{background:transparent;color:var(--or-clair);border:1px solid var(--or);}
+  .btn.danger{background:transparent;color:#ff8a7d;border:1px solid var(--rouge);}
+  input,select{
+    background:#0d0d0f;color:var(--blanc);border:1px solid var(--ligne);border-radius:10px;
+    padding:11px 12px;font-size:1rem;width:100%;
+  }
+  label{display:block;color:var(--gris);font-size:.88rem;margin:12px 0 5px;}
+
+  /* ============ GESTION (directeur) ============ */
+  #gestion{min-height:100%;background:#0b0b0c;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 40px;}
+  .gestion-tete{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:1100px;margin:0 auto 10px;}
+  .gestion-tete h1{font-size:1.25rem;margin:0;color:var(--or-clair);font-weight:600;}
+  .onglets{display:flex;gap:6px;overflow-x:auto;max-width:1100px;margin:0 auto 14px;padding-bottom:4px;}
+  .onglets button{
+    background:transparent;color:var(--gris);border:1px solid var(--ligne);border-radius:999px;
+    padding:9px 16px;white-space:nowrap;
+  }
+  .onglets button.actif{color:#000;background:var(--or);border-color:var(--or);}
+  .vue{max-width:1100px;margin:0 auto;}
+  .bandeau{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px;}
+  .bandeau > div{min-width:160px;}
+  .resume{color:var(--blanc);font-size:1.05rem;margin:4px 0 14px;}
+  .resume b{color:var(--or-clair);}
+  .ligne-emp{
+    border:1px solid var(--ligne);border-left:5px solid var(--gris);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px;background:var(--noir-doux);
+  }
+  .ligne-emp.present{border-left-color:var(--vert);}
+  .ligne-emp.retard{border-left-color:var(--or);}
+  .ligne-emp.absent{border-left-color:var(--rouge);}
+  .ligne-emp.parti{border-left-color:var(--bleu);}
+  .emp-tete{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline;}
+  .emp-nom{font-size:1.1rem;font-weight:600;}
+  .emp-poste{color:var(--gris);font-size:.88rem;}
+  .pastille{border-radius:999px;padding:4px 11px;font-size:.85rem;font-weight:600;}
+  .pastille.present{background:rgba(47,158,83,.2);color:#7fd99b;}
+  .pastille.retard{background:rgba(201,162,39,.2);color:var(--or-clair);}
+  .pastille.absent{background:rgba(193,71,59,.22);color:#ff9a8f;}
+  .pastille.parti{background:rgba(47,111,174,.25);color:#9cc3ea;}
+  .pastille.neutre{background:#222;color:var(--gris);}
+  .puces{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+  .puce{
+    background:#1d1d21;border:1px solid var(--ligne);color:var(--blanc);border-radius:8px;
+    padding:6px 10px;font-size:.92rem;
+  }
+  .puce.attente{border-style:dashed;}
+  .petit{color:var(--gris);font-size:.86rem;margin-top:8px;}
+  .tableau-defile{overflow-x:auto;}
+  table{border-collapse:collapse;width:100%;min-width:620px;}
+  th,td{padding:10px 8px;border-bottom:1px solid var(--ligne);text-align:left;font-size:.95rem;}
+  th{color:var(--gris);font-weight:500;}
+  td.nb{font-variant-numeric:tabular-nums;}
+  tr.cliquable{cursor:pointer;}
+  .detail-mois{color:var(--gris);font-size:.88rem;padding:4px 8px 12px;}
+
+  /* Badges */
+  .grille-badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+  .badge{
+    width:85.6mm;height:54mm;background:#fff;color:#111;border-radius:3mm;padding:4mm;
+    display:flex;gap:4mm;align-items:center;border:1px solid #ccc;overflow:hidden;
+  }
+  .badge .qr{width:36mm;height:36mm;flex:0 0 36mm;}
+  .badge .qr img,.badge .qr canvas{width:36mm !important;height:36mm !important;}
+  .badge .txt{display:flex;flex-direction:column;gap:1.5mm;min-width:0;}
+  .badge .commerce{font-size:8pt;color:#8a6d10;font-weight:700;}
+  .badge .nom{font-size:13pt;font-weight:700;line-height:1.1;word-break:break-word;}
+  .badge .poste{font-size:9pt;color:#555;}
+  .badge .mention{font-size:6.5pt;color:#888;margin-top:2mm;}
+  .carte-badge{background:var(--noir-doux);border:1px solid var(--ligne);border-radius:12px;padding:10px;}
+  .carte-badge .rangee-boutons{margin-top:8px;}
+
+  @media print{
+    body{background:#fff;}
+    body > *{display:none !important;}
+    #zone-impression{display:flex !important;flex-wrap:wrap;gap:5mm;padding:5mm;}
+    #zone-impression .badge{break-inside:avoid;}
+  }
+  #zone-impression{display:none;}
+</style>
+</head>
+<body>
+
+<!-- ================= ÉCRAN DE POINTAGE ================= -->
+<div id="kiosque">
+  <div id="etat-reseau" class="cache"></div>
+  <div id="horloge">--:--</div>
+  <div id="date-jour"></div>
+  <div id="cadre-camera"><video id="video" playsinline muted autoplay></video></div>
+  <div id="consigne">Présentez votre badge<small>Show your badge to the camera</small></div>
+  <div id="message-camera" class="cache"></div>
+  <button id="btn-oubli" onclick="ouvrirBadgeOublie()">J'ai oublié mon badge / I forgot my badge</button>
+</div>
+
+<div id="resultat" class="cache">
+  <img id="res-photo" alt="" class="cache">
+  <div id="res-type"></div>
+  <div id="res-nom"></div>
+  <div id="res-heure"></div>
+  <div id="res-salut"></div>
+</div>
+
+<!-- ================= GESTION ================= -->
+<div id="gestion" class="cache">
+  <div class="gestion-tete">
+    <h1>🕘 Pointage du personnel</h1>
+    <button class="btn second" onclick="retourKiosque()">Revenir au pointage</button>
+  </div>
+  <div class="onglets">
+    <button data-vue="jour" class="actif" onclick="ouvrirVue('jour')">Présences du jour</button>
+    <button data-vue="mois" onclick="ouvrirVue('mois')">Récapitulatif du mois</button>
+    <button data-vue="badges" onclick="ouvrirVue('badges')">Badges</button>
+    <button data-vue="reglages" onclick="ouvrirVue('reglages')">Réglages</button>
+  </div>
+
+  <div class="vue" id="vue-jour">
+    <div class="bandeau">
+      <div><label>Jour</label><input type="date" id="jour-choisi" onchange="chargerJourGestion()"></div>
+    </div>
+    <div class="resume" id="jour-resume"></div>
+    <div id="jour-liste"></div>
+  </div>
+
+  <div class="vue cache" id="vue-mois">
+    <div class="bandeau">
+      <div><label>Mois</label><input type="month" id="mois-choisi" onchange="chargerMois()"></div>
+    </div>
+    <div class="resume" id="mois-resume"></div>
+    <div class="tableau-defile"><div id="mois-tableau"></div></div>
+    <p class="petit">Jours ouvrés : du lundi au samedi. Touchez un employé pour voir ses dates d'absence et de retard. Pour retenir une absence sur le salaire, utilisez « 📅 Absence non annoncée » dans l'écran Salaires de l'app de gestion.</p>
+  </div>
+
+  <div class="vue cache" id="vue-badges">
+    <div class="rangee-boutons" style="margin:0 0 14px;">
+      <button class="btn" onclick="imprimerBadges()">🖨️ Imprimer tous les badges</button>
+    </div>
+    <p class="petit" style="margin-top:0;">Format carte bancaire (85 × 54 mm). Imprimez, découpez et plastifiez. Si un badge est perdu, touchez « Remplacer ce badge » : l'ancien ne marchera plus.</p>
+    <div class="grille-badges" id="badges-liste"></div>
+  </div>
+
+  <div class="vue cache" id="vue-reglages">
+    <div class="modale" style="max-width:520px;max-height:none;">
+      <label>Heure d'arrivée attendue</label>
+      <input type="time" id="reg-debut">
+      <label>Tolérance avant de compter un retard (minutes)</label>
+      <input type="number" id="reg-tolerance" min="0" max="120">
+      <label>Nom de cette tablette (pour savoir d'où vient un pointage)</label>
+      <input id="reg-appareil" placeholder="Ex : Tablette entrée">
+      <div class="rangee-boutons"><button class="btn" onclick="enregistrerReglages()">Enregistrer les réglages</button></div>
+      <p class="petit">L'heure d'arrivée et la tolérance valent pour tous les appareils. Le nom de la tablette ne concerne que cet appareil.</p>
+    </div>
+  </div>
+</div>
+
+<div id="zone-impression"></div>
+
+<script>
+if(location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+  location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+}
+/* =====================================================================
+   POINTAGE DU PERSONNEL — Chez Djamil
+   Page séparée de l'app de gestion (index.html) mais même base Firestore
+   (projet dafd-gestion) : elle lit la collection 'employes' déjà remplie
+   dans l'écran Salaires, et écrit dans deux NOUVELLES collections :
+     - pointages        {employeId, nom, poste, type:'entree'|'sortie', ms,
+                         dateISO, heure, sansBadge, manuel, appareil}
+     - pointages_photos {photo (jpeg base64), employeId, dateISO}
+       (séparée pour que le récapitulatif du mois reste léger)
+   Aucune donnée existante n'est modifiée, sauf le champ facultatif
+   'badge' d'un employé quand on remplace un badge perdu.
+   Fonctionne HORS CONNEXION : la persistance Firestore garde les
+   pointages dans la tablette et les envoie au retour du réseau. L'heure
+   enregistrée est celle du scan (champ ms), jamais celle de l'envoi.
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyAuV9_wfT6-GJaT-ph0HOYVl3tZckdUFwo",
+  authDomain: "dafd-gestion.firebaseapp.com",
+  projectId: "dafd-gestion",
+  storageBucket: "dafd-gestion.firebasestorage.app",
+  messagingSenderId: "948799636156",
+  appId: "1:948799636156:web:3c36e09a6a9fa02758c6b9"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+/* Doit être appelée avant toute autre opération Firestore. */
+db.enablePersistence({synchronizeTabs:true}).catch(function(e){ console.warn('Persistance', e && e.code); });
+
+const PREFIXE_BADGE = 'CDJ1';
+const DELAI_DOUBLON_MS = 2 * 60 * 1000;   // un 2e scan dans les 2 min est ignoré
+const DUREE_RESULTAT_MS = 3500;
+
+let EMPLOYES = [];
+let POINTAGES_JOUR = [];
+let EN_ATTENTE = 0;
+let REGLAGES = { debut:'09:00', tolerance:10 };
+let NOM_COMMERCE = 'Chez Djamil';
+let CODE_ADMIN = '1234';
+let JOUR_ECOUTE = '';
+let arretEcouteJour = null;
+let occupe = false;
+let detecteur = null;
+let minuterieScan = null;
+let verrouEcran = null;
+let modeGestion = false;
+
+/* ---------------- Outils ---------------- */
+function $(id){ return document.getElementById(id); }
+function pad(n){ return String(n).padStart(2,'0'); }
+function isoJour(d){ d = d || new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function hhmm(ms){ const d = new Date(ms); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function echap(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function minutesDe(h){ const p = String(h||'0:0').split(':'); return (+p[0]||0)*60 + (+p[1]||0); }
+function dureeTexte(min){ min = Math.max(0, Math.round(min)); const h = Math.floor(min/60), m = min%60; return h+' h '+pad(m); }
+function dateLongue(d){
+  return d.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+}
+function jourDepuisISO(iso){ const p = iso.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+function nomAppareil(){ try{ return localStorage.getItem('pt_appareil') || 'Tablette entrée'; }catch(e){ return 'Tablette entrée'; } }
+function employesActifs(){
+  return EMPLOYES.filter(e => e.actif !== false && e.id && String(e.id).indexOf('local_') !== 0)
+                 .sort((a,b)=>String(a.nom).localeCompare(String(b.nom)));
+}
+
+/* ---------------- Bip ---------------- */
+let ctxAudio = null;
+function bip(frequences){
+  try{
+    ctxAudio = ctxAudio || new (window.AudioContext || window.webkitAudioContext)();
+    let t = ctxAudio.currentTime;
+    frequences.forEach(function(f){
+      const o = ctxAudio.createOscillator(), g = ctxAudio.createGain();
+      o.frequency.value = f; o.type = 'sine';
+      g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.18);
+      o.connect(g); g.connect(ctxAudio.destination); o.start(t); o.stop(t+0.2);
+      t += 0.16;
+    });
+  }catch(e){}
+}
+
+/* ---------------- Fenêtres ---------------- */
+function ouvrirModale(titre, html, boutons){
+  fermerModales();
+  const fond = document.createElement('div');
+  fond.className = 'fond-modale';
+  fond.innerHTML = '<div class="modale"><h3>'+echap(titre)+'</h3><div class="corps">'+html+'</div><div class="rangee-boutons"></div></div>';
+  const zone = fond.querySelector('.rangee-boutons');
+  (boutons || [{texte:'Fermer', style:'second'}]).forEach(function(b){
+    const el = document.createElement('button');
+    el.className = 'btn ' + (b.style || '');
+    el.textContent = b.texte;
+    el.onclick = function(){ if(!b.garder) fond.remove(); if(b.action) b.action(fond); };
+    zone.appendChild(el);
+  });
+  fond.addEventListener('click', function(e){ if(e.target === fond) fond.remove(); });
+  document.body.appendChild(fond);
+  return fond;
+}
+function fermerModales(){ document.querySelectorAll('.fond-modale').forEach(m=>m.remove()); }
+
+/* ---------------- Données ---------------- */
+function chargerEmployesDuCache(){
+  try{ const t = localStorage.getItem('pt_employes'); if(t) EMPLOYES = JSON.parse(t) || []; }catch(e){}
+}
+function ecouterEmployes(){
+  db.collection('employes').onSnapshot(function(snap){
+    EMPLOYES = snap.docs.map(d => Object.assign({id:d.id}, d.data()));
+    try{ localStorage.setItem('pt_employes', JSON.stringify(EMPLOYES.map(e=>({id:e.id, nom:e.nom, poste:e.poste, actif:e.actif, badge:e.badge})))); }catch(e){}
+    if(modeGestion) rafraichirVueActive();
+  }, function(err){ console.warn('employes', err); });
+}
+function ecouterParametres(){
+  db.collection('parametres').doc('pointage').onSnapshot(function(d){
+    if(d.exists){
+      const v = d.data();
+      if(v.debut) REGLAGES.debut = v.debut;
+      if(v.tolerance != null) REGLAGES.tolerance = +v.tolerance || 0;
+    }
+  }, function(){});
+  db.collection('parametres').doc('infosCommerce').get().then(function(d){
+    if(d.exists && d.data().nom) NOM_COMMERCE = d.data().nom;
+  }).catch(function(){});
+  db.collection('parametres').doc('codeAdminPrincipal').onSnapshot(function(d){
+    if(d.exists && d.data().code) CODE_ADMIN = String(d.data().code);
+  }, function(){});
+}
+function ecouterPointagesDuJour(){
+  const jour = isoJour();
+  if(jour === JOUR_ECOUTE) return;
+  JOUR_ECOUTE = jour;
+  if(arretEcouteJour) arretEcouteJour();
+  POINTAGES_JOUR = [];
+  arretEcouteJour = db.collection('pointages').where('dateISO','==',jour)
+    .onSnapshot({includeMetadataChanges:true}, function(snap){
+      POINTAGES_JOUR = snap.docs.map(d => Object.assign({id:d.id, _attente:d.metadata.hasPendingWrites}, d.data()));
+      EN_ATTENTE = POINTAGES_JOUR.filter(p => p._attente).length;
+      majEtatReseau();
+      if(modeGestion && $('jour-choisi').value === JOUR_ECOUTE) rendreJour(JOUR_ECOUTE, POINTAGES_JOUR);
+    }, function(err){ console.warn('pointages', err); });
+}
+
+/* ---------------- Horloge et réseau ---------------- */
+function majHorloge(){
+  const d = new Date();
+  $('horloge').textContent = pad(d.getHours())+':'+pad(d.getMinutes());
+  $('date-jour').textContent = dateLongue(d);
+  ecouterPointagesDuJour();   // change d'écoute à minuit
+}
+function majEtatReseau(){
+  const el = $('etat-reseau');
+  if(!navigator.onLine){
+    el.className = 'horsligne';
+    el.textContent = 'Hors connexion : les pointages sont gardés dans la tablette' + (EN_ATTENTE ? ' ('+EN_ATTENTE+' en attente)' : '') + ' et partiront au retour du réseau.';
+  } else if(EN_ATTENTE > 0){
+    el.className = 'attente';
+    el.textContent = 'Envoi en cours : ' + EN_ATTENTE + ' pointage(s) en attente.';
+  } else {
+    el.className = 'cache';
+  }
+}
+window.addEventListener('online', majEtatReseau);
+window.addEventListener('offline', majEtatReseau);
+
+/* ---------------- Écran toujours allumé ---------------- */
+async function garderEcranAllume(){
+  try{
+    if('wakeLock' in navigator && !verrouEcran){
+      verrouEcran = await navigator.wakeLock.request('screen');
+      verrouEcran.addEventListener('release', function(){ verrouEcran = null; });
+    }
+  }catch(e){ /* refusé : l'appareil gérera la veille lui-même */ }
+}
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){ garderEcranAllume(); if(!modeGestion) demarrerCamera(); }
+});
+
+/* ---------------- Caméra et lecture des badges ---------------- */
+async function demarrerCamera(){
+  const video = $('video');
+  if(video.srcObject && video.srcObject.active) { lancerScan(); return; }
+  const msg = $('message-camera');
+  msg.classList.remove('cache');
+  msg.innerHTML = 'Ouverture de la caméra…';
+  /* Sans HTTPS, Chrome retire complètement l'accès à la caméra
+     (navigator.mediaDevices n'existe pas) : on le dit clairement. */
+  if(!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    afficherErreurCamera({name:'PageNonSecurisee'});
+    return;
+  }
+  try{
+    let flux;
+    try{
+      flux = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:640}, height:{ideal:480}}, audio:false});
+    }catch(e){
+      if(e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+      flux = await navigator.mediaDevices.getUserMedia({video:true, audio:false});
+    }
+    video.srcObject = flux;
+    await video.play().catch(function(){});
+    msg.classList.add('cache');
+    lancerScan();
+  }catch(err){
+    afficherErreurCamera(err);
+  }
+}
+async function afficherErreurCamera(err){
+  const nom = (err && err.name) || 'Inconnue';
+  let etatPermission = '';
+  try{
+    if(navigator.permissions){ etatPermission = (await navigator.permissions.query({name:'camera'})).state; }
+  }catch(e){}
+  let texte;
+  if(nom === 'PageNonSecurisee'){
+    texte = 'La page n\'est pas ouverte en connexion sécurisée (https), Chrome bloque donc la caméra. Ouvrez exactement : <b>https://gestion.chezdjamil.com/pointage.html</b>';
+  } else if(nom === 'NotAllowedError' || nom === 'SecurityError'){
+    texte = etatPermission === 'denied'
+      ? 'Chrome a mémorisé un refus pour la caméra sur ce site. Touchez le cadenas à gauche de l\'adresse, puis Autorisations, puis Caméra : Autoriser. Ou : Chrome, Paramètres, Paramètres des sites, Caméra.'
+      : 'Android refuse la caméra à Chrome. Paramètres du téléphone, Applications, Chrome, Autorisations, Caméra : Autoriser. Puis rechargez la page.';
+  } else if(nom === 'NotReadableError' || nom === 'TrackStartError' || nom === 'AbortError'){
+    texte = 'La caméra est déjà utilisée par une autre application (appareil photo, WhatsApp, appel vidéo…). Fermez-la, puis réessayez.';
+  } else if(nom === 'NotFoundError' || nom === 'OverconstrainedError'){
+    texte = 'Aucune caméra utilisable n\'a été trouvée sur cet appareil.';
+  } else {
+    texte = 'La caméra n\'a pas pu démarrer.';
+  }
+  const msg = $('message-camera');
+  msg.classList.remove('cache');
+  msg.innerHTML = texte +
+    '<div style="color:var(--gris);font-size:.85rem;margin-top:8px">Détail : '+echap(nom)+(etatPermission ? ', autorisation : '+echap(etatPermission) : '')+', '+echap(location.protocol.replace(':',''))+'</div>'+
+    '<button class="btn" style="margin-top:10px" onclick="demarrerCamera()">Réessayer</button>';
+}
+async function preparerDetecteur(){
+  try{
+    if('BarcodeDetector' in window){
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if(formats.indexOf('qr_code') >= 0) detecteur = new BarcodeDetector({formats:['qr_code']});
+    }
+  }catch(e){ detecteur = null; }
+}
+const toile = document.createElement('canvas');
+function lireImage(){
+  const video = $('video');
+  if(!video.videoWidth) return Promise.resolve(null);
+  if(detecteur){
+    return detecteur.detect(video).then(c => c && c.length ? c[0].rawValue : null).catch(() => null);
+  }
+  if(typeof jsQR !== 'function') return Promise.resolve(null);
+  const w = 400, h = Math.round(400 * video.videoHeight / video.videoWidth);
+  toile.width = w; toile.height = h;
+  const ctx = toile.getContext('2d', {willReadFrequently:true});
+  ctx.drawImage(video, 0, 0, w, h);
+  const r = jsQR(ctx.getImageData(0,0,w,h).data, w, h, {inversionAttempts:'dontInvert'});
+  return Promise.resolve(r ? r.data : null);
+}
+function lancerScan(){
+  if(minuterieScan) return;
+  minuterieScan = setInterval(function(){
+    if(occupe || modeGestion || document.querySelector('.fond-modale')) return;
+    occupe = true;
+    lireImage().then(function(texte){
+      if(texte) traiterBadge(texte); else occupe = false;
+    }).catch(function(){ occupe = false; });
+  }, 300);
+}
+function capturerPhoto(){
+  try{
+    const video = $('video');
+    if(!video.videoWidth) return null;
+    const c = document.createElement('canvas');
+    c.width = 240; c.height = Math.round(240 * video.videoHeight / video.videoWidth);
+    const ctx = c.getContext('2d');
+    ctx.translate(c.width, 0); ctx.scale(-1, 1);   // même sens que l'aperçu
+    ctx.drawImage(video, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.6);
+  }catch(e){ return null; }
+}
+
+/* ---------------- Pointer ---------------- */
+function traiterBadge(texte){
+  const m = String(texte).trim().match(/^CDJ1:([A-Za-z0-9_-]+):([A-Za-z0-9]+)$/);
+  if(!m){ montrerResultat('refus', 'Ce code n\'est pas un badge', '', 'This is not a staff badge'); bip([300,220]); return; }
+  const emp = EMPLOYES.find(e => e.id === m[1]);
+  if(!emp || emp.actif === false){ montrerResultat('refus', 'Badge inconnu', '', 'Unknown badge — voir le directeur'); bip([300,220]); return; }
+  const codeAttendu = emp.badge || '0';
+  if(m[2] !== codeAttendu){ montrerResultat('refus', 'Badge remplacé', emp.nom, 'Ce badge n\'est plus valable / This badge was replaced'); bip([300,220]); return; }
+  pointer(emp, false);
+}
+function pointer(emp, sansBadge){
+  const maintenant = Date.now();
+  const jour = isoJour(new Date(maintenant));
+  const siens = POINTAGES_JOUR.filter(p => p.employeId === emp.id).sort((a,b)=>a.ms-b.ms);
+  const dernier = siens[siens.length-1];
+  if(dernier && maintenant - dernier.ms < DELAI_DOUBLON_MS){
+    montrerResultat('info', 'Déjà enregistré', emp.nom, (dernier.type==='entree'?'Entrée':'Sortie')+' à '+dernier.heure+' / Already recorded');
+    bip([660]);
+    return;
+  }
+  const type = dernier && dernier.type === 'entree' ? 'sortie' : 'entree';
+  const photo = capturerPhoto();
+  const id = jour.replace(/-/g,'') + '_' + emp.id + '_' + maintenant;
+  const fiche = {
+    employeId: emp.id, nom: emp.nom || '', poste: emp.poste || '',
+    type: type, ms: maintenant, dateISO: jour, heure: hhmm(maintenant),
+    sansBadge: !!sansBadge, manuel: false, avecPhoto: !!photo, appareil: nomAppareil(),
+    creeLe: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  /* Affichage immédiat ; Firestore garde l'écriture même sans réseau. */
+  POINTAGES_JOUR.push(Object.assign({id:id, _attente:true}, fiche));
+  db.collection('pointages').doc(id).set(fiche).catch(function(err){ signalerEchec('Pointage de '+emp.nom, err); });
+  if(photo){
+    db.collection('pointages_photos').doc(id).set({photo:photo, employeId:emp.id, dateISO:jour})
+      .catch(function(err){ console.warn('photo', err); });
+  }
+  const matin = new Date(maintenant).getHours() < 12;
+  if(type === 'entree'){
+    montrerResultat('entree', 'Entrée', emp.nom, matin ? 'Bonjour, bonne journée ! / Good morning!' : 'Bienvenue ! / Welcome!', photo, fiche.heure);
+    bip([880, 1320]);
+  } else {
+    montrerResultat('sortie', 'Sortie', emp.nom, 'Au revoir, à demain ! / Goodbye, see you tomorrow!', photo, fiche.heure);
+    bip([1320, 880]);
+  }
+}
+function montrerResultat(classe, type, nom, salut, photo, heure){
+  const r = $('resultat');
+  r.className = classe;
+  $('res-type').textContent = type;
+  $('res-nom').textContent = nom || '';
+  $('res-heure').textContent = heure || '';
+  $('res-salut').textContent = salut || '';
+  const img = $('res-photo');
+  if(photo){ img.src = photo; img.classList.remove('cache'); } else img.classList.add('cache');
+  clearTimeout(montrerResultat._t);
+  montrerResultat._t = setTimeout(function(){ r.className = 'cache'; occupe = false; }, DUREE_RESULTAT_MS);
+}
+function signalerEchec(quoi, err){
+  ouvrirModale('⚠️ Non enregistré',
+    '<p>'+echap(quoi)+' n\'a pas pu être enregistré.</p><p class="petit">Erreur : '+echap(err && (err.code || err.message))+'</p>');
+}
+
+/* ---------------- Badge oublié ---------------- */
+function ouvrirBadgeOublie(){
+  occupe = true;
+  const liste = employesActifs();
+  if(!liste.length){ ouvrirModale('Aucun employé', '<p>La liste des employés n\'est pas encore chargée. Vérifiez la connexion.</p>', [{texte:'Fermer', style:'second', action:function(){ occupe=false; }}]); return; }
+  const html = '<p class="petit" style="margin-top:0">Touchez votre nom. Une photo sera prise pour confirmer que c\'est bien vous.<br>Tap your name. A photo will be taken.</p>' +
+    '<div class="grille-noms">' + liste.map(e => '<button data-id="'+echap(e.id)+'">'+echap(e.nom)+'</button>').join('') + '</div>';
+  const fond = ouvrirModale('Badge oublié / Forgot badge', html, [{texte:'Annuler', style:'second', action:function(){ occupe=false; }}]);
+  fond.addEventListener('click', function(e){ if(e.target === fond) occupe = false; });
+  fond.querySelectorAll('.grille-noms button').forEach(function(b){
+    b.onclick = function(){
+      const emp = EMPLOYES.find(x => x.id === b.dataset.id);
+      fond.remove();
+      compteARebours(emp);
+    };
+  });
+}
+function compteARebours(emp){
+  let n = 3;
+  const r = $('resultat');
+  r.className = 'info';
+  $('res-photo').classList.add('cache');
+  $('res-type').textContent = 'Regardez la caméra / Look at the camera';
+  $('res-nom').textContent = emp.nom;
+  $('res-salut').textContent = '';
+  $('res-heure').textContent = n;
+  /* L'écran du résultat cache l'aperçu : on laisse la caméra filmer derrière. */
+  const t = setInterval(function(){
+    n--;
+    if(n > 0){ $('res-heure').textContent = n; bip([700]); return; }
+    clearInterval(t);
+    pointer(emp, true);
+  }, 1000);
+}
+
+/* ---------------- Accès à la gestion (appui long sur l'horloge) ---------------- */
+(function(){
+  let t = null;
+  const h = $('horloge');
+  const debut = function(){ t = setTimeout(demanderAccesGestion, 2000); };
+  const fin = function(){ clearTimeout(t); };
+  h.addEventListener('touchstart', debut, {passive:true});
+  h.addEventListener('touchend', fin);
+  h.addEventListener('mousedown', debut);
+  h.addEventListener('mouseup', fin);
+  h.addEventListener('mouseleave', fin);
+})();
+function demanderAccesGestion(){
+  occupe = true;
+  const fond = ouvrirModale('🔑 Code administrateur',
+    '<p class="petit" style="margin-top:0">Le même code que dans l\'app de gestion.</p><input id="code-gestion" type="password" inputmode="numeric" autocomplete="off" style="font-size:1.4rem;text-align:center;letter-spacing:.3em">',
+    [{texte:'Ouvrir', action:function(){ verifier(); }, garder:true},
+     {texte:'Annuler', style:'second', action:function(){ occupe=false; if(location.hash) history.replaceState(null,'',location.pathname); demarrerCamera(); }}]);
+  const champ = fond.querySelector('#code-gestion');
+  function verifier(){
+    if(String(champ.value).trim() === CODE_ADMIN){ fond.remove(); ouvrirGestion(); }
+    else { champ.value=''; champ.placeholder='Code incorrect'; bip([300,220]); }
+  }
+  champ.addEventListener('keydown', function(e){ if(e.key==='Enter') verifier(); });
+  setTimeout(function(){ champ.focus(); }, 100);
+}
+
+/* ================= GESTION ================= */
+function ouvrirGestion(){
+  modeGestion = true;
+  $('kiosque').classList.add('cache');
+  $('gestion').classList.remove('cache');
+  $('jour-choisi').value = isoJour();
+  const d = new Date(); $('mois-choisi').value = d.getFullYear()+'-'+pad(d.getMonth()+1);
+  ouvrirVue('jour');
+}
+function retourKiosque(){
+  modeGestion = false; occupe = false;
+  $('gestion').classList.add('cache');
+  $('kiosque').classList.remove('cache');
+  if(location.hash) history.replaceState(null,'',location.pathname);
+  demarrerCamera();
+}
+let VUE = 'jour';
+function ouvrirVue(v){
+  VUE = v;
+  document.querySelectorAll('.onglets button').forEach(b => b.classList.toggle('actif', b.dataset.vue === v));
+  ['jour','mois','badges','reglages'].forEach(x => $('vue-'+x).classList.toggle('cache', x !== v));
+  rafraichirVueActive();
+}
+function rafraichirVueActive(){
+  if(VUE === 'jour') chargerJourGestion();
+  else if(VUE === 'mois') chargerMois();
+  else if(VUE === 'badges') rendreBadges();
+  else if(VUE === 'reglages') rendreReglages();
+}
+
+/* ---- Analyse d'une journée pour un employé ---- */
+function analyserJour(liste, iso){
+  const pts = liste.slice().sort((a,b)=>a.ms-b.ms);
+  const entrees = pts.filter(p => p.type === 'entree');
+  let minutes = 0, ouvert = null, sortieManquante = false;
+  pts.forEach(function(p){
+    if(p.type === 'entree'){ if(ouvert) sortieManquante = true; ouvert = p; }
+    else if(ouvert){ minutes += (p.ms - ouvert.ms)/60000; ouvert = null; }
+  });
+  const estAujourdhui = iso === isoJour();
+  if(ouvert){
+    if(estAujourdhui) minutes += (Date.now() - ouvert.ms)/60000;
+    else sortieManquante = true;
+  }
+  const premiere = entrees[0] || null;
+  const limite = minutesDe(REGLAGES.debut) + (+REGLAGES.tolerance || 0);
+  const retard = premiere ? minutesDe(premiere.heure) > limite : false;
+  return { pts, premiere, retard, minutes, present: !!ouvert && estAujourdhui, sortieManquante };
+}
+function estJourOuvre(iso){ return jourDepuisISO(iso).getDay() !== 0; }
+
+/* ---- Présences du jour ---- */
+function chargerJourGestion(){
+  const iso = $('jour-choisi').value || isoJour();
+  if(iso === JOUR_ECOUTE){ rendreJour(iso, POINTAGES_JOUR); return; }
+  $('jour-liste').innerHTML = '<p class="petit">Chargement…</p>';
+  db.collection('pointages').where('dateISO','==',iso).get()
+    .then(s => rendreJour(iso, s.docs.map(d => Object.assign({id:d.id, _attente:d.metadata.hasPendingWrites}, d.data()))))
+    .catch(err => { $('jour-liste').innerHTML = '<p class="petit">Impossible de charger ce jour : '+echap(err.code||err.message)+'</p>'; });
+}
+let POINTAGES_AFFICHES = [];
+function rendreJour(iso, pointages){
+  POINTAGES_AFFICHES = pointages;
+  const emps = employesActifs();
+  const estAujourdhui = iso === isoJour();
+  const avantHeure = estAujourdhui && (new Date().getHours()*60 + new Date().getMinutes()) < minutesDe(REGLAGES.debut) + (+REGLAGES.tolerance||0);
+  let nPresent = 0, nRetard = 0, nAbsent = 0, nAttendu = 0;
+  const lignes = emps.map(function(e){
+    const a = analyserJour(pointages.filter(p => p.employeId === e.id), iso);
+    let classe, etat;
+    if(!a.premiere){
+      if(!estJourOuvre(iso)){ classe=''; etat='<span class="pastille neutre">Dimanche</span>'; }
+      else if(avantHeure){ classe=''; etat='<span class="pastille neutre">Pas encore arrivé</span>'; nAttendu++; }
+      else if(iso > isoJour()){ classe=''; etat='<span class="pastille neutre">À venir</span>'; }
+      else { classe='absent'; etat='<span class="pastille absent">Absent</span>'; nAbsent++; }
+    } else {
+      if(a.retard) nRetard++;
+      if(a.present){ classe = a.retard ? 'retard' : 'present'; nPresent++;
+        etat = '<span class="pastille '+(a.retard?'retard':'present')+'">'+(a.retard?'En retard, arrivé à ':'Présent depuis ')+a.premiere.heure+'</span>'; }
+      else { classe = 'parti'; nPresent++;
+        etat = '<span class="pastille parti">Venu'+(a.retard?' (en retard)':'')+', '+dureeTexte(a.minutes)+'</span>'; }
+    }
+    const puces = a.pts.map(p =>
+      '<button class="puce'+(p._attente?' attente':'')+'" onclick="voirPointage(\''+echap(p.id)+'\')">'+
+      (p.type==='entree'?'↘ Entrée ':'↗ Sortie ')+echap(p.heure)+(p.sansBadge?' (sans badge)':'')+(p.manuel?' (ajouté)':'')+(p._attente?' ⏳':'')+'</button>').join('');
+    return '<div class="ligne-emp '+classe+'"><div class="emp-tete"><div><div class="emp-nom">'+echap(e.nom)+'</div><div class="emp-poste">'+echap(e.poste||'')+'</div></div>'+etat+'</div>'+
+      '<div class="puces">'+puces+'<button class="puce" style="color:var(--or-clair)" onclick="ajouterPointageManuel(\''+echap(e.id)+'\')">＋ Ajouter un pointage</button></div>'+
+      (a.sortieManquante ? '<div class="petit">⚠️ Une sortie n\'a pas été pointée.</div>' : '')+
+      (a.present ? '<div class="petit">Sur place depuis '+dureeTexte(a.minutes)+'.</div>' : '')+
+      '</div>';
+  });
+  let resume = estJourOuvre(iso) ? '<b>'+nPresent+'</b> venu(s) sur '+emps.length+', <b>'+nRetard+'</b> en retard, <b>'+nAbsent+'</b> absent(s)' : 'Dimanche, atelier fermé';
+  if(nAttendu) resume += ', '+nAttendu+' pas encore arrivé(s)';
+  resume += '. Arrivée attendue à '+REGLAGES.debut+' (tolérance '+REGLAGES.tolerance+' min).';
+  $('jour-resume').innerHTML = resume;
+  $('jour-liste').innerHTML = emps.length ? lignes.join('') : '<p class="petit">Aucun employé. Ajoutez-les dans l\'écran Salaires de l\'app de gestion.</p>';
+}
+function voirPointage(id){
+  const p = POINTAGES_AFFICHES.find(x => x.id === id);
+  if(!p) return;
+  const fond = ouvrirModale((p.type==='entree'?'Entrée':'Sortie')+' de '+p.nom,
+    '<p>'+dateLongue(jourDepuisISO(p.dateISO))+' à <b>'+echap(p.heure)+'</b>'+(p.sansBadge?', sans badge':'')+(p.manuel?', ajouté à la main':'')+'.</p>'+
+    '<p class="petit">Appareil : '+echap(p.appareil||'')+(p._attente?' — pas encore envoyé au serveur':'')+'</p>'+
+    '<div id="zone-photo" class="petit">'+(p.avecPhoto?'Chargement de la photo…':'Pas de photo.')+'</div>',
+    [{texte:'Supprimer ce pointage', style:'danger', action:function(){ supprimerPointage(p); }},
+     {texte:'Fermer', style:'second'}]);
+  if(p.avecPhoto){
+    db.collection('pointages_photos').doc(id).get().then(function(d){
+      const z = fond.querySelector('#zone-photo');
+      if(!z) return;
+      z.innerHTML = d.exists && d.data().photo ? '<img src="'+d.data().photo+'" style="width:100%;max-width:320px;border-radius:12px">' : 'Photo pas encore arrivée sur le serveur.';
+    }).catch(function(){ const z = fond.querySelector('#zone-photo'); if(z) z.textContent = 'Photo indisponible hors connexion.'; });
+  }
+}
+function supprimerPointage(p){
+  ouvrirModale('Supprimer ce pointage ?', '<p>'+(p.type==='entree'?'Entrée':'Sortie')+' de <b>'+echap(p.nom)+'</b> à '+echap(p.heure)+'.</p>',
+    [{texte:'Supprimer', style:'danger', action:function(){
+        POINTAGES_AFFICHES = POINTAGES_AFFICHES.filter(x => x.id !== p.id);
+        if(p.dateISO === JOUR_ECOUTE) POINTAGES_JOUR = POINTAGES_JOUR.filter(x => x.id !== p.id);
+        db.collection('pointages').doc(p.id).delete().catch(err => signalerEchec('La suppression', err));
+        db.collection('pointages_photos').doc(p.id).delete().catch(function(){});
+        rendreJour(p.dateISO, POINTAGES_AFFICHES);
+      }},
+     {texte:'Annuler', style:'second'}]);
+}
+function ajouterPointageManuel(empId){
+  const emp = EMPLOYES.find(e => e.id === empId);
+  if(!emp) return;
+  const iso = $('jour-choisi').value || isoJour();
+  const fond = ouvrirModale('Ajouter un pointage pour '+emp.nom,
+    '<p class="petit" style="margin-top:0">Pour un oubli de pointage. Il sera marqué « ajouté » dans l\'historique.</p>'+
+    '<label>Type</label><select id="man-type"><option value="entree">Entrée</option><option value="sortie">Sortie</option></select>'+
+    '<label>Heure</label><input type="time" id="man-heure">',
+    [{texte:'Ajouter', garder:true, action:function(){
+        const h = fond.querySelector('#man-heure').value;
+        if(!h){ fond.querySelector('#man-heure').style.borderColor = 'var(--rouge)'; return; }
+        const type = fond.querySelector('#man-type').value;
+        const d = jourDepuisISO(iso); const p = h.split(':'); d.setHours(+p[0], +p[1], 0, 0);
+        const ms = d.getTime();
+        const id = iso.replace(/-/g,'') + '_' + emp.id + '_' + ms + '_m';
+        const fiche = { employeId:emp.id, nom:emp.nom||'', poste:emp.poste||'', type:type, ms:ms, dateISO:iso, heure:h,
+          sansBadge:false, manuel:true, avecPhoto:false, appareil:nomAppareil(), creeLe:firebase.firestore.FieldValue.serverTimestamp() };
+        fond.remove();
+        POINTAGES_AFFICHES.push(Object.assign({id:id, _attente:true}, fiche));
+        if(iso === JOUR_ECOUTE) POINTAGES_JOUR.push(Object.assign({id:id, _attente:true}, fiche));
+        db.collection('pointages').doc(id).set(fiche).catch(err => signalerEchec('Le pointage ajouté', err));
+        rendreJour(iso, POINTAGES_AFFICHES);
+      }},
+     {texte:'Annuler', style:'second'}]);
+  const maintenant = new Date();
+  fond.querySelector('#man-heure').value = pad(maintenant.getHours())+':'+pad(maintenant.getMinutes());
+}
+
+/* ---- Récapitulatif du mois ---- */
+function chargerMois(){
+  const m = $('mois-choisi').value;
+  if(!m) return;
+  $('mois-tableau').innerHTML = '<p class="petit">Chargement…</p>';
+  db.collection('pointages').where('dateISO','>=',m+'-01').where('dateISO','<=',m+'-31').get()
+    .then(s => rendreMois(m, s.docs.map(d => Object.assign({id:d.id}, d.data()))))
+    .catch(err => { $('mois-tableau').innerHTML = '<p class="petit">Impossible de charger ce mois : '+echap(err.code||err.message)+'</p>'; });
+}
+let DETAIL_MOIS = {};
+function rendreMois(m, pointages){
+  const p = m.split('-'), annee = +p[0], mois = +p[1];
+  const nbJours = new Date(annee, mois, 0).getDate();
+  const aujourdhui = isoJour();
+  const jours = [];
+  for(let j=1; j<=nbJours; j++){
+    const iso = m+'-'+pad(j);
+    if(iso > aujourdhui) break;
+    if(estJourOuvre(iso)) jours.push(iso);
+  }
+  const avant = new Date().getHours()*60 + new Date().getMinutes() < minutesDe(REGLAGES.debut) + (+REGLAGES.tolerance||0);
+  DETAIL_MOIS = {};
+  const emps = employesActifs();
+  let totalAbs = 0, totalRet = 0;
+  const lignes = emps.map(function(e){
+    const siens = pointages.filter(x => x.employeId === e.id);
+    let presents = 0, retards = 0, minutes = 0, sansSortie = 0;
+    const datesAbs = [], datesRet = [];
+    jours.forEach(function(iso){
+      const a = analyserJour(siens.filter(x => x.dateISO === iso), iso);
+      if(a.premiere){
+        presents++; minutes += a.minutes;
+        if(a.retard){ retards++; datesRet.push(iso.slice(8)+' ('+a.premiere.heure+')'); }
+        if(a.sortieManquante) sansSortie++;
+      } else if(!(iso === aujourdhui && avant)) datesAbs.push(iso.slice(8));
+    });
+    totalAbs += datesAbs.length; totalRet += retards;
+    DETAIL_MOIS[e.id] = { datesAbs, datesRet };
+    return '<tr class="cliquable" onclick="basculerDetailMois(\''+echap(e.id)+'\')"><td><b>'+echap(e.nom)+'</b><div class="emp-poste">'+echap(e.poste||'')+'</div></td>'+
+      '<td class="nb">'+presents+'</td><td class="nb" style="color:'+(datesAbs.length?'#ff9a8f':'inherit')+'">'+datesAbs.length+'</td>'+
+      '<td class="nb" style="color:'+(retards?'var(--or-clair)':'inherit')+'">'+retards+'</td><td class="nb">'+dureeTexte(minutes)+'</td><td class="nb">'+(sansSortie||'')+'</td></tr>'+
+      '<tr id="detail-'+echap(e.id)+'" class="cache"><td colspan="6" class="detail-mois">'+
+      'Absences : '+(datesAbs.length ? 'le '+datesAbs.join(', ') : 'aucune')+'<br>Retards : '+(datesRet.length ? 'le '+datesRet.join(', ') : 'aucun')+'</td></tr>';
+  });
+  $('mois-resume').innerHTML = jours.length+' jour(s) ouvré(s) écoulé(s), <b>'+totalAbs+'</b> absence(s) et <b>'+totalRet+'</b> retard(s) au total.';
+  $('mois-tableau').innerHTML = emps.length ? '<table><thead><tr><th>Employé</th><th>Jours venus</th><th>Absences</th><th>Retards</th><th>Heures</th><th>Sorties oubliées</th></tr></thead><tbody>'+lignes.join('')+'</tbody></table>'
+    : '<p class="petit">Aucun employé.</p>';
+}
+function basculerDetailMois(id){ const r = $('detail-'+id); if(r) r.classList.toggle('cache'); }
+
+/* ---- Badges ---- */
+function contenuBadge(e){ return PREFIXE_BADGE+':'+e.id+':'+(e.badge || '0'); }
+function htmlBadge(e){
+  return '<div class="badge"><div class="qr" data-qr="'+echap(contenuBadge(e))+'"></div><div class="txt">'+
+    '<div class="commerce">'+echap(NOM_COMMERCE)+'</div><div class="nom">'+echap(e.nom)+'</div><div class="poste">'+echap(e.poste||'')+'</div>'+
+    '<div class="mention">Badge personnel, à présenter à l\'entrée et à la sortie.</div></div></div>';
+}
+function dessinerQR(zone){
+  zone.querySelectorAll('[data-qr]').forEach(function(el){
+    el.innerHTML = '';
+    if(typeof QRCode === 'function') new QRCode(el, {text: el.dataset.qr, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M});
+    else el.textContent = 'QR indisponible hors connexion';
+  });
+}
+function rendreBadges(){
+  const emps = employesActifs();
+  $('badges-liste').innerHTML = emps.length ? emps.map(e =>
+    '<div class="carte-badge">'+htmlBadge(e)+'<div class="rangee-boutons"><button class="btn second" onclick="imprimerBadges(\''+echap(e.id)+'\')">🖨️ Imprimer celui-ci</button>'+
+    '<button class="btn danger" onclick="remplacerBadge(\''+echap(e.id)+'\')">Remplacer ce badge</button></div></div>').join('')
+    : '<p class="petit">Aucun employé. Ajoutez-les dans l\'écran Salaires de l\'app de gestion.</p>';
+  dessinerQR($('badges-liste'));
+}
+function imprimerBadges(seulId){
+  const emps = employesActifs().filter(e => !seulId || e.id === seulId);
+  const z = $('zone-impression');
+  z.innerHTML = emps.map(htmlBadge).join('');
+  dessinerQR(z);
+  setTimeout(function(){ window.print(); }, 400);
+}
+function remplacerBadge(id){
+  const e = EMPLOYES.find(x => x.id === id);
+  if(!e) return;
+  ouvrirModale('Remplacer le badge de '+e.nom+' ?',
+    '<p>L\'ancien badge ne sera plus accepté. Il faudra imprimer le nouveau.</p>',
+    [{texte:'Remplacer', style:'danger', action:function(){
+        const code = Math.random().toString(36).slice(2,8).toUpperCase().replace(/[^A-Z0-9]/g,'') || String(Date.now()).slice(-6);
+        e.badge = code;
+        db.collection('employes').doc(id).update({badge: code}).catch(err => signalerEchec('Le nouveau badge', err));
+        rendreBadges();
+        imprimerBadges(id);
+      }},
+     {texte:'Annuler', style:'second'}]);
+}
+
+/* ---- Réglages ---- */
+function rendreReglages(){
+  $('reg-debut').value = REGLAGES.debut;
+  $('reg-tolerance').value = REGLAGES.tolerance;
+  $('reg-appareil').value = nomAppareil();
+}
+function enregistrerReglages(){
+  const debut = $('reg-debut').value || '09:00';
+  const tolerance = Math.max(0, Math.min(120, parseInt($('reg-tolerance').value, 10) || 0));
+  REGLAGES.debut = debut; REGLAGES.tolerance = tolerance;
+  try{ localStorage.setItem('pt_appareil', ($('reg-appareil').value || '').trim() || 'Tablette entrée'); }catch(e){}
+  db.collection('parametres').doc('pointage').set({debut:debut, tolerance:tolerance}, {merge:true})
+    .catch(err => signalerEchec('Les réglages', err));
+  ouvrirModale('Réglages enregistrés', '<p>Arrivée attendue à <b>'+debut+'</b>, retard compté après '+tolerance+' minute(s).</p>');
+}
+
+/* ================= DÉMARRAGE ================= */
+chargerEmployesDuCache();
+ecouterEmployes();
+ecouterParametres();
+majHorloge();
+setInterval(majHorloge, 15000);
+majEtatReseau();
+preparerDetecteur().then(function(){
+  if(location.hash === '#gestion') demanderAccesGestion();
+  else demarrerCamera();
+});
+garderEcranAllume();
+document.addEventListener('click', garderEcranAllume, {once:true});
+</script>
+</body>
+</html>
