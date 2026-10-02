@@ -7667,7 +7667,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-09-12-absences-salaire';
+const APP_VERSION = 'v2026-10-02-absences-sauvees';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
@@ -9767,21 +9767,29 @@ async function ajouterAbsence(employeId, nomEmploye){
   const note = await demanderTexte('Motif (facultatif) — laisser vide si aucun :', '');
   const salaireMensuel = (employe && employe.salaireMensuel) || (enreg && enreg.salaireMensuel) || 0;
 
+  const nouvelleAbsence = {ms:Date.now(), date:dateAbsence, note: note||''};
   if(!enreg){
+    /* 02/10 : CORRIGÉ — la fiche était créée avec absences: [] puis
+       appliquerAbsences() sautait l'écriture (id encore 'local_') : la
+       1re absence du mois n'atteignait jamais Firestore et disparaissait
+       au rechargement. L'absence est désormais écrite DANS la création. */
+    const lignesInit = [nouvelleAbsence];
     enreg = {
       id:'local_'+Date.now(),
       employeId, employeNom: nomEmploye,
-      mois, salaireMensuel, montantVerse: 0, joursPresents: 0, absences: []
+      mois, salaireMensuel, montantVerse: 0, joursPresents: 0, absences: lignesInit
     };
     CACHE.salaires_mensuel.push(enreg);
+    rendreSalaires();
     db.collection('salaires_mensuel').add({
       employeId, employeNom: nomEmploye, mois, salaireMensuel,
-      montantVerse: 0, joursPresents: 0, absences: [],
+      montantVerse: 0, joursPresents: 0, absences: lignesInit,
       misAJourLe: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(function(ref){ enreg.id = ref.id; }).catch(function(err){ echecEcriture('Ajout salaire mensuel', err); });
+    }).then(function(ref){ enreg.id = ref.id; }).catch(function(err){ echecEcriture('Ajout absence (nouvelle fiche du mois)', err); });
+  } else {
+    const lignes = absencesDetail(enreg).concat([nouvelleAbsence]);
+    appliquerAbsences(enreg, lignes);
   }
-  const lignes = absencesDetail(enreg).concat([{ms:Date.now(), date:dateAbsence, note: note||''}]);
-  appliquerAbsences(enreg, lignes);
   const taux = tauxJournalier(salaireMensuel, mois);
   toast('Absence notée — ' + taux + ' D seront déduits en fin de mois');
 }
