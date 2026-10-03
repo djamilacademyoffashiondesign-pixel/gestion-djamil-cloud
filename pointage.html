@@ -298,6 +298,7 @@ let JOUR_ECOUTE = '';
 let arretEcouteJour = null;
 let occupe = false;
 let detecteur = null;
+let detecteurVisage = null;
 let minuterieScan = null;
 let verrouEcran = null;
 let modeGestion = false;
@@ -494,6 +495,9 @@ async function preparerDetecteur(){
       if(formats.indexOf('qr_code') >= 0) detecteur = new BarcodeDetector({formats:['qr_code']});
     }
   }catch(e){ detecteur = null; }
+  try{
+    if('FaceDetector' in window) detecteurVisage = new FaceDetector({fastMode:true, maxDetectedFaces:1});
+  }catch(e){ detecteurVisage = null; }
 }
 const toile = document.createElement('canvas');
 function lireImage(){
@@ -520,6 +524,24 @@ function lancerScan(){
     }).catch(function(){ occupe = false; });
   }, 300);
 }
+/* Attend qu'un visage apparaisse devant la caméra (max ~2,5 s) puis capture.
+   Repli : sans détection de visage, ou si aucun visage n'est vu à temps,
+   on capture quand même. Le délai laisse le temps de baisser le bras. */
+function capturerPhotoAvecVisage(){
+  return new Promise(function(resolve){
+    const video = $('video');
+    if(!video || !video.videoWidth){ resolve(capturerPhoto()); return; }
+    if(!detecteurVisage){ setTimeout(function(){ resolve(capturerPhoto()); }, 1000); return; }
+    const debut = Date.now();
+    (function essayer(){
+      detecteurVisage.detect(video).then(function(vis){
+        if(vis && vis.length && Date.now() - debut > 600){ resolve(capturerPhoto()); return; }
+        if(Date.now() - debut > 2500){ resolve(capturerPhoto()); return; }
+        setTimeout(essayer, 250);
+      }).catch(function(){ setTimeout(function(){ resolve(capturerPhoto()); }, 1000); });
+    })();
+  });
+}
 function capturerPhoto(){
   try{
     const video = $('video');
@@ -543,7 +565,7 @@ function traiterBadge(texte){
   if(m[2] !== codeAttendu){ montrerResultat('refus', 'Badge remplacé', emp.nom, 'Ce badge n\'est plus valable / This badge was replaced'); bip([300,220]); return; }
   pointer(emp, false);
 }
-function pointer(emp, sansBadge){
+async function pointer(emp, sansBadge){
   const maintenant = Date.now();
   const jour = isoJour(new Date(maintenant));
   const siens = POINTAGES_JOUR.filter(p => p.employeId === emp.id).sort((a,b)=>a.ms-b.ms);
@@ -554,7 +576,7 @@ function pointer(emp, sansBadge){
     return;
   }
   const type = dernier && dernier.type === 'entree' ? 'sortie' : 'entree';
-  const photo = capturerPhoto();
+  const photo = await capturerPhotoAvecVisage();
   const id = jour.replace(/-/g,'') + '_' + emp.id + '_' + maintenant;
   const fiche = {
     employeId: emp.id, nom: emp.nom || '', poste: emp.poste || '',
