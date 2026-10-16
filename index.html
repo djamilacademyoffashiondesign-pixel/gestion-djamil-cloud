@@ -747,6 +747,7 @@ function traduireNoeud(node){
       <button class="btn secondary" onclick="exporterCSV('commandes_couture')">Exporter Atelier (CSV)</button>
       <button class="btn secondary" onclick="exporterCSV('depots_pressing')">Exporter Pressing (CSV)</button>
       <button class="btn secondary" onclick="exporterCSV('boutique_inventaire')">Exporter Boutique (CSV)</button>
+      <button class="btn secondary" onclick="exporterVersSanaaPro()" style="margin-top:8px;">📦 Exporter vers SanaaPro (fichier d'import)</button>
     </div>
     <div class="panel">
       <h2>Mode d'affichage</h2>
@@ -2063,6 +2064,72 @@ function exporterCSV(collection){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('Export terminé');
+}
+
+
+/* ================= EXPORT VERS SANAAPRO (16/10/2026, 100% additif) =================
+   Fabrique un fichier .json que l'application SanaaPro sait importer
+   (Réglages → Importer mes anciennes données). Lecture seule : rien n'est
+   modifié ici. Le fichier contient des noms et téléphones de clients :
+   il reste sur le téléphone, il ne doit pas être mis sur GitHub. */
+function exporterVersSanaaPro(){
+  function ms(dateIso, ts){
+    if(ts && typeof ts.toMillis === 'function') return ts.toMillis();
+    if(dateIso && /^\d{4}-\d{2}-\d{2}$/.test(String(dateIso))) return new Date(dateIso+'T10:00:00').getTime();
+    return Date.now();
+  }
+  const ST_PZ = {'Reçu':'recu','En lavage':'lavage','En repassage':'repassage','Prêt':'pret','Récupéré':'recupere'};
+  const ST_AT = {'Pris':'recu','En coupe':'coupe','Essayage':'essayage','Prêt':'pret','Livré':'livre'};
+  const TY = {'Confection':'confection','Retouche':'retouche','Prêt-à-porter':'pap'};
+  const MKEY = {tourTaille:'taille', tourGenou:'genou'};
+  function mes(src){
+    const out = {};
+    if(!src) return out;
+    let o = src;
+    if(typeof o === 'string'){ try{ o = JSON.parse(o); }catch(e){ return out; } }
+    Object.keys(o||{}).forEach(function(k){
+      const v = o[k];
+      if(v===null || v===undefined || String(v).trim()==='') return;
+      out[MKEY[k] || k] = String(v).trim();
+    });
+    return out;
+  }
+  function genre(g){ return String(g||'').toLowerCase().indexOf('hom')===0 ? 'homme' : 'femme'; }
+  function articlesTexte(c){
+    let a = c.articles;
+    if(typeof a === 'string'){ try{ a = JSON.parse(a); }catch(e){ a = null; } }
+    if(Array.isArray(a) && a.length) return a.map(function(x){ return x && (x.nom || '') ; }).filter(Boolean).join(', ');
+    return c.desc || '';
+  }
+  const pressing = (CACHE.depots_pressing||[]).map(function(t){
+    return { numero: parseInt(t.code,10)||0, clienteName: t.nom||'', clientePhone: t.tel||'',
+      statut: ST_PZ[t.statut] || 'recu', retrait: t.retrait||'', resume: t.resume||'',
+      prix: Number(t.prix)||0, paye: Number(t.avance)||0, createdAtMs: ms(t.depot, t.creeLe) };
+  }).filter(function(x){ return x.numero && x.clienteName; });
+  const atelier = (CACHE.commandes_couture||[]).filter(function(c){ return String(c.statut||'').indexOf('Annul')!==0; }).map(function(c){
+    return { numero: parseInt(c.code,10)||0, clienteName: c.nom||'', clientePhone: c.tel||'',
+      type: TY[c.type] || 'confection', genre: genre(c.genre), article: articlesTexte(c),
+      notes: [c.desc||'', c.beneficiaire ? ('Pour : '+c.beneficiaire) : ''].filter(Boolean).join(' — '),
+      prix: Number(c.prix)||0, paye: Number(c.acompte)||0, statut: ST_AT[c.statut] || 'recu',
+      livraison: c.livraison||'', createdAtMs: ms(c.depot, c.creeLe), mesures: mes(c.mesures) };
+  }).filter(function(x){ return x.numero && x.clienteName; });
+  const MESKEYS = ['cou','epaule','poitrine','longManche','tourManche','poignet','tourTaille','longTaille','ceinture','bassin','cuisse','pince','tourGenou','basPantalon','longHaut','longPantalon','longRobe','longJupe','carrure','longChemise','mancheCourte','longVeste','longBoubou','tourTete','entrejambe','montant','mollet'];
+  const clientes = (CACHE.clients_mesures||[]).map(function(f){
+    const m = {}; MESKEYS.forEach(function(k){ if(f[k]!==undefined) m[k]=f[k]; });
+    return { name: f.nom||'', phone: f.tel||'', genre: genre(f.genre), mesures: mes(m) };
+  }).filter(function(x){ return x.name; });
+  const salaries = (CACHE.employes||[]).filter(function(e){ return e.actif!==false; }).map(function(e){
+    return { nom: e.nom||'', poste: e.poste||'', phone: e.tel||'', salaire: Number(e.salaireMensuel)||0 };
+  }).filter(function(x){ return x.nom; });
+  const fichier = { format:'sanaapro-import', version:2, source:'Chez Djamil — gestion',
+    exportedAt: new Date().toISOString(), pressing: pressing, atelier: atelier, clientes: clientes, salaries: salaries };
+  const blob = new Blob([JSON.stringify(fichier)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'chezdjamil-sanaapro-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  toast('Fichier prêt : '+atelier.length+' commandes, '+pressing.length+' tickets, '+clientes.length+' clients, '+salaries.length+' employés');
 }
 
 
@@ -7675,7 +7742,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-10-02-pointage-personnel';
+const APP_VERSION = 'v2026-10-16-export-sanaapro';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
