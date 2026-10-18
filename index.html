@@ -2121,15 +2121,45 @@ function exporterVersSanaaPro(){
   const salaries = (CACHE.employes||[]).filter(function(e){ return e.actif!==false; }).map(function(e){
     return { nom: e.nom||'', poste: e.poste||'', phone: e.tel||'', salaire: Number(e.salaireMensuel)||0 };
   }).filter(function(x){ return x.nom; });
-  const fichier = { format:'sanaapro-import', version:2, source:'Chez Djamil — gestion',
-    exportedAt: new Date().toISOString(), pressing: pressing, atelier: atelier, clientes: clientes, salaries: salaries };
-  const blob = new Blob([JSON.stringify(fichier)], {type:'application/json'});
+  /* Historique des Finances : recettes (transactions) et dépenses, avec leur id
+     d'origine pour qu'un nouvel import mette à jour au lieu de dupliquer. */
+  const SRC = function(x){ x=String(x||'').toLowerCase(); return x.indexOf('press')===0?'pressing':x.indexOf('bout')===0?'boutique':x.indexOf('g')===0?'general':'atelier'; };
+  function msDe(x){ return ms(x.dateISO, x.creeLe); }
+  const mouvements = []
+    .concat((CACHE.transactions||[]).filter(function(x){ return x.id && !String(x.id).startsWith('local_') && Number(x.montant); }).map(function(x){
+      return { ref:'t-'+x.id, type:'recette', source:SRC(x.source), montant:Number(x.montant)||0, label:x.description||'', ms:msDe(x) };
+    }))
+    .concat((CACHE.depenses||[]).filter(function(x){ return x.id && !String(x.id).startsWith('local_') && Number(x.montant); }).map(function(x){
+      const cat = String(x.categorie||'').trim();
+      return { ref:'d-'+x.id, type:'depense', source:SRC(x.activite), montant:Number(x.montant)||0,
+               label: [cat, String(x.description||'').trim()].filter(Boolean).join(' — ') || 'Dépense', categorie: cat || 'Autre', ms:msDe(x) };
+    }));
+  const fichier = { format:'sanaapro-import', version:3, source:'Chez Djamil — gestion',
+    exportedAt: new Date().toISOString(), pressing: pressing, atelier: atelier, clientes: clientes, salaries: salaries, mouvements: mouvements };
+  const nomFichier = 'chezdjamil-sanaapro-'+new Date().toISOString().slice(0,10)+'.json';
+  const texte = JSON.stringify(fichier);
+  const resume = atelier.length+' commandes, '+pressing.length+' tickets, '+clientes.length+' clients, '+salaries.length+' employés, '+mouvements.length+' mouvements';
+  /* Dans l'application installée (Android), le téléchargement classique est
+     souvent ignoré. On passe alors par le partage du téléphone :
+     « Enregistrer dans Fichiers / Drive » ou s'envoyer le fichier sur WhatsApp. */
+  let fichierPartage = null;
+  try{ fichierPartage = new File([texte], nomFichier, {type:'application/json'}); }catch(e){}
+  if(fichierPartage && navigator.canShare && navigator.canShare({files:[fichierPartage]})){
+    navigator.share({ files:[fichierPartage], title:nomFichier })
+      .then(function(){ toast('Fichier partagé : '+resume); })
+      .catch(function(err){ if(!err || err.name!=='AbortError') telechargerExportSanaaPro(texte, nomFichier, resume); });
+    return;
+  }
+  telechargerExportSanaaPro(texte, nomFichier, resume);
+}
+function telechargerExportSanaaPro(texte, nomFichier, resume){
+  const blob = new Blob([texte], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'chezdjamil-sanaapro-'+new Date().toISOString().slice(0,10)+'.json';
+  a.href = url; a.download = nomFichier;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-  toast('Fichier prêt : '+atelier.length+' commandes, '+pressing.length+' tickets, '+clientes.length+' clients, '+salaries.length+' employés');
+  toast('Fichier prêt (Téléchargements) : '+resume);
 }
 
 
@@ -7742,7 +7772,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-10-16-export-sanaapro';
+const APP_VERSION = 'v2026-10-16-export-sanaapro-3';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
