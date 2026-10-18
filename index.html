@@ -2072,7 +2072,18 @@ function exporterCSV(collection){
    (Réglages → Importer mes anciennes données). Lecture seule : rien n'est
    modifié ici. Le fichier contient des noms et téléphones de clients :
    il reste sur le téléphone, il ne doit pas être mis sur GitHub. */
+/* L'historique des finances peut arriver APRÈS les commandes (gros volume) :
+   on le relit directement avant d'exporter, pour ne jamais exporter un fichier
+   presque vide. */
 function exporterVersSanaaPro(){
+  try{ toast('Préparation du fichier… (lecture de tout l\'historique des finances)'); }catch(e){}
+  Promise.all(['transactions','depenses'].map(function(c){
+    return db.collection(c).get().then(function(snap){
+      CACHE[c] = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    });
+  })).catch(function(e){ console.error(e); }).then(function(){ exporterVersSanaaProMaintenant(); });
+}
+function exporterVersSanaaProMaintenant(){
   function ms(dateIso, ts){
     if(ts && typeof ts.toMillis === 'function') return ts.toMillis();
     if(dateIso && /^\d{4}-\d{2}-\d{2}$/.test(String(dateIso))) return new Date(dateIso+'T10:00:00').getTime();
@@ -7772,7 +7783,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-10-16-export-sanaapro-3';
+const APP_VERSION = 'v2026-10-18-export-sanaapro-4';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
