@@ -2084,9 +2084,16 @@ function exporterVersSanaaPro(){
   })).catch(function(e){ console.error(e); }).then(function(){ exporterVersSanaaProMaintenant(); });
 }
 function exporterVersSanaaProMaintenant(){
-  function ms(dateIso, ts){
-    if(ts && typeof ts.toMillis === 'function') return ts.toMillis();
+  /* 19/10 : la DATE MÉTIER (dateISO, ou date JJ/MM/AAAA) passe AVANT creeLe.
+     creeLe est l'heure d'écriture sur le serveur : pour une recette datée
+     après coup (client historique, correction, recette recréée, écriture
+     resynchronisée) elle tombe le jour de la saisie, pas le jour du paiement —
+     ce qui créait un faux pic de recettes dans SanaaPro. */
+  function ms(dateIso, ts, dateFr){
     if(dateIso && /^\d{4}-\d{2}-\d{2}$/.test(String(dateIso))) return new Date(dateIso+'T10:00:00').getTime();
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(dateFr||'').trim());
+    if(m) return new Date(+m[3], +m[2]-1, +m[1], 10).getTime();
+    if(ts && typeof ts.toMillis === 'function') return ts.toMillis();
     return Date.now();
   }
   const ST_PZ = {'Reçu':'recu','En lavage':'lavage','En repassage':'repassage','Prêt':'pret','Récupéré':'recupere'};
@@ -2115,14 +2122,14 @@ function exporterVersSanaaProMaintenant(){
   const pressing = (CACHE.depots_pressing||[]).map(function(t){
     return { numero: parseInt(t.code,10)||0, clienteName: t.nom||'', clientePhone: t.tel||'',
       statut: ST_PZ[t.statut] || 'recu', retrait: t.retrait||'', resume: t.resume||'',
-      prix: Number(t.prix)||0, paye: Number(t.avance)||0, createdAtMs: ms(t.depot, t.creeLe) };
+      prix: Number(t.prix)||0, paye: Number(t.avance)||0, createdAtMs: ms(t.depot, t.creeLe, t.date) };
   }).filter(function(x){ return x.numero && x.clienteName; });
   const atelier = (CACHE.commandes_couture||[]).filter(function(c){ return String(c.statut||'').indexOf('Annul')!==0; }).map(function(c){
     return { numero: parseInt(c.code,10)||0, clienteName: c.nom||'', clientePhone: c.tel||'',
       type: TY[c.type] || 'confection', genre: genre(c.genre), article: articlesTexte(c),
       notes: [c.desc||'', c.beneficiaire ? ('Pour : '+c.beneficiaire) : ''].filter(Boolean).join(' — '),
       prix: Number(c.prix)||0, paye: Number(c.acompte)||0, statut: ST_AT[c.statut] || 'recu',
-      livraison: c.livraison||'', createdAtMs: ms(c.depot, c.creeLe), mesures: mes(c.mesures) };
+      livraison: c.livraison||'', createdAtMs: ms(c.depot, c.creeLe, c.date), mesures: mes(c.mesures) };
   }).filter(function(x){ return x.numero && x.clienteName; });
   const MESKEYS = ['cou','epaule','poitrine','longManche','tourManche','poignet','tourTaille','longTaille','ceinture','bassin','cuisse','pince','tourGenou','basPantalon','longHaut','longPantalon','longRobe','longJupe','carrure','longChemise','mancheCourte','longVeste','longBoubou','tourTete','entrejambe','montant','mollet'];
   const clientes = (CACHE.clients_mesures||[]).map(function(f){
@@ -2135,7 +2142,7 @@ function exporterVersSanaaProMaintenant(){
   /* Historique des Finances : recettes (transactions) et dépenses, avec leur id
      d'origine pour qu'un nouvel import mette à jour au lieu de dupliquer. */
   const SRC = function(x){ x=String(x||'').toLowerCase(); return x.indexOf('press')===0?'pressing':x.indexOf('bout')===0?'boutique':x.indexOf('g')===0?'general':'atelier'; };
-  function msDe(x){ return ms(x.dateISO, x.creeLe); }
+  function msDe(x){ return ms(x.dateISO, x.creeLe, x.date); }
   const mouvements = []
     .concat((CACHE.transactions||[]).filter(function(x){ return x.id && !String(x.id).startsWith('local_') && Number(x.montant); }).map(function(x){
       return { ref:'t-'+x.id, type:'recette', source:SRC(x.source), montant:Number(x.montant)||0, label:x.description||'', ms:msDe(x) };
@@ -2145,7 +2152,7 @@ function exporterVersSanaaProMaintenant(){
       return { ref:'d-'+x.id, type:'depense', source:SRC(x.activite), montant:Number(x.montant)||0,
                label: [cat, String(x.description||'').trim()].filter(Boolean).join(' — ') || 'Dépense', categorie: cat || 'Autre', ms:msDe(x) };
     }));
-  const fichier = { format:'sanaapro-import', version:3, source:'Chez Djamil — gestion',
+  const fichier = { format:'sanaapro-import', version:4, source:'Chez Djamil — gestion',
     exportedAt: new Date().toISOString(), pressing: pressing, atelier: atelier, clientes: clientes, salaries: salaries, mouvements: mouvements };
   const nomFichier = 'chezdjamil-sanaapro-'+new Date().toISOString().slice(0,10)+'.json';
   const texte = JSON.stringify(fichier);
@@ -7783,7 +7790,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-10-18-export-sanaapro-4';
+const APP_VERSION = 'v2026-10-19-export-dates-justes';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
