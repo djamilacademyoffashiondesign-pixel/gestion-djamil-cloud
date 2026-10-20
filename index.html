@@ -2131,7 +2131,7 @@ function exporterVersSanaaProMaintenant(){
       prix: Number(c.prix)||0, paye: Number(c.acompte)||0, statut: ST_AT[c.statut] || 'recu',
       livraison: c.livraison||'', createdAtMs: ms(c.depot, c.creeLe, c.date), mesures: mes(c.mesures) };
   }).filter(function(x){ return x.numero && x.clienteName; });
-  const MESKEYS = ['cou','epaule','poitrine','longManche','tourManche','poignet','tourTaille','longTaille','ceinture','bassin','cuisse','pince','tourGenou','basPantalon','longHaut','longPantalon','longRobe','longJupe','carrure','longChemise','mancheCourte','longVeste','longBoubou','tourTete','entrejambe','montant','mollet'];
+  const MESKEYS = ['cou','epaule','poitrine','longManche','tourManche','poignet','tourTaille','longTaille','ceinture','bassin','cuisse','pince','tourGenou','basPantalon','longHaut','longPantalon','longRobe','longJupe','carrure','longChemise','mancheCourte','longVeste','longBoubou','tourTete','entrejambe','montant','mollet','pinceBas'];
   const clientes = (CACHE.clients_mesures||[]).map(function(f){
     const m = {}; MESKEYS.forEach(function(k){ if(f[k]!==undefined) m[k]=f[k]; });
     return { name: f.nom||'', phone: f.tel||'', genre: genre(f.genre), mesures: mes(m) };
@@ -7790,7 +7790,7 @@ function notifierRdvProches(rdv){
 /* Service worker minimal pour permettre les notifications Android */
 /* ===== MISE À JOUR AUTOMATIQUE : purge le cache quand une nouvelle version
    arrive, pour que les téléphones n'affichent plus jamais une vieille copie. */
-const APP_VERSION = 'v2026-10-19-export-dates-justes';
+const APP_VERSION = 'v2026-10-20-export-pince-bas';
 (function(){
   try{
     if(localStorage.getItem('cd_app_version') !== APP_VERSION){
